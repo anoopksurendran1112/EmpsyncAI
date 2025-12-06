@@ -1,0 +1,59 @@
+from datetime import datetime
+from punch.models import PunchRecords
+from company.models import Device
+
+def fix_punch(company_id=None, date=None, user_id=None):
+    # Validation rule (super important)
+    if user_id and not company_id:
+        return {"success": False, "message": "company_id is required when user_id is provided"}
+
+    # Convert date string
+    if date:
+        try:
+            date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD"}
+
+    # Device filtering
+    devices = Device.objects.using("default").all()
+    if company_id:
+        devices = devices.filter(company_id=company_id)
+        if not devices.exists():
+            return {"success": False, "message": "No devices found for this company"}
+
+    fixed_count = 0
+
+    for device in devices:
+        punches = PunchRecords.objects.using("secondary").filter(device_id=device.device_id)
+
+        # Filters
+        if date:
+            punches = punches.filter(punch_time__date=date)
+        if user_id:
+            punches = punches.filter(user_id=user_id)
+
+        user_dates = punches.values_list("user_id", "punch_time__date").distinct()
+
+        for uid, p_date in user_dates:
+            # Main fix across devices for that day
+            user_punches = PunchRecords.objects.using("secondary").filter(
+                user_id=uid,
+                punch_time__date=p_date
+            ).order_by("punch_time")
+
+            statuses = list(user_punches.values_list("status", flat=True))
+            # If already has Check-In and Check-Out → no fix needed
+            if "Check-In" in statuses and "Check-Out" in statuses:
+                continue
+
+            # Apply alternating status
+            for i, punch in enumerate(user_punches):
+                punch.status = "Check-In" if i % 2 == 0 else "Check-Out"
+                punch.save(using="secondary")
+                fixed_count += 1
+
+    return {
+        "success": True,
+        "message": "Punch fix completed",
+        "fixed": fixed_count
+    }
