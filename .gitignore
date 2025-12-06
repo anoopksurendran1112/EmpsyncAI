@@ -3,6 +3,8 @@
 .vscode/
 .idea/
 *.log
+*.py-bk*
+*-bk_*
 
 # --- Backend (Python/Django) ---
 # Byte-compiled / optimized / DLL files
