@@ -23,6 +23,8 @@ from django.utils.dateparse import parse_date
 from haversine import haversine, Unit
 from user.models import CustomUser
 import requests
+from .utils.deduplication import deduplicate_punches
+from .utils.process_day import process_single_day
 
 
 @api_view(['POST'])
@@ -143,7 +145,10 @@ def getPunches(request, page=None):
                 device_id__in=device_ids,
                 punch_time__date__gte=start_date,
                 punch_time__date__lte=end_date,
-            ).order_by('-punch_time').distinct()
+            ).order_by('punch_time').distinct() # Ensure ascending order for deduplication logic
+
+            # Apply Deduplication
+            punchDataRaw = deduplicate_punches(punchDataRaw)
 
             
 
@@ -164,66 +169,9 @@ def getPunches(request, page=None):
 
             for current_day in date_list:
                 punches = grouped_by_day.get(current_day, [])
-                if multi_mode:
-                    if punches:
-                        sorted_punches = sorted(punches, key=lambda x: x.punch_time)
-
-                        for idx, punch in enumerate(sorted_punches):
-                            punch_obj = {
-                                "id": punch.id,
-                                "date": punch.punch_time.date(),
-                                "punch_time": punch.punch_time.strftime("%Y-%m-%d %H:%M:%S"),
-
-                                "raw_status": punch.status,   # original from device (may be None)
-                            }
-                            # Alternate pairing
-                            if idx % 2 == 0:
-                                punch_obj["status"] = "Check-In"
-                            else:
-                                punch_obj["status"] = "Check-Out"
-
-                            filtered_punches.append(punch_obj)
-
-                        # If odd punches, last punch has no pair → pending
-                        if len(sorted_punches) % 2 != 0:
-                            filtered_punches[-1]["status"] = "pending"
-                            filtered_punches[-1]["message"] = "Partial punch recorded"
-                    else:
-                        filtered_punches.append({
-                            'date': current_day,
-                            'message': 'No punches recorded',
-                            'status': 'pending' if current_day == today else 'leave'
-                        })
-                else:
-                    check_ins = [p for p in punches if p.status == 'Check-In']
-                    check_outs = [p for p in punches if p.status == 'Check-Out']
-                    first_check_in = check_ins[-1] if check_ins else None
-                    latest_check_out = check_outs[0] if check_outs else None
-
-                    if not punches:
-                        filtered_punches.append({
-                            'date': current_day,
-                            'message': 'No punches recorded',
-                            'status': 'pending' if current_day == today else 'leave'
-                        })
-                    elif not first_check_in and not latest_check_out:
-                        filtered_punches.append({
-                            'date': current_day,
-                            'message': 'Day ongoing, no punches yet' if current_day == today else 'No punches recorded',
-                            'status': 'pending' if current_day == today else 'leave'
-                        })
-                    elif (first_check_in and not latest_check_out) or (latest_check_out and not first_check_in):
-                        partial = first_check_in or latest_check_out
-                        filtered_punches.append({
-                            'date': current_day,
-                            'punch_time': partial.punch_time.strftime('%H:%M:%S'),
-                            'message': 'Partial punch recorded',
-                            'status': 'pending' if current_day == today else 'absent'
-                        })
-                    else:
-                        filtered_punches.append(first_check_in)
-                        if latest_check_out != first_check_in:
-                            filtered_punches.append(latest_check_out)
+                
+                day_results = process_single_day(current_day, punches, multi_mode, today)
+                filtered_punches.extend(day_results)
 
             paginator = Paginator(filtered_punches, 20)
             pageData = paginator.get_page(page)
@@ -287,7 +235,10 @@ def todayPunch(request):
         user_id=biometric_id,
         device_id__in=device_ids,
         punch_time__date=today
-    ).order_by('-punch_time')
+    ).order_by('punch_time') 
+
+    # Apply Deduplication
+    punch = deduplicate_punches(punch)
 
     if not punch:
         return Response({

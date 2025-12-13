@@ -32,7 +32,8 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from collections import defaultdict
-from django.db.models import Q,F
+from django.db.models import Q, F, Value
+from django.db.models.functions import Coalesce
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -40,6 +41,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from datetime import datetime, timedelta
 from django.conf import settings
 import jwt
+from punch.utils.deduplication import deduplicate_punches
 
 def generate_token_user(user):
 
@@ -955,6 +957,9 @@ def getAllUsers(request, page):
             punch_time__date=today
         ).order_by('punch_time')
 
+        # --- DEDUPLICATION LOGIC ("Cluster & Sequence Match") ---
+        # valid_punches = deduplicate_punches(today_punches)
+
         # --- Work Hour Calculation ---
         avg_hour = getattr(user, avg_hour_field)
         serialized_user['avg_working_hour'] = round(avg_hour, 2)
@@ -963,7 +968,9 @@ def getAllUsers(request, page):
         threshold_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
         serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
         
-        # --- Today's Punch Calculation ---
+        # --- Today's Punch Calculation (Using Validated Punches) ---
+        # punch_ins = [punch.punch_time for punch in valid_punches if punch.status == 'Check-In']
+        # punch_outs = [punch.punch_time for punch in valid_punches if punch.status == 'Check-Out']
         punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
         punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
 
@@ -1182,28 +1189,40 @@ def getAllUsers(request, page):
 #     })
 
 
-@extend_schema(request=GetUserSerializer, responses=GetUserSerializer(many=True))
+@extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllEmployees(request, page):
     company_id = request.data.get('company_id')
 
-    if not c.CompanyUser.objects.get(user= request.user,company = company_id).is_admin:
-        return Response({
+    try:
+        if not c.CompanyUser.objects.get(user=request.user, company=company_id).is_admin:
+            return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'success': False,
+                'message': 'Unauthorized access.'
+            })
+    except c.CompanyUser.DoesNotExist:
+         return Response({
             'status': status.HTTP_403_FORBIDDEN,
             'success': False,
-            'message': 'Unauthorized access.'
+            'message': 'Unauthorized access or Company not found.'
         })
 
-    gender = request.data.get('gender')  # string
-    is_active = request.data.get('is_active')  # boolean
-    roles = request.data.get('roles', [])  # List of role IDs
-    avg_hour_filter = request.data.get('avg_hour_filter')
-    company = Company.objects.get(id=company_id)
-    avg_interval = company.work_summary_interval
-    punch_mode = company.punch_mode  # Get the punch mode: 'M' or 'S'
+    gender = request.data.get('gender')
+    is_active = request.data.get('is_active')
+    roles = request.data.get('roles', [])
     search = request.data.get('search', '').strip()
+    avg_hour_filter = request.data.get('avg_hour_filter')
 
-    filters = Q(company__id=company_id)
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response({'status': status.HTTP_404_NOT_FOUND, 'message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    avg_interval = company.work_summary_interval
+    avg_field = 'weekly_avg_working_hour' if avg_interval == 'W' else 'monthly_avg_working_hour'
+
+    filters = Q(company__id=company_id) & ~Q(id=request.user.id)
 
     if gender:
         filters &= Q(gender__in=gender)
@@ -1218,100 +1237,61 @@ def getAllEmployees(request, page):
             Q(email__icontains=search)
         )
 
-    
+    users = CustomUser.objects.filter(filters)
 
-    users = CustomUser.objects.filter(filters).exclude(id=request.user.id)
-    devices = Device.objects.filter(company=company_id)
-    device_ids = list(devices.values_list('device_id', flat=True))
-    today = date.today()
+    if avg_hour_filter is not None:
+        users = users.annotate(
+            threshold_hours=Coalesce('role__working_hour', Value(company.daily_working_hours))
+        )
+        if avg_hour_filter is True:
+            users = users.filter(**{f"{avg_field}__gt": F('threshold_hours')})
+        else:
+            users = users.filter(**{f"{avg_field}__lte": F('threshold_hours')})
 
-    if avg_interval == 'W':
-        # Weekly: from Monday to Friday of current week
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=6)
-    elif avg_interval == 'M':
-        # Monthly: from the 1st of the month to today
-        start_date = today.replace(day=1)
-        end_date = today
-    else:
-        # Fallback to weekly if undefined
-        start_date = today - timedelta(days=today.weekday())
-        end_date = start_date + timedelta(days=6)
+    users = users.distinct().order_by(
+        F('group__short_name').asc(nulls_last=True),
+        'first_name',
+        'last_name',
+        'id'
+    )
+
+    male_count = users.filter(gender='M').count()
+    female_count = users.filter(gender='F').count()
+    others_count = users.filter(gender='O').count()
 
     if not users.exists():
         return Response({
-            'status': status.HTTP_200_OK,
-            'total': 0,
-            'page': page,
-            'total_page': 0,
-            'success': True,
-            'message': 'No users found.',
-            'data': []
+            'status': status.HTTP_200_OK, 'total': 0, 'page': page, 'total_page': 0,
+            'success': True, 'message': 'No users found.', 'male_count': male_count,
+            'female_count': female_count, 'others_count': others_count, 'data': []
         })
+
+    paginator = Paginator(users, 10)
+    try:
+        page_data = paginator.page(page)
+    except Exception:
+        page_data = paginator.page(paginator.num_pages)
+    
+    users_on_current_page = page_data.object_list
+    
+    today = date.today()
+    devices = Device.objects.filter(company=company_id)
+    device_ids = list(devices.values_list('device_id', flat=True))
 
     user_data = []
 
-    for user in users:
+    for user in users_on_current_page:
+        serializer = UserSerializer(user, context={'company_id': company_id})
+        serialized_user = serializer.data
         biometric_id = user.biometric_id
-        serialized_user = UserSerializer(user).data
 
-        # Calculate average working hours from Monday to Friday
-        week_punches = PunchRecords.objects.using('secondary').filter(
-            user_id=biometric_id,
-            device_id__in=device_ids,
-            punch_time__date__gte=start_date,
-            punch_time__date__lte=end_date
-        ).order_by('punch_time')
-
-        daily_hours = []
-        worked_days = 0
-        current_date = start_date
-        while current_date <= end_date:
-            day_punches = week_punches.filter(punch_time__date=current_date)
-            check_ins = [p for p in day_punches if p.status == 'Check-In']
-            check_outs = [p for p in day_punches if p.status == 'Check-Out']
-            if check_ins and check_outs:  # User worked this day
-                worked_days += 1
-                if punch_mode == 'M':
-                    # Multi-punch mode: Sum durations of all Check-In to Check-Out pairs
-                    total_daily_duration = 0
-                    check_in_index = 0
-                    while check_in_index < len(check_ins):
-                        in_time = check_ins[check_in_index].punch_time
-                        # Find the next Check-Out after this Check-In
-                        next_out_index = next((i for i, out in enumerate(check_outs) if out.punch_time > in_time), None)
-                        if next_out_index is not None:
-                            out_time = check_outs[next_out_index].punch_time
-                            duration = (out_time - in_time).total_seconds() / 3600  # In hours
-                            total_daily_duration += duration
-                            # Remove the used Check-Out to avoid reuse
-                            check_outs.pop(next_out_index)
-                        check_in_index += 1
-                    daily_hours.append(total_daily_duration)
-                else:
-                    # Single-punch mode: Use max Check-Out minus min Check-In
-                    daily_duration = (max(check_outs, key=lambda x: x.punch_time).punch_time - 
-                                     min(check_ins, key=lambda x: x.punch_time).punch_time).total_seconds() / 3600
-                    daily_hours.append(daily_duration)
-
-            current_date += timedelta(days=1)
-
-        # Avoid division by zero if the user didn't work any days
-        avg_working_hours = sum(daily_hours) / worked_days if worked_days else 0
-        company = Company.objects.get(id=company_id)
-
-        if company.work_summary_interval == 'W':
-            avg_hour = user.weekly_avg_working_hour
-        else:  # Monthly
-            avg_hour = user.monthly_avg_working_hour
-
+        avg_hour = getattr(user, avg_field)
         serialized_user['avg_working_hour'] = round(avg_hour, 2)
-        if user.role and user.role.working_hour is not None:
-            serialized_user['is_below_avg_hours'] = avg_hour < user.role.working_hour
-        else:
-            serialized_user['is_below_avg_hours'] = avg_hour < company.daily_working_hours
 
-        # Calculate today's Check-In and Check-Out
+        role_working_hour = user.role.working_hour if user.role and user.role.working_hour is not None else None
+        threshold_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
+        serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
+
         today_punches = PunchRecords.objects.using('secondary').filter(
             user_id=biometric_id,
             device_id__in=device_ids,
@@ -1324,51 +1304,209 @@ def getAllEmployees(request, page):
         check_in = min(punch_ins) if punch_ins else None
         check_out = max(punch_outs) if punch_outs else None
 
-        serialized_user['check_in'] = check_in
-        serialized_user['check_out'] = check_out
+        serialized_user['check_in'] = check_in.isoformat() if check_in else None
+        serialized_user['check_out'] = check_out.isoformat() if check_out else None
 
-        user_data.append(serialized_user)  # Add user to the list
-
-    # Apply the avg_hour_filter after collecting all users
-    if avg_hour_filter is not None:
-        company = Company.objects.get(id=company_id)
-        filtered_user_data = []
-
-        for user in user_data:
-            # Get user role working hour if available, else fallback to company working hour
-            role_working_hour = getattr(user.get('role'), 'working_hour', None)
-            working_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
-
-            if avg_hour_filter and user['avg_working_hour'] > working_hour:
-                filtered_user_data.append(user)
-            elif not avg_hour_filter and user['avg_working_hour'] <= working_hour:
-                filtered_user_data.append(user)
-
-        user_data = filtered_user_data
-
-    user_data = sorted(
-    user_data,
-    key=lambda x: (
-        x.get('group') is None,   # False < True → non-nulls first
-        x.get('group') or "",
-        x.get('role') or ""
-    )
-)
-
-    # Pagination
-    paginator = Paginator(user_data, 10)
-    page_data = paginator.get_page(page)
+        user_data.append(serialized_user)
 
     return Response({
         'status': status.HTTP_200_OK,
         'total': paginator.count,
-        'page': page,
+        'page': page_data.number,
         'total_page': paginator.num_pages,
+        'male_count': male_count,
+        'female_count': female_count,
+        'others_count': others_count,
         'success': True,
-        'message': 'No users found.' if paginator.count == 0 else 'Success',
-        'data': page_data.object_list
+        'message': 'Success',
+        'data': user_data
     })
 
+
+# @extend_schema(request=GetUserSerializer, responses=GetUserSerializer(many=True))
+# @api_view(['POST'])
+# def getAllEmployees(request, page):
+#     company_id = request.data.get('company_id')
+
+#     if not c.CompanyUser.objects.get(user= request.user,company = company_id).is_admin:
+#         return Response({
+#             'status': status.HTTP_403_FORBIDDEN,
+#             'success': False,
+#             'message': 'Unauthorized access.'
+#         })
+
+#     gender = request.data.get('gender')   # string
+#     is_active = request.data.get('is_active')   # boolean
+#     roles = request.data.get('roles', [])   # List of role IDs
+#     avg_hour_filter = request.data.get('avg_hour_filter')
+#     company = Company.objects.get(id=company_id)
+#     avg_interval = company.work_summary_interval
+#     punch_mode = company.punch_mode   # Get the punch mode: 'M' or 'S'
+#     search = request.data.get('search', '').strip()
+
+#     filters = Q(company__id=company_id)
+
+#     if gender:
+#         filters &= Q(gender__in=gender)
+#     if is_active is not None:
+#         filters &= Q(is_active=is_active)
+#     if roles:
+#         filters &= Q(role_id__in=roles)
+#     if search:
+#         filters &= (
+#             Q(first_name__icontains=search) |
+#             Q(last_name__icontains=search) |
+#             Q(email__icontains=search)
+#         )
+
+#     users = CustomUser.objects.filter(filters).exclude(id=request.user.id)
+#     devices = Device.objects.filter(company=company_id)
+#     device_ids = list(devices.values_list('device_id', flat=True))
+#     today = date.today()
+
+#     if avg_interval == 'W':
+#         # Weekly: from Monday to Friday of current week
+#         start_date = today - timedelta(days=today.weekday())
+#         end_date = start_date + timedelta(days=6)
+#     elif avg_interval == 'M':
+#         # Monthly: from the 1st of the month to today
+#         start_date = today.replace(day=1)
+#         end_date = today
+#     else:
+#         # Fallback to weekly if undefined
+#         start_date = today - timedelta(days=today.weekday())
+#         end_date = start_date + timedelta(days=6)
+
+#     if not users.exists():
+#         return Response({
+#             'status': status.HTTP_200_OK,
+#             'total': 0,
+#             'page': page,
+#             'total_page': 0,
+#             'success': True,
+#             'message': 'No users found.',
+#             'data': []
+#         })
+
+#     user_data = []
+
+#     for user in users:
+#         biometric_id = user.biometric_id
+#         serialized_user = UserSerializer(user).data
+
+#         # Calculate average working hours from Monday to Friday
+#         week_punches = PunchRecords.objects.using('secondary').filter(
+#             user_id=biometric_id,
+#             device_id__in=device_ids,
+#             punch_time__date__gte=start_date,
+#             punch_time__date__lte=end_date
+#         ).order_by('punch_time')
+
+#         daily_hours = []
+#         worked_days = 0
+#         current_date = start_date
+#         while current_date <= end_date:
+#             day_punches = week_punches.filter(punch_time__date=current_date)
+#             check_ins = [p for p in day_punches if p.status == 'Check-In']
+#             check_outs = [p for p in day_punches if p.status == 'Check-Out']
+#             if check_ins and check_outs:   # User worked this day
+#                 worked_days += 1
+#                 if punch_mode == 'M':
+#                     # Multi-punch mode: Sum durations of all Check-In to Check-Out pairs
+#                     total_daily_duration = 0
+#                     check_in_index = 0
+#                     while check_in_index < len(check_ins):
+#                         in_time = check_ins[check_in_index].punch_time
+#                         # Find the next Check-Out after this Check-In
+#                         next_out_index = next((i for i, out in enumerate(check_outs) if out.punch_time > in_time), None)
+#                         if next_out_index is not None:
+#                             out_time = check_outs[next_out_index].punch_time
+#                             duration = (out_time - in_time).total_seconds() / 3600   # In hours
+#                             total_daily_duration += duration
+#                             # Remove the used Check-Out to avoid reuse
+#                             check_outs.pop(next_out_index)
+#                             check_in_index += 1
+#                         daily_hours.append(total_daily_duration)
+#                 else:
+#                     # Single-punch mode: Use max Check-Out minus min Check-In
+#                     daily_duration = (max(check_outs, key=lambda x: x.punch_time).punch_time - 
+#                                     min(check_ins, key=lambda x: x.punch_time).punch_time).total_seconds() / 3600
+#                     daily_hours.append(daily_duration)
+
+#                 current_date += timedelta(days=1)
+
+#             # Avoid division by zero if the user didn't work any days
+#             avg_working_hours = sum(daily_hours) / worked_days if worked_days else 0
+#             company = Company.objects.get(id=company_id)
+
+#             if company.work_summary_interval == 'W':
+#                 avg_hour = user.weekly_avg_working_hour
+#             else:   # Monthly
+#                 avg_hour = user.monthly_avg_working_hour
+
+#             serialized_user['avg_working_hour'] = round(avg_hour, 2)
+#             if user.role and user.role.working_hour is not None:
+#                 serialized_user['is_below_avg_hours'] = avg_hour < user.role.working_hour
+#             else:
+#                 serialized_user['is_below_avg_hours'] = avg_hour < company.daily_working_hours
+
+#             # Calculate today's Check-In and Check-Out
+#             today_punches = PunchRecords.objects.using('secondary').filter(
+#                 user_id=biometric_id,
+#                 device_id__in=device_ids,
+#                 punch_time__date=today
+#             ).order_by('punch_time')
+
+#             punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
+#             punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
+
+#             check_in = min(punch_ins) if punch_ins else None
+#             check_out = max(punch_outs) if punch_outs else None
+
+#             serialized_user['check_in'] = check_in
+#             serialized_user['check_out'] = check_out
+
+#             user_data.append(serialized_user)   # Add user to the list
+
+#         # Apply the avg_hour_filter after collecting all users
+#         if avg_hour_filter is not None:
+#             company = Company.objects.get(id=company_id)
+#             filtered_user_data = []
+
+#             for user in user_data:
+#                 # Get user role working hour if available, else fallback to company working hour
+#                 role_working_hour = getattr(user.get('role'), 'working_hour', None)
+#                 working_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
+
+#                 if avg_hour_filter and user['avg_working_hour'] > working_hour:
+#                     filtered_user_data.append(user)
+#                 elif not avg_hour_filter and user['avg_working_hour'] <= working_hour:
+#                     filtered_user_data.append(user)
+
+#             user_data = filtered_user_data
+
+#         user_data = sorted(
+#             user_data,
+#             key=lambda x: (
+#                 x.get('group') is None,   # False < True → non-nulls first
+#                 x.get('group') or "",
+#                 x.get('role') or ""
+#             )
+# )
+
+#         # Pagination
+#         paginator = Paginator(user_data, 10)
+#         page_data = paginator.get_page(page)
+
+#         return Response({
+#             'status': status.HTTP_200_OK,
+#             'total': paginator.count,
+#             'page': page,
+#             'total_page': paginator.num_pages,
+#             'success': True,
+#             'message': 'No users found.' if paginator.count == 0 else 'Success',
+#             'data': page_data.object_list
+#         })
 
 
 
