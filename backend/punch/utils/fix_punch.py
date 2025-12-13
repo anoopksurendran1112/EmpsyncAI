@@ -1,0 +1,145 @@
+from datetime import datetime, date as date_cls
+from punch.models import PunchRecords
+from company.models import Device, Company
+
+def fix_punch(company_id=None, date=None, user_id=None):
+
+    # Validation rule (super important)
+    if user_id and not company_id:
+        return {"success": False, "message": "company_id is required when user_id is provided"}
+
+    # Convert date string
+    if date:
+        try:
+            date = datetime.strptime(date, "%Y-%m-%d").date()
+        except ValueError:
+            return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD"}
+    else:
+        # If only company provided, use its last_sync
+        if company_id and user_id is None:
+            try:
+                comp = Company.objects.get(pk=company_id)
+                if comp.last_sync:
+                    date = comp.last_sync  # Use company's last_sync
+                else:
+                    date = date_cls.today()  # fallback
+            except Company.DoesNotExist:
+                return {"success": False, "message": "Company not found"}
+
+    # If only date given, update all companies' last_sync ?
+    # Better logic: update only when company_id exists
+ 
+
+    # Device filtering
+    devices = Device.objects.using("default").all()
+    if company_id:
+        devices = devices.filter(company_id=company_id)
+        if not devices.exists():
+            return {"success": False, "message": "No devices found for this company"}
+
+    fixed_count = 0
+
+    device_ids = list(devices.values_list("device_id", flat=True))
+
+    # Get all punches of all devices together
+    punches = PunchRecords.objects.using("secondary").filter(device_id__in=device_ids)
+
+    if date:
+        punches = punches = punches.filter(punch_time__date__gte=date, punch_time__date__lte=date_cls.today())
+
+
+    if user_id:
+        punches = punches.filter(user_id=user_id)
+
+    user_dates = punches.values_list("user_id", "punch_time__date").distinct()
+
+    for uid, p_date in user_dates:
+
+        # merge all devices → sort by time
+        user_punches = PunchRecords.objects.using("secondary").filter(
+            user_id=uid,
+            punch_time__date=p_date,
+            device_id__in=device_ids
+        ).order_by("punch_time")
+
+        for i, punch in enumerate(user_punches):
+            new_status = "Check-In" if i % 2 == 0 else "Check-Out"
+            if punch.status != new_status:
+                PunchRecords.objects.using("secondary").filter(pk=punch.pk).update(status=new_status)
+                fixed_count += 1
+
+    if company_id and user_id is None:
+        Company.objects.filter(pk=company_id).update(last_sync=date_cls.today())
+
+    return {
+        "success": True,
+        "message": "Punch fix completed",
+        "fixed": fixed_count
+    }
+
+
+# from datetime import datetime
+# from punch.models import PunchRecords
+# from company.models import Device
+
+# def fix_punch(company_id=None, date=None, user_id=None):
+#     # Validation rule (super important)
+#     if user_id and not company_id:
+#         return {"success": False, "message": "company_id is required when user_id is provided"}
+
+#     # Convert date string
+#     if date:
+#         try:
+#             date = datetime.strptime(date, "%Y-%m-%d").date()
+#         except ValueError:
+#             return {"success": False, "message": "Invalid date format. Use YYYY-MM-DD"}
+
+#     # Device filtering
+#     devices = Device.objects.using("default").all()
+#     if company_id:
+#         devices = devices.filter(company_id=company_id)
+#         if not devices.exists():
+#             return {"success": False, "message": "No devices found for this company"}
+
+#     fixed_count = 0
+
+#     device_ids = list(devices.values_list("device_id", flat=True))
+
+#     # Get all punches of all devices together
+#     punches = PunchRecords.objects.using("secondary").filter(device_id__in=device_ids)
+
+#     if date:
+#         punches = punches.filter(punch_time__date=date)
+
+#     if user_id:
+#         punches = punches.filter(user_id=user_id)
+
+#     user_dates = punches.values_list("user_id", "punch_time__date").distinct()
+
+#     for uid, p_date in user_dates:
+
+#         # merge all devices → sort by time
+#         user_punches = PunchRecords.objects.using("secondary").filter(
+#             user_id=uid,
+#             punch_time__date=p_date,
+#             device_id__in=device_ids
+#         ).order_by("punch_time")
+
+#         statuses = list(user_punches.values_list("status", flat=True))
+
+#         # Only skip if alternating is already correct
+#         # (Check-In and Check-Out both exist doesn't mean correct order)
+#         # So we remove this line:
+#         # if "Check-In" in statuses and "Check-Out" in statuses: continue
+
+#         for i, punch in enumerate(user_punches):
+#             new_status = "Check-In" if i % 2 == 0 else "Check-Out"
+#             PunchRecords.objects.using("secondary").filter(pk=punch.pk).update(status=new_status)
+#             fixed_count += 1
+
+
+#     return {
+#         "success": True,
+#         "message": "Punch fix completed",
+#         "fixed": fixed_count
+#     }

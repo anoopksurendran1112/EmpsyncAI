@@ -1,0 +1,14 @@
+django
+djangorestframework
+drf-spectacular
+Pillow
+djangorestframework-simplejwt
+django-cors-headers
+python-dotenv
+mysqlclient
+haversine
+requests
+firebase-admin
+django-cors-headers
+django-redis
+
