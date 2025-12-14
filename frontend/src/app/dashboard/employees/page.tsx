@@ -683,7 +683,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
             </p>
           </div>
           
-          <FilterComponent
+          {/* <FilterComponent
             selectedGroupId={selectedGroupId}
             setSelectedGroupId={setSelectedGroupId}
             searchQuery={searchQuery}
@@ -694,7 +694,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
             groupsLoading={groupsLoading}
             groupsError={groupsError}
             filteredLoading={filteredLoading}
-          />
+          /> */}
         </div>
       </div>
       
@@ -772,6 +772,21 @@ function EmployeesList({ companyId }: { companyId: number }) {
         </div>
       </div>
 
+        {/* Filter Component - aligned to the right */}
+        <div className="flex justify-end mb-6">
+          <FilterComponent
+            selectedGroupId={selectedGroupId}
+            setSelectedGroupId={setSelectedGroupId}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            showFilters={showFilters}
+            setShowFilters={setShowFilters}
+            groupsData={groupsData}
+            groupsLoading={groupsLoading}
+            groupsError={groupsError}
+            filteredLoading={filteredLoading}
+          />
+        </div>
       {loadingPunches && (
         <div className="flex justify-center items-center py-4">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
