@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import { Building2 } from "lucide-react";
 
@@ -11,6 +12,8 @@ export function SwitchCompanyButton() {
   const [selectedCompany, setSelectedCompany] = useState("");
   const [imageError, setImageError] = useState(false);
   const { switchCompany, company } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Set selected company when component mounts or when company changes
   useEffect(() => {
@@ -100,11 +103,20 @@ export function SwitchCompanyButton() {
         is_admin: false,
       });
 
-      // FINALLY: Reload the page to ensure all components use the new company
-      console.log('🔄 Reloading page to apply company change...');
-      setTimeout(() => {
-        window.location.reload();
-      }, 500); // Small delay to ensure cookie is set
+      // DECIDE REDIRECTION PATH
+      // Check if we're on any employee detail page (including punch page)
+      const isOnEmployeeDetailPage = pathname?.match(/^\/dashboard\/employees\/[^\/]+(\/.*)?$/);
+      
+      if (isOnEmployeeDetailPage) {
+        console.log('📍 Currently on employee detail page, redirecting to employee list...');
+        router.push('/dashboard/employees');
+      } else {
+        // For other pages (dashboard, settings, employee list, etc.), reload to ensure all components use the new company
+        console.log('🔄 Reloading page to apply company change...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      }
 
     } catch (error) {
       console.error('❌ Error switching company:', error);
@@ -235,28 +247,55 @@ export function SwitchCompanyButton() {
 //     return `${company?.mediaBaseUrl}/media/default_company.png`;
 //   };
 
-//   const handleSwitch = () => {
+//   const handleSwitch = async () => {
 //     if (!selectedCompany) return;
 
 //     const companyObj = companies.find((c) => c.id === selectedCompany);
 //     if (!companyObj) return;
 
-//     switchCompany({
-//       id: Number(companyObj.id),
-//       company_name: companyObj.name,
-//       company_img: companyObj.logo || "",
-//       mediaBaseUrl: company?.mediaBaseUrl || "https://empsyncai.kochi.digital",
-//       latitude: 0,
-//       longitude: 0,
-//       perimeter: 0,
-//       travel_speed_threshold: 0,
-//       daily_working_hours: 0,
-//       work_summary_interval: "",
-//       punch_mode: "",
-//       is_admin: false,
-//     });
+//     try {
+//       // FIRST: Update the company cookie
+//       console.log('🔄 Updating company cookie to:', selectedCompany);
+//       const cookieResponse = await fetch('/api/update-company-cookie', {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ company_id: selectedCompany }),
+//       });
 
-//     window.location.reload();
+//       const cookieResult = await cookieResponse.json();
+      
+//       if (!cookieResult.success) {
+//         console.error('❌ Failed to update company cookie');
+//         return;
+//       }
+
+//       console.log('✅ Company cookie updated successfully');
+
+//       // THEN: Update AuthContext
+//       switchCompany({
+//         id: Number(companyObj.id),
+//         company_name: companyObj.name,
+//         company_img: companyObj.logo || "",
+//         mediaBaseUrl: company?.mediaBaseUrl || "https://empsyncai.kochi.digital",
+//         latitude: 0,
+//         longitude: 0,
+//         perimeter: 0,
+//         travel_speed_threshold: 0,
+//         daily_working_hours: 0,
+//         work_summary_interval: "",
+//         punch_mode: "",
+//         is_admin: false,
+//       });
+
+//       // FINALLY: Reload the page to ensure all components use the new company
+//       console.log('🔄 Reloading page to apply company change...');
+//       setTimeout(() => {
+//         window.location.reload();
+//       }, 500); // Small delay to ensure cookie is set
+
+//     } catch (error) {
+//       console.error('❌ Error switching company:', error);
+//     }
 //   };
 
 //   // Get current company object
@@ -307,14 +346,17 @@ export function SwitchCompanyButton() {
 //         ))}
 //       </select>
       
-//    {/* Switch Company Button (Teal) */}
-//   <Button 
-//     onClick={handleSwitch} 
-//     className="bg-teal-600 hover:bg-teal-700 text-white"
-//     size="sm"
-//   >
-//     Switch
-//   </Button>
+//       {/* Switch Company Button (Teal) */}
+//       <Button 
+//         onClick={handleSwitch} 
+//         className="bg-teal-600 hover:bg-teal-700 text-white"
+//         size="sm"
+//         disabled={!selectedCompany}
+//       >
+//         Switch
+//       </Button>
 //     </div>
 //   );
 // }
+
+
