@@ -150,8 +150,6 @@ def getPunches(request, page=None):
             # Apply Deduplication
             punchDataRaw = deduplicate_punches(punchDataRaw)
 
-            
-
             grouped_by_day = defaultdict(list)
             for punch in punchDataRaw:
                 punch_date = punch.punch_time.date()

@@ -25,7 +25,7 @@ print("DB USER:", os.getenv("DB_USER"))
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug TRUE on production
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'empsyncai.kochi.digital']
 

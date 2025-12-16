@@ -35,8 +35,8 @@ def process_single_day(current_day, punches, multi_mode, today):
     else:
         check_ins = [p for p in punches if p.status == 'Check-In']
         check_outs = [p for p in punches if p.status == 'Check-Out']
-        first_check_in = check_ins[-1] if check_ins else None
-        latest_check_out = check_outs[0] if check_outs else None
+        first_check_in = check_ins[0] if check_ins else None
+        latest_check_out = check_outs[-1] if check_outs else None
 
         if not punches:
             filtered_punches_for_day.append({
