@@ -890,6 +890,8 @@ def addPunch(request):
                         status=status.HTTP_400_BAD_REQUEST)
 
     results = []
+    earliest_date = None
+    company_to_update = None
 
     for punch_data in punches:
         biometric_id = punch_data.get('user_id')
