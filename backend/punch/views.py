@@ -725,12 +725,13 @@ def punch_report(request):
                     check_outs.sort(key=lambda x: x.punch_time)
 
                     in_index = 0
+                    check_outs_copy = list(check_outs)
                     while in_index < len(check_ins):
                         in_time = check_ins[in_index].punch_time
-                        out = next((o for o in check_outs if o.punch_time > in_time), None)
+                        out = next((o for o in check_outs_copy if o.punch_time > in_time), None)
                         if out:
                             work_duration += (out.punch_time - in_time).total_seconds() / 3600
-                            check_outs.remove(out)
+                            check_outs_copy.remove(out)
                         in_index += 1
                 else:
                     # Single punch mode
@@ -758,8 +759,6 @@ def punch_report(request):
         return Response({"error": str(e)}, status=500)
 
 
-
-
 @api_view(["POST"])
 def punch_report_by_date(request):
     try:
@@ -775,8 +774,7 @@ def punch_report_by_date(request):
 
         # Get company and punch mode
         company = Company.objects.get(id=company_id)
-        company_devices = list(Device.objects.filter(company_id=company_id).values_list("device_id", flat=True)
-)
+        company_devices = list(Device.objects.filter(company_id=company_id).values_list("device_id", flat=True))
 
 
         punch_mode = company.punch_mode  # 'M' or 'S'
@@ -835,13 +833,14 @@ def punch_report_by_date(request):
                     check_outs.sort(key=lambda x: x.punch_time)
 
                     in_index = 0
+                    check_outs_copy = list(check_outs)
                     while in_index < len(check_ins):
                         in_time = check_ins[in_index].punch_time
-                        out = next((o for o in check_outs if o.punch_time > in_time), None)
+                        out = next((o for o in check_outs_copy if o.punch_time > in_time), None)
                         if out:
                             duration = (out.punch_time - in_time).total_seconds() / 3600
                             work_duration += duration
-                            check_outs.remove(out)
+                            check_outs_copy.remove(out)
                         in_index += 1
                 else:
                     # Single punch mode
@@ -854,8 +853,8 @@ def punch_report_by_date(request):
 
                 user_result["daily_logs"].append({
                     "date": punch_date.strftime("%Y-%m-%d"),
-                   "check_ins": [p.punch_time.isoformat() for p in check_ins],
-"check_outs": [p.punch_time.isoformat() for p in check_outs],
+                    "check_ins": [p.punch_time.isoformat() for p in check_ins],
+                    "check_outs": [p.punch_time.isoformat() for p in check_outs],
                     "working_hours": round(work_duration, 2)
                 })
 
@@ -878,6 +877,221 @@ def punch_report_by_date(request):
         return Response({"error": str(e)}, status=500)
 
 
+# @api_view(["POST"])
+# @permission_classes([AllowAny])
+# def punch_report(request):
+#     try:
+#         company_id = request.data.get("company_id")
+#         from_date_str = request.data.get("from_date")
+#         to_date_str = request.data.get("to_date")
+
+#         if not all([company_id, from_date_str, to_date_str]):
+#             return Response({"error": "Missing required fields."}, status=400)
+
+#         from_date = make_aware(datetime.strptime(from_date_str, "%Y-%m-%d"))
+#         to_date = make_aware(datetime.strptime(to_date_str, "%Y-%m-%d") + timedelta(days=1))
+
+#         # Get company and punch mode
+#         company = Company.objects.get(id=company_id)
+#         punch_mode = company.punch_mode  # 'M' or 'S'
+
+#         # ✅ Fetch users with valid biometric IDs
+#         users = CustomUser.objects.filter(company__id=company_id)\
+#             .exclude(biometric_id__isnull=True)\
+#             .exclude(biometric_id='')
+
+#         user_map = {str(u.biometric_id).strip(): u for u in users}
+
+#         # ✅ Fetch punches
+#         punches = PunchRecords.objects.using('secondary').filter(
+#             user_id__in=user_map.keys(),
+#             punch_time__range=(from_date, to_date)
+#         ).order_by("user_id", "punch_time")
+
+#         # ✅ Organize punches by user and date
+#         user_daily_data = defaultdict(lambda: defaultdict(list))
+
+#         for punch in punches:
+#             biometric_id = str(punch.user_id).strip()
+#             punch_date = punch.punch_time.date()
+#             user_daily_data[biometric_id][punch_date].append(punch)
+
+#         final_result = []
+
+#         for biometric_id, daily_records in user_daily_data.items():
+#             user = user_map.get(biometric_id)
+#             if not user:
+#                 continue
+
+#             user_result = {
+#                 "user_id": biometric_id,
+#                 "name": user.get_full_name(),
+#                 # "role": user.role.role if user.role else "",
+#                 # "group": user.group.group if user.group else "",
+#                 # "gender": user.get_gender_display() if user.gender else "",
+#                 # "working_mode": "WFH" if user.is_wfh else "On-site",
+#                 "daily_logs": []
+#             }
+
+#             for punch_date, records in daily_records.items():
+#                 check_ins = [p for p in records if p.status == "Check-In"]
+#                 check_outs = [p for p in records if p.status == "Check-Out"]
+
+#                 work_duration = 0
+#                 if punch_mode == 'M':
+#                     check_ins.sort(key=lambda x: x.punch_time)
+#                     check_outs.sort(key=lambda x: x.punch_time)
+
+#                     in_index = 0
+#                     while in_index < len(check_ins):
+#                         in_time = check_ins[in_index].punch_time
+#                         out = next((o for o in check_outs if o.punch_time > in_time), None)
+#                         if out:
+#                             work_duration += (out.punch_time - in_time).total_seconds() / 3600
+#                             check_outs.remove(out)
+#                         in_index += 1
+#                 else:
+#                     # Single punch mode
+#                     if check_ins and check_outs:
+#                         work_duration = (
+#                             max(check_outs, key=lambda x: x.punch_time).punch_time -
+#                             min(check_ins, key=lambda x: x.punch_time).punch_time
+#                         ).total_seconds() / 3600
+
+#                 user_result["daily_logs"].append({
+#                     # "date": punch_date.strftime("%Y-%m-%d"),
+#                     "check_ins": [p.punch_time.isoformat() for p in check_ins],
+#                     "check_outs": [p.punch_time.isoformat() for p in check_outs],
+#                     # "working_hours": round(work_duration, 2)
+#                 })
+
+#             final_result.append(user_result)
+
+#         # ✅ Return final formatted JSON response
+#         return Response(final_result)
+
+#     except Exception as e:
+#         import traceback
+#         traceback.print_exc()
+#         return Response({"error": str(e)}, status=500)
+
+# @api_view(["POST"])
+# def punch_report_by_date(request):
+#     try:
+#         company_id = request.data.get("company_id")
+#         from_date_str = request.data.get("from_date")
+#         to_date_str = request.data.get("to_date")
+
+#         if not all([company_id, from_date_str, to_date_str]):
+#             return Response({"error": "Missing required fields."}, status=400)
+
+#         from_date = make_aware(datetime.strptime(from_date_str, "%Y-%m-%d"))
+#         to_date = make_aware(datetime.strptime(to_date_str, "%Y-%m-%d") + timedelta(days=1))
+
+#         # Get company and punch mode
+#         company = Company.objects.get(id=company_id)
+#         company_devices = list(Device.objects.filter(company_id=company_id).values_list("device_id", flat=True))
+
+
+#         punch_mode = company.punch_mode  # 'M' or 'S'
+
+#         # ✅ Fetch users with valid biometric_id only
+#         users = CustomUser.objects.filter(company__id=company_id)\
+#             .exclude(biometric_id__isnull=True).exclude(biometric_id='')
+
+#         user_map = {str(u.biometric_id).strip(): u for u in users}
+
+
+#         # ✅ Fetch punches
+#         punches = PunchRecords.objects.using('secondary').filter(
+#             user_id__in=user_map.keys(),
+#             device_id__in=company_devices,
+#             punch_time__range=(from_date, to_date)
+#         ).order_by("user_id", "punch_time")
+
+
+#         # ✅ Organize punches by biometric ID and date
+#         user_daily_data = defaultdict(lambda: defaultdict(list))  # {biometric_id: {date: [punches]}}
+
+#         for punch in punches:
+#             biometric_id = str(punch.user_id).strip()
+#             punch_date = punch.punch_time.date()
+#             user_daily_data[biometric_id][punch_date].append(punch)
+
+#         final_result = []
+
+#         for biometric_id, daily_records in user_daily_data.items():
+#             biometric_id = biometric_id.strip()
+#             user = user_map.get(biometric_id)
+
+#             if not user:
+#                 continue
+
+#             user_result = {
+#                 "user_id": biometric_id,
+#                 "name": user.get_full_name(),
+#                 "role": user.role.role if user.role else "",
+#                 "group": user.group.group if user.group else "",
+#                 "gender": user.get_gender_display() if user.gender else "",
+#                 "working_mode": "WFH" if user.is_wfh else "On-site",
+#                 "daily_logs": []
+#             }
+
+#             total_hours = 0
+
+#             for punch_date, records in daily_records.items():
+#                 check_ins = [p for p in records if p.status == "Check-In"]
+#                 check_outs = [p for p in records if p.status == "Check-Out"]
+#                 work_duration = 0
+
+#                 if punch_mode == 'M':
+#                     check_ins.sort(key=lambda x: x.punch_time)
+#                     check_outs.sort(key=lambda x: x.punch_time)
+
+#                     in_index = 0
+#                     while in_index < len(check_ins):
+#                         in_time = check_ins[in_index].punch_time
+#                         out = next((o for o in check_outs if o.punch_time > in_time), None)
+#                         if out:
+#                             duration = (out.punch_time - in_time).total_seconds() / 3600
+#                             work_duration += duration
+#                             check_outs.remove(out)
+#                         in_index += 1
+#                 else:
+#                     # Single punch mode
+#                     if check_ins and check_outs:
+#                         duration = (
+#                             max(check_outs, key=lambda x: x.punch_time).punch_time -
+#                             min(check_ins, key=lambda x: x.punch_time).punch_time
+#                         ).total_seconds() / 3600
+#                         work_duration = duration
+
+#                 user_result["daily_logs"].append({
+#                     "date": punch_date.strftime("%Y-%m-%d"),
+#                    "check_ins": [p.punch_time.isoformat() for p in check_ins],
+#                     "check_outs": [p.punch_time.isoformat() for p in check_outs],
+#                     "working_hours": round(work_duration, 2)
+#                 })
+
+#                 total_hours += work_duration
+
+#             user_result["total_working_hours"] = round(total_hours, 2)
+#             final_result.append(user_result)
+
+#         return Response({
+#             "company_id": company_id,
+#             "from_date": from_date_str,
+#             "to_date": to_date_str,
+#             "user_count": len(final_result),
+#             "records": final_result
+#         })
+
+#     except Exception as e:
+#         import traceback
+#         traceback.print_exc()
+#         return Response({"error": str(e)}, status=500)
+
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -890,6 +1104,8 @@ def addPunch(request):
                         status=status.HTTP_400_BAD_REQUEST)
 
     results = []
+    earliest_date = None
+    company_to_update = None
 
     for punch_data in punches:
         biometric_id = punch_data.get('user_id')
