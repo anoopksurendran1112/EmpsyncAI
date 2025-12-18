@@ -63,31 +63,6 @@ function extractTime(dateStr: string | null): string {
   return dateStr;
 }
 
-function calculateCurrentWorkHours(checkIn: string | null): string {
-  if (!checkIn || checkIn === "--") return "--";
-  
-  try {
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    
-    const [inHours, inMinutes] = checkIn.split(":").map(Number);
-    const [currentHours, currentMinutes] = currentTime.split(":").map(Number);
-    
-    let totalMinutes = (currentHours * 60 + currentMinutes) - (inHours * 60 + inMinutes);
-    
-    if (totalMinutes < 0) {
-      totalMinutes += 24 * 60;
-    }
-    
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    
-    return `${hours}.${Math.round((minutes / 60) * 100).toString().padStart(2, '0')}`;
-  } catch {
-    return "--";
-  }
-}
-
 function calculateCompletedWorkHours(checkIn: string | null, checkOut: string | null): string {
   if (!checkIn || !checkOut || checkIn === "--" || checkOut === "--") return "--";
   
@@ -95,16 +70,47 @@ function calculateCompletedWorkHours(checkIn: string | null, checkOut: string | 
     const [inHours, inMinutes] = checkIn.split(":").map(Number);
     const [outHours, outMinutes] = checkOut.split(":").map(Number);
     
+    // Calculate total minutes
     let totalMinutes = (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
     
+    // Handle negative (overnight shift)
     if (totalMinutes < 0) {
       totalMinutes += 24 * 60;
     }
     
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
+    // Calculate hours with decimal
+    const hoursDecimal = totalMinutes / 60;
     
-    return `${hours}.${Math.round((minutes / 60) * 100).toString().padStart(2, '0')}`;
+    // Format to 2 decimal places
+    return hoursDecimal.toFixed(2);
+  } catch {
+    return "--";
+  }
+}
+
+function calculateCurrentWorkHours(checkIn: string | null): string {
+  if (!checkIn || checkIn === "--") return "--";
+  
+  try {
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    
+    const [inHours, inMinutes] = checkIn.split(":").map(Number);
+    
+    // Calculate total minutes
+    let totalMinutes = (currentHours * 60 + currentMinutes) - (inHours * 60 + inMinutes);
+    
+    // Handle negative (overnight shift)
+    if (totalMinutes < 0) {
+      totalMinutes += 24 * 60;
+    }
+    
+    // Calculate hours with decimal
+    const hoursDecimal = totalMinutes / 60;
+    
+    // Format to 2 decimal places
+    return hoursDecimal.toFixed(2);
   } catch {
     return "--";
   }
@@ -135,10 +141,11 @@ function calculateTotalHours(sessions: PunchSession[]): string {
     }
   });
   
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  // Calculate total hours with decimal
+  const totalHours = totalMinutes / 60;
   
-  return `${hours}.${Math.round((minutes / 60) * 100).toString().padStart(2, '0')}`;
+  // Format to 2 decimal places
+  return totalHours.toFixed(2);
 }
 
 // Circular Progress Component
@@ -1016,6 +1023,9 @@ export default function EmployeesPage() {
 
   return <EmployeesList companyId={company.id} />;
 }
+
+
+
 // "use client";
 
 // import { useState, useEffect, useMemo } from "react";

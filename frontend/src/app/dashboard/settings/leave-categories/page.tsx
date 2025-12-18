@@ -4,6 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
+import AddLeaveButton from "@/components/AddLeaveButton";
 
 interface LeaveType {
   id: number;
@@ -55,6 +56,12 @@ export default function LeavePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [cookieSynced, setCookieSynced] = useState(false);
+  const [savedLeaves, setSavedLeaves] = useState<any[]>([]);
+  const handleSaveLeave = (leaveData: any) => {
+  console.log('Leave saved:', leaveData);
+  setSavedLeaves(prev => [...prev, leaveData]);
+  // You can update your local state here
+};
 
   // Sync company cookie with AuthContext on page load - SAME AS OTHER PAGES
   useEffect(() => {
@@ -667,6 +674,13 @@ export default function LeavePage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Leave Management</h1>
         <p className="text-gray-600">Manage your leave applications and approvals</p>
+
+                <AddLeaveButton 
+          companyId={companyId || 0}
+          leaveTypes={leaveTypes}
+          isAdmin={true}
+          onSave={handleSaveLeave}
+        />
         
         {/* Company Info Debug
         <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
@@ -747,7 +761,6 @@ export default function LeavePage() {
     </div>
   );
 }
-
         
 // "use client";
 // import { useEffect, useState } from "react";
