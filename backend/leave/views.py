@@ -260,6 +260,92 @@ def apply_leave(request):
     return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
 
 
+
+@api_view(['POST'])
+def add_past_leave(request):
+    try:
+        user_id = request.data.get('user_id')
+        leave_id = request.data.get('leave_id')
+        from_date = request.data.get('from_date')
+        to_date = request.data.get('to_date')
+        leave_choice = request.data.get('leave_choice')
+        custom_reason = request.data.get('custom_reason')
+        status_val = request.data.get('status', 'A') # Default to Approved
+        company_id = request.data.get('company_id')
+
+        # Validate inputs
+        if not all([user_id, leave_id, from_date, to_date, company_id]):
+             return Response({'success': False, 'message': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            company = Company.objects.get(id=company_id)
+            user = CustomUser.objects.get(id=user_id)
+            leave_type = LeaveType.objects.get(id=leave_id)
+        except (Company.DoesNotExist, CustomUser.DoesNotExist, LeaveType.DoesNotExist) as e:
+            return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+         # Ensure user belongs to that company
+        if not user.company.filter(id=company_id).exists():
+             return Response({'success': False, 'message': 'User does not belong to this company'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
+        to_date_obj = datetime.strptime(to_date, '%Y-%m-%d').date()
+
+        # Calculate days
+        leave_days = (to_date_obj - from_date_obj).days + 1
+        if leave_choice == 'half_day':
+            leave_days *= 0.5
+        
+        # Deduct credits if applicable
+        if leave_type.use_credit:
+            credit_year = from_date_obj.year
+            credit_obj, created = LeaveCredit.objects.get_or_create(
+                user=user, 
+                leave_type=leave_type, 
+                year=credit_year,
+                defaults={'credits': leave_type.initial_credit} 
+            )
+            
+            # Note: For past leaves added by admin, we generally allow negative balance or just deduct it.
+            # If we want to enforce limits, we can check here. 
+            # Given it's "Add Past Leave" usually implies record correction, we might just deduct.
+            # But let's check if it goes negative? User didn't specify. 
+            # I will allow it to go negative for now as it's an admin action usually.
+            
+            credit_obj.credits -= leave_days
+            credit_obj.save()
+
+        # Create Leave
+        leave = Leave.objects.create(
+            user=user,
+            leave_type=leave_type,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+            company=company,
+            leave_choice=leave_choice if leave_choice in ['full_day', 'half_day'] else 'F', # Map frontend value to model choice if needed, but model uses 'F'/'H'?
+            # Model LEAVE_CHOICES are ('F', 'Full day'), ('H', 'Half day'). 
+            # Frontend sends 'full_day' or 'half_day'. I need to map it.
+            status=status_val,
+            custom_reason=custom_reason,
+            days_taken=leave_days
+        )
+        
+        # Fix leave choice mapping
+        if leave_choice == 'half_day':
+            leave.leave_choice = 'H'
+        else:
+            leave.leave_choice = 'F'
+        leave.save()
+
+        return Response({'success': True, 'message': 'Leave record added successfully'}, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
 def add_initial_credits_to_all_users(leave_type):
     if not leave_type.use_credit:
         return  # ⛔ No need to add credit if use_credit is False
@@ -277,15 +363,12 @@ def add_initial_credits_to_all_users(leave_type):
 
 
 
-
 def monthly_credit_top_up():
     for credit in LeaveCredit.objects.select_related('leave_type'):
         if credit.leave_type.monthly_limit:
             credit.credits += credit.leave_type.monthly_limit
             credit.save()
 
-
-    
 
 
 def carry_forward_unused_leaves():
@@ -456,6 +539,7 @@ def get_leave_types(request):
             return Response({'success': False, 'message': str(e)}, status=400)
 
 
+
 def carry_forward_unused_leaves():
     today = date.today()
     last_year = today.year - 1
@@ -479,6 +563,7 @@ def carry_forward_unused_leaves():
         credit.save()
 
 
+
 @api_view(['PUT'])
 def update_leave_type(request):
     user = request.user
@@ -498,6 +583,7 @@ def update_leave_type(request):
         'success':True,
         'message': 'Leave type updated'
     },status=status.HTTP_200_OK)
+
 
 
 @api_view(['PUT'])
@@ -531,9 +617,6 @@ def update_leave_status(request):
 
 
 
-
-
-
 @api_view(['GET'])
 def get_requested_leaves(request,page):
     user = request.user
@@ -554,7 +637,6 @@ def get_requested_leaves(request,page):
         'total_page': paginator.num_pages,
         'data': serializer.data
     })
-
 
 
 
@@ -761,13 +843,3 @@ def get_holiday(request):
         except Holiday.DoesNotExist:
             return Response({'success': False, 'message': 'Holiday not found for the given company.'},
                             status=status.HTTP_404_NOT_FOUND)
-
-      
-
-
-   
-
-
-
-
-
