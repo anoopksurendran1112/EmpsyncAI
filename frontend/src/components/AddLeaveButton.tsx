@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -12,17 +12,24 @@ interface LeaveType {
   name?: string;
 }
 
-interface User {
+interface Employee {
   id: number;
   first_name: string;
-  last_name?: string;
+  last_name: string;
   email?: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  message?: string;
+  data?: Employee[];  // Your API returns data array
+  employees?: Employee[];
+  pagination?: any;
 }
 
 interface AddLeaveButtonProps {
   companyId: number;
   leaveTypes: LeaveType[];
-  users?: User[];
   isAdmin?: boolean;
   onSave?: (leaveData: any) => void;
 }
@@ -30,7 +37,6 @@ interface AddLeaveButtonProps {
 export default function AddLeaveButton({ 
   companyId, 
   leaveTypes, 
-  users = [],
   isAdmin = false,
   onSave
 }: AddLeaveButtonProps) {
@@ -38,6 +44,8 @@ export default function AddLeaveButton({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     user_id: "",
@@ -53,6 +61,48 @@ export default function AddLeaveButton({
   const [selectedFromDate, setSelectedFromDate] = useState<Date | null>(null);
   const [selectedToDate, setSelectedToDate] = useState<Date | null>(null);
 
+  // Fetch employees when modal opens (admin only)
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (isModalOpen && isAdmin && companyId) {
+        setEmployeesLoading(true);
+        try {
+          const response = await fetch(`/api/leave/add-leave`);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data: ApiResponse = await response.json();
+          
+          if (data.success) {
+            // Check both possible response structures
+            if (data.data && Array.isArray(data.data)) {
+              // Your API returns employees in data array
+              setEmployees(data.data);
+            } else if (data.employees && Array.isArray(data.employees)) {
+              // Alternative: employees in root
+              setEmployees(data.employees);
+            } else {
+              console.error("No employees array found in response:", data);
+              setEmployees([]);
+            }
+          } else {
+            console.error("API returned error:", data.message);
+            setEmployees([]);
+          }
+        } catch (error) {
+          console.error("Error fetching employees:", error);
+          setEmployees([]);
+        } finally {
+          setEmployeesLoading(false);
+        }
+      }
+    };
+
+    fetchEmployees();
+  }, [isModalOpen, isAdmin, companyId]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
@@ -63,76 +113,113 @@ export default function AddLeaveButton({
     }));
   };
 
-  const calculateDays = (from: string, to: string) => {
+  const calculateDays = (from: string, to: string, leaveChoice: string) => {
     if (!from || !to) return 1;
     const fromDate = new Date(from);
     const toDate = new Date(to);
     const diffTime = Math.abs(toDate.getTime() - fromDate.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (leaveChoice === 'half_day' || leaveChoice === 'H') {
+      return days * 0.5;
+    }
+    return days;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setSuccessMessage("");
 
-    // Validate form
-    if (!formData.leave_id) {
-      setError("Leave type is required");
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.from_date || !formData.to_date) {
-      setError("Date range is required");
-      setLoading(false);
-      return;
-    }
-
-    if (isAdmin && !formData.user_id) {
-      setError("Please select an employee");
-      setLoading(false);
-      return;
-    }
-
-    // Calculate days
-    const daysTaken = calculateDays(formData.from_date, formData.to_date);
-    
-    // Prepare leave data
-    const leaveData = {
-      id: Date.now(), // Generate mock ID
-      ...formData,
-      days_taken: daysTaken,
-      company_id: companyId,
-      created_at: new Date().toISOString(),
-      user: isAdmin ? users.find(u => u.id.toString() === formData.user_id) : null,
-      leave_type: leaveTypes.find(lt => lt.id.toString() === formData.leave_id),
-    };
-
-    console.log('💾 Saving leave data:', leaveData);
-
-    // Simulate API call delay
-    setTimeout(() => {
-      if (onSave) {
-        onSave(leaveData);
+    try {
+      // Validate form
+      if (!formData.leave_id) {
+        setError("Leave type is required");
+        setLoading(false);
+        return;
       }
+
+      if (!formData.from_date || !formData.to_date) {
+        setError("Date range is required");
+        setLoading(false);
+        return;
+      }
+
+      if (isAdmin && !formData.user_id) {
+        setError("Please select an employee");
+        setLoading(false);
+        return;
+      }
+
+      // Calculate days
+      const daysTaken = calculateDays(formData.from_date, formData.to_date, formData.leave_choice);
       
-      setSuccessMessage(
-        isAdmin 
-          ? "Leave record added successfully!" 
-          : "Leave application submitted successfully!"
-      );
-      
+      // Prepare API payload
+      const payload = {
+        user_id: parseInt(formData.user_id),
+        leave_id: parseInt(formData.leave_id),
+        from_date: formData.from_date,
+        to_date: formData.to_date,
+        leave_choice: formData.leave_choice === 'half_day' ? 'half_day' : 'full_day',
+        custom_reason: formData.custom_reason || "",
+        status: formData.status || "A",
+        company_id: companyId,
+      };
+
+      console.log('📤 Adding past leave:', payload);
+
+      // Call the API endpoint
+      const response = await fetch("/api/leave/add-leave", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setSuccessMessage("Leave record added successfully!");
+        
+        // Find selected employee name for display
+        const selectedEmployee = employees.find(e => e.id.toString() === formData.user_id);
+        const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === formData.leave_id);
+        
+        // Prepare data for callback
+        const leaveRecord = {
+          id: Date.now(),
+          ...formData,
+          days_taken: daysTaken,
+          company_id: companyId,
+          created_at: new Date().toISOString(),
+          user_name: selectedEmployee ? 
+            `${selectedEmployee.first_name} ${selectedEmployee.last_name || ''}`.trim() : 
+            "Unknown",
+          leave_type_name: selectedLeaveType?.name || selectedLeaveType?.leave_type || "Unknown",
+          status: formData.status,
+        };
+        
+        if (onSave) {
+          onSave(leaveRecord);
+        }
+
+        // Reset and close modal after success
+        setTimeout(() => {
+          setIsModalOpen(false);
+          setSuccessMessage("");
+          resetForm();
+        }, 1500);
+      } else {
+        setError(data.message || "Failed to add leave record");
+      }
+    } catch (err) {
+      console.error("Error adding leave:", err);
+      setError("An unexpected error occurred");
+    } finally {
       setLoading(false);
-      
-      // Close modal after 1.5 seconds
-      setTimeout(() => {
-        setIsModalOpen(false);
-        setSuccessMessage("");
-        resetForm();
-      }, 1500);
-    }, 1000);
+    }
   };
 
   const resetForm = () => {
@@ -157,33 +244,49 @@ export default function AddLeaveButton({
 
   const handleFromDateChange = (date: Date | null) => {
     setSelectedFromDate(date);
+    const fromDateStr = date ? format(date, "yyyy-MM-dd") : "";
     setFormData(prev => ({
       ...prev,
-      from_date: date ? format(date, "yyyy-MM-dd") : "",
+      from_date: fromDateStr,
+      days_taken: fromDateStr && prev.to_date 
+        ? calculateDays(fromDateStr, prev.to_date, prev.leave_choice)
+        : prev.days_taken
     }));
   };
 
   const handleToDateChange = (date: Date | null) => {
     setSelectedToDate(date);
+    const toDateStr = date ? format(date, "yyyy-MM-dd") : "";
     setFormData(prev => ({
       ...prev,
-      to_date: date ? format(date, "yyyy-MM-dd") : "",
+      to_date: toDateStr,
+      days_taken: toDateStr && prev.from_date
+        ? calculateDays(prev.from_date, toDateStr, prev.leave_choice)
+        : prev.days_taken
+    }));
+  };
+
+  const handleLeaveChoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      leave_choice: value,
+      days_taken: prev.from_date && prev.to_date
+        ? calculateDays(prev.from_date, prev.to_date, value)
+        : prev.days_taken
     }));
   };
 
   const getButtonText = () => {
-    if (isAdmin) {
-      return "Add Leave Record";
-    }
-    return "Apply for Leave";
+    return isAdmin ? "Add Leave Record" : "Apply for Leave";
   };
 
   const getModalTitle = () => {
-    if (isAdmin) {
-      return "Add Leave Record (Admin)";
-    }
-    return "Apply for Leave";
+    return isAdmin ? "Add Leave Record (Admin)" : "Apply for Leave";
   };
+
+  // Debug: Check employees array
+  console.log('Employees loaded:', employees.length, employees);
 
   return (
     <>
@@ -212,10 +315,9 @@ export default function AddLeaveButton({
         {getButtonText()}
       </button>
 
-      {/* Modal - Without black background */}
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-50">
-          {/* Modal Container - Smaller size */}
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md border border-gray-200">
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b px-4 py-3">
@@ -254,7 +356,7 @@ export default function AddLeaveButton({
                 </div>
               )}
 
-              {/* ADMIN ONLY FIELDS */}
+              {/* ADMIN ONLY: Employee Selection */}
               {isAdmin && (
                 <div>
                   <label htmlFor="modal_user_id" className="block text-xs font-medium text-gray-700 mb-1">
@@ -266,17 +368,30 @@ export default function AddLeaveButton({
                     value={formData.user_id}
                     onChange={handleChange}
                     required={isAdmin}
-                    disabled={loading}
+                    disabled={loading || employeesLoading}
                     className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                   >
                     <option value="">-- Select Employee --</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id} className="text-sm">
-                        {user.first_name} {user.last_name || ""}
-                        {user.email ? ` (${user.email})` : ''}
-                      </option>
-                    ))}
+                    {employees.length > 0 ? (
+                      employees.map((employee) => (
+                        <option key={employee.id} value={employee.id} className="text-sm">
+                          {employee.first_name} {employee.last_name || ""}
+                        </option>
+                      ))
+                    ) : (
+                      !employeesLoading && (
+                        <option value="" disabled className="text-sm text-gray-500">
+                          No employees found
+                        </option>
+                      )
+                    )}
                   </select>
+                  {employeesLoading && (
+                    <p className="text-xs text-gray-500 mt-1">Loading employees...</p>
+                  )}
+                  {!employeesLoading && employees.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">No employees available</p>
+                  )}
                 </div>
               )}
 
@@ -336,43 +451,33 @@ export default function AddLeaveButton({
                 </div>
               </div>
 
-              {/* Timezone Note
-              <div className="text-xs text-gray-500 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clipRule="evenodd" />
-                </svg>
-                <span>5.5 hours ahead of server time</span>
-              </div> */}
-
               {/* Days Taken (Calculated) */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Days Taken
                 </label>
                 <div className="w-full border border-gray-300 bg-gray-50 rounded px-3 py-1.5 text-sm text-gray-700">
-                  {calculateDays(formData.from_date, formData.to_date)} day(s)
+                  {formData.days_taken} day(s)
                 </div>
               </div>
 
-              {/* Leave Choice (for non-admin) */}
-              {!isAdmin && (
-                <div>
-                  <label htmlFor="modal_leave_choice" className="block text-xs font-medium text-gray-700 mb-1">
-                    Leave Choice
-                  </label>
-                  <select
-                    id="modal_leave_choice"
-                    name="leave_choice"
-                    value={formData.leave_choice}
-                    onChange={handleChange}
-                    disabled={loading}
-                    className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="full_day">Full Day</option>
-                    <option value="half_day">Half Day</option>
-                  </select>
-                </div>
-              )}
+              {/* Leave Choice */}
+              <div>
+                <label htmlFor="modal_leave_choice" className="block text-xs font-medium text-gray-700 mb-1">
+                  Leave Choice
+                </label>
+                <select
+                  id="modal_leave_choice"
+                  name="leave_choice"
+                  value={formData.leave_choice}
+                  onChange={handleLeaveChoiceChange}
+                  disabled={loading}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="full_day">Full Day</option>
+                  <option value="half_day">Half Day</option>
+                </select>
+              </div>
 
               {/* Status (Admin only) */}
               {isAdmin && (
@@ -425,12 +530,12 @@ export default function AddLeaveButton({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (isAdmin && employeesLoading)}
                   className={`px-4 py-1.5 rounded text-sm text-white ${
                     isAdmin 
                       ? 'bg-purple-600 hover:bg-purple-700' 
                       : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
+                  } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {loading ? "Saving..." : "Save"}
                 </button>

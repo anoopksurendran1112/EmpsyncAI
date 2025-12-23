@@ -23,7 +23,8 @@ interface LeaveRequest {
   to_date: string;
   custom_reason?: string;
   status: string;
-  leave_type?: { name: string };
+  leave_type?: { name: string; leave_type?: string }; // Added this field
+  leave_type_display?: string; // Added this field
 }
 
 type ActiveTab = "apply" | "requests" | "types" | "balance";
@@ -57,13 +58,14 @@ export default function LeavePage() {
   const [error, setError] = useState("");
   const [cookieSynced, setCookieSynced] = useState(false);
   const [savedLeaves, setSavedLeaves] = useState<any[]>([]);
+  
   const handleSaveLeave = (leaveData: any) => {
-  console.log('Leave saved:', leaveData);
-  setSavedLeaves(prev => [...prev, leaveData]);
-  // You can update your local state here
-};
+    console.log('Leave saved:', leaveData);
+    setSavedLeaves(prev => [...prev, leaveData]);
+    // You can update your local state here
+  };
 
-  // Sync company cookie with AuthContext on page load - SAME AS OTHER PAGES
+  // Sync company cookie with AuthContext on page load
   useEffect(() => {
     const syncCompanyCookie = async () => {
       if (companyId && !cookieSynced) {
@@ -325,6 +327,21 @@ export default function LeavePage() {
     }
   };
 
+  // Function to get leave type display
+  const getLeaveTypeDisplay = (request: LeaveRequest) => {
+    // Try different possible fields
+    if (request.leave_type_display) {
+      return request.leave_type_display;
+    }
+    if (request.leave_type?.leave_type) {
+      return request.leave_type.leave_type;
+    }
+    if (request.leave_type?.name) {
+      return request.leave_type.name;
+    }
+    return "Unknown";
+  };
+
   // --- TAB CONTENT ---
   const renderApplyTab = () => (
     <div className="bg-white border rounded-lg shadow-md p-6">
@@ -465,22 +482,28 @@ export default function LeavePage() {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Employee
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Leave Type
+                </th> */}
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   From Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   To Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Leave Type
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Reason
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -488,22 +511,33 @@ export default function LeavePage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {requests.map((req) => (
                 <tr key={req.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                     {req.user?.first_name} {req.user?.last_name || ""}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                     {req.from_date}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                     {req.to_date}
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {getLeaveTypeDisplay(req)}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {req.custom_reason || "N/A"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {getStatusDisplay(req.status)}
+                  <td className="px-4 py-4 whitespace-nowrap text-sm">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      req.status === 'A' 
+                        ? 'bg-green-100 text-green-800' 
+                        : req.status === 'R' 
+                        ? 'bg-red-100 text-red-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {getStatusDisplay(req.status)}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
                     {req.status.toUpperCase() === "P" ? (
                       <div className="flex justify-center space-x-2">
                         <button
@@ -524,7 +558,7 @@ export default function LeavePage() {
                         </button>
                       </div>
                     ) : (
-                      <span className="text-gray-500">No actions</span>
+                      <span className="text-gray-500 text-xs">No actions</span>
                     )}
                   </td>
                 </tr>
@@ -671,36 +705,21 @@ export default function LeavePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Leave Management</h1>
-        <p className="text-gray-600">Manage your leave applications and approvals</p>
-
-                <AddLeaveButton 
-          companyId={companyId || 0}
-          leaveTypes={leaveTypes}
-          isAdmin={true}
-          onSave={handleSaveLeave}
-        />
-        
-        {/* Company Info Debug
-        <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">Company:</span>
-              <span>{company?.name || 'Unknown'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">ID:</span>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">{companyId || 'Not set'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">Cookie Sync:</span>
-              <span className={`px-2 py-1 rounded ${cookieSynced ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                {cookieSynced ? '✅ Synced' : '🔄 Syncing'}
-              </span>
-            </div>
+      <div className="mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
+            <p className="text-gray-600">Manage your leave applications and approvals</p>
           </div>
-        </div> */}
+
+          {/* Add Leave Button */}
+          <AddLeaveButton 
+            companyId={companyId || 0}
+            leaveTypes={leaveTypes}
+            isAdmin={true}
+            onSave={handleSaveLeave}
+          />
+        </div>
       </div>
 
       {/* Messages */}
