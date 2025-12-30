@@ -175,12 +175,13 @@ export default function ReportPage() {
       <h1 className="text-2xl font-bold mb-4">Punch Report</h1>
 
       <div className="flex gap-2 mb-4 items-center">
-        <DatePicker
+       <DatePicker
           selected={filters.start_date}
           onChange={(date) => setFilters({ ...filters, start_date: date })}
           dateFormat="yyyy-MM-dd"
           placeholderText="From Date"
           className="border p-2 rounded"
+          maxDate={new Date()}
         />
         <DatePicker
           selected={filters.end_date}
@@ -188,6 +189,7 @@ export default function ReportPage() {
           dateFormat="yyyy-MM-dd"
           placeholderText="To Date"
           className="border p-2 rounded"
+          maxDate={new Date()}
         />
         <button
           onClick={fetchReport}
@@ -217,30 +219,73 @@ export default function ReportPage() {
         <div className="overflow-auto max-h-[60vh] border">
           <table className="border-collapse border border-gray-400 w-full min-w-[700px]">
             <thead>
-              <tr>
-                <th className="border p-2">User</th>
-                <th className="border p-2">Date</th>
-                <th className="border p-2">Check-Ins</th>
-                <th className="border p-2">Check-Outs</th>
-                <th className="border p-2">Working Hours</th>
+              <tr className="bg-gray-100">
+                <th className="border p-2 w-1/4">User</th>
+                <th className="border p-2">Punch Records</th>
               </tr>
             </thead>
             <tbody>
-              {data.flatMap((user, idx) =>
-                user.daily_logs.map((log, logIdx) => (
-                  <tr key={`${idx}-${logIdx}`}>
-                    <td className="border p-2">{user.name}</td>
-                    <td className="border p-2">{formatDisplayDate(log.date)}</td>
-                    <td className="border p-2">
-                      {(log.check_ins || []).map(formatTime).join(", ")}
-                    </td>
-                    <td className="border p-2">
-                      {(log.check_outs || []).map(formatTime).join(", ")}
-                    </td>
-                    <td className="border p-2">{log.working_hours || "-"}</td>
-                  </tr>
-                ))
-              )}
+              {data.map((user, idx) => (
+                <tr key={idx} className="align-top">
+                  {/* User Name displayed only once */}
+                  <td className="border p-2 font-semibold text-gray-700">
+                    {user.name}
+                  </td>
+
+                  <td className="border p-0">
+                    {/* Nested Table for Daily Logs */}
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 text-sm">
+                          <th className="border-b border-r p-2 text-left">Date</th>
+                          <th className="border-b border-r p-2 text-left">Check-Ins</th>
+                          <th className="border-b border-r p-2 text-left">Check-Outs</th>
+                          <th className="border-b p-2 text-left">Hours</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {user.daily_logs.map((log, logIdx) => (
+                          <tr key={`${idx}-${logIdx}`} className="hover:bg-gray-50 align-top">
+                            <td className="border-b border-r p-2">
+                              {formatDisplayDate(log.date)}
+                            </td>
+
+                            {/* Check-Ins Column */}
+                            <td className="border-b border-r p-2 text-sm">
+                              {(log.check_ins && log.check_ins.length > 0) ? (
+                                log.check_ins.map((time, tIdx) => (
+                                  <div key={tIdx} className="whitespace-nowrap">
+                                    {formatTime(time)}
+                                  </div>
+                                ))
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+
+                            {/* Check-Outs Column */}
+                            <td className="border-b border-r p-2 text-sm">
+                              {(log.check_outs && log.check_outs.length > 0) ? (
+                                log.check_outs.map((time, tIdx) => (
+                                  <div key={tIdx} className="whitespace-nowrap">
+                                    {formatTime(time)}
+                                  </div>
+                                ))
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+
+                            <td className="border-b p-2 text-center">
+                              {log.working_hours || "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
