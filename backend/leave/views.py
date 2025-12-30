@@ -768,7 +768,7 @@ def add_past_leave(request):
         if not company_id:
             return Response({'success': False, 'message': 'Company ID required'}, status=400)
         
-        users = CustomUser.objects.filter(company__id=company_id).values('id', 'first_name', 'last_name', 'email')
+        users = CustomUser.objects.filter(company__id=company_id, is_active=True).values('id', 'first_name', 'last_name', 'email')
         return Response({'success': True, 'data': list(users)})
 
     try:
