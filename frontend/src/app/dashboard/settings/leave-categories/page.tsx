@@ -93,12 +93,7 @@ export default function LeavePage() {
     syncCompanyCookie();
   }, [companyId, cookieSynced]);
 
-  const getToken = () => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("token") || localStorage.getItem("access_token");
-    }
-    return null;
-  };
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -277,19 +272,12 @@ export default function LeavePage() {
     try {
       setMessage("");
       setError("");
-      const token = getToken();
-      if (!token) {
-        setError("Unauthorized");
-        return;
-      }
-      
       console.log('🔄 Updating leave status for company:', companyId);
       
       const response = await fetch("/api/leave/status", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ 
           id, 
