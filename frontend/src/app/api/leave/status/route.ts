@@ -25,7 +25,7 @@ export async function PUT(req: Request) {
 
     console.log("Updating leave status:", body);
 
-    const res = await fetch(`${process.env.API_URL}/leave/update-leave`, {
+    const res = await fetch(`${process.env.API_URL}/update-leave`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
