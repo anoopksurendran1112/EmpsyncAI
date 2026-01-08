@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from .models import Leave, LeaveType, Holiday,LeaveCredit
-from company.models import CompanyRole,Company
+from company.models import CompanyRole,Company, CompanyUser
 from punch.models import PunchRecords
 from user.models import CustomUser
 from punch.serializer import PunchSerializer
@@ -184,80 +184,182 @@ def get_calendar(request,id):
     }, status=status.HTTP_200_OK)
 
 
+# @api_view(['POST'])
+# def apply_leave(request):
+#     user = request.user
+#     from_date = request.data.get('from_date')
+#     to_date = request.data.get('to_date')
+#     leave_id = request.data.get('leave_id')
+#     leave_choice = request.data.get('leave_choice')
+#     company_id = request.data.get('company_id')
+#     custom_reason = request.data.get('custom_reason')
+
+#     # Validate company ID
+#     try:
+#         company = Company.objects.get(id=company_id)
+#     except Company.DoesNotExist:
+#         return Response({'success': False, 'message': 'Invalid company ID'}, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Ensure user belongs to that company
+#     if not user.company.filter(id=company_id).exists():
+#         return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
+
+#     # Validate leave type
+#     try:
+#         leave_type = LeaveType.objects.get(id=leave_id)
+#     except LeaveType.DoesNotExist:
+#         return Response({'success': False, 'message': 'Leave type not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+#     from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
+#     to_date_obj = datetime.strptime(to_date, '%Y-%m-%d').date()
+
+#     leave_days = (to_date_obj - from_date_obj).days + 1
+#     if leave_choice == 'H':
+#         leave_days *= 0.5
+
+#     # Check monthly leave limit
+#     monthly_leaves = Leave.objects.filter(
+#         user=user,
+#         company = company,
+#         leave_type=leave_type,
+#         from_date__month=from_date_obj.month,
+#         from_date__year=from_date_obj.year,
+#         status__in=['P', 'A']
+#     ).aggregate(total=Sum('days_taken'))['total'] or 0
+
+#     if leave_type.monthly_limit and (monthly_leaves + leave_days) > leave_type.monthly_limit:
+#         return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Check credit
+#     if leave_type.use_credit:
+#         credit_obj, _ = LeaveCredit.objects.get_or_create(user=user, leave_type=leave_type)
+#         if leave_days > credit_obj.credits:
+#             return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
+#         credit_obj.credits -= leave_days
+#         credit_obj.save()
+
+#     # Create leave
+#     leave = Leave.objects.create(
+#         user=user,
+#         leave_type=leave_type,
+#         from_date=from_date_obj,
+#         company = company,
+#         to_date=to_date_obj,
+#         leave_choice=leave_choice,
+#         custom_reason = custom_reason,        status='P',
+#         days_taken=leave_days
+#     )
+
+#     # Notify company admins
+#     admins = CustomUser.objects.filter(company=company, admin=True)
+#     tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
+
+#     send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
+
+#     return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
+
+
 
 @api_view(['POST'])
 def apply_leave(request):
-    user = request.user
-    from_date = request.data.get('from_date')
-    to_date = request.data.get('to_date')
-    leave_id = request.data.get('leave_id')
-    leave_choice = request.data.get('leave_choice')
-    company_id = request.data.get('company_id')
-    custom_reason = request.data.get('custom_reason')
-
-    # Validate company ID
     try:
-        company = Company.objects.get(id=company_id)
-    except Company.DoesNotExist:
-        return Response({'success': False, 'message': 'Invalid company ID'}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user
+        from_date = request.data.get('from_date')
+        to_date = request.data.get('to_date')
+        leave_id = request.data.get('leave_id')
+        leave_choice = request.data.get('leave_choice')
+        company_id = request.data.get('company_id')
+        custom_reason = request.data.get('custom_reason')
 
-    # Ensure user belongs to that company
-    if not user.company.filter(id=company_id).exists():
-        return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
+        # Validate company ID
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({'success': False, 'message': 'Invalid company ID'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate leave type
-    try:
-        leave_type = LeaveType.objects.get(id=leave_id)
-    except LeaveType.DoesNotExist:
-        return Response({'success': False, 'message': 'Leave type not found'}, status=status.HTTP_400_BAD_REQUEST)
+        # Ensure user belongs to that company
+        # Check if user is authenticated
+        if not user.is_authenticated:
+             return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+             
+        if not user.company.filter(id=company_id).exists():
+            return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
 
-    from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
-    to_date_obj = datetime.strptime(to_date, '%Y-%m-%d').date()
+        # Validate leave type
+        try:
+            leave_type = LeaveType.objects.get(id=leave_id)
+        except LeaveType.DoesNotExist:
+            return Response({'success': False, 'message': 'Leave type not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-    leave_days = (to_date_obj - from_date_obj).days + 1
-    if leave_choice == 'H':
-        leave_days *= 0.5
+        # Try parsing date in multiple formats
+        for fmt in ('%d-%b-%Y', '%Y-%m-%d'):
+            try:
+                from_date_obj = datetime.strptime(from_date, fmt).date()
+                break
+            except ValueError:
+                pass
+        else:
+            return Response({'success': False, 'message': f'Invalid from_date format: {from_date}'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Check monthly leave limit
-    monthly_leaves = Leave.objects.filter(
-        user=user,
-        company = company,
-        leave_type=leave_type,
-        from_date__month=from_date_obj.month,
-        from_date__year=from_date_obj.year,
-        status__in=['P', 'A']
-    ).aggregate(total=Sum('days_taken'))['total'] or 0
+        for fmt in ('%d-%b-%Y', '%Y-%m-%d'):
+            try:
+                to_date_obj = datetime.strptime(to_date, fmt).date()
+                break
+            except ValueError:
+                pass
+        else:
+            return Response({'success': False, 'message': f'Invalid to_date format: {to_date}'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if leave_type.monthly_limit and (monthly_leaves + leave_days) > leave_type.monthly_limit:
-        return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
+        leave_days = (to_date_obj - from_date_obj).days + 1
+        if leave_choice == 'H':
+            leave_days *= 0.5
 
-    # Check credit
-    if leave_type.use_credit:
-        credit_obj, _ = LeaveCredit.objects.get_or_create(user=user, leave_type=leave_type)
-        if leave_days > credit_obj.credits:
-            return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
-        credit_obj.credits -= leave_days
-        credit_obj.save()
+        # Check monthly leave limit
+        monthly_leaves = Leave.objects.filter(
+            user=user,
+            company = company,
+            leave_type=leave_type,
+            from_date__month=from_date_obj.month,
+            from_date__year=from_date_obj.year,
+            status__in=['P', 'A']
+        ).aggregate(total=Sum('days_taken'))['total'] or 0
 
-    # Create leave
-    leave = Leave.objects.create(
-        user=user,
-        leave_type=leave_type,
-        from_date=from_date_obj,
-        company = company,
-        to_date=to_date_obj,
-        leave_choice=leave_choice,
-        custom_reason = custom_reason,        status='P',
-        days_taken=leave_days
-    )
+        if leave_type.monthly_limit and (monthly_leaves + leave_days) > leave_type.monthly_limit:
+            return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Notify company admins
-    admins = CustomUser.objects.filter(company=company, admin=True)
-    tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
+        # Check credit
+        if leave_type.use_credit:
+            credit_obj, _ = LeaveCredit.objects.get_or_create(user=user, leave_type=leave_type)
+            if leave_days > credit_obj.credits:
+                return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
+            credit_obj.credits -= leave_days
+            credit_obj.save()
 
-    send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
+        # Create leave
+        leave = Leave.objects.create(
+            user=user,
+            leave_type=leave_type,
+            from_date=from_date_obj,
+            company = company,
+            to_date=to_date_obj,
+            leave_choice=leave_choice,
+            custom_reason = custom_reason,       
+            status='P',
+            days_taken=leave_days
+        )
 
-    return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
+        # Notify company admins
+        admins = CompanyUser.objects.filter(company=company, is_admin=True).values_list('user', flat=True)
+        tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
+
+        send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
+
+        return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'success': False, 'message': f'Server Error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -643,7 +745,7 @@ def update_holiday(request):
         date = request.data.get('date')
         role_ids = request.data.get('role_ids', [])
         is_full_holiday_raw = request.data.get('is_full_holiday', False)
-        company_id = request.headers.get('company_id')
+        company_id = request.data.get('company_id')
 
         if not company_id:
             return Response({"success": False, "message": "Missing X-Company-ID header."},
