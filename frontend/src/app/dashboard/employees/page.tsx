@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { useEmployeeCache } from "@/hooks/useEmployeeCache";
 import { useEmployeePrefetch } from "@/hooks/useEmployeePrefetch";
 
+// import BulkDownloadButton from '@/components/BulkDownloadButton';
 // Define interfaces
 interface PunchSession {
   check_in?: string;
@@ -678,16 +679,36 @@ function EmployeesList({ companyId }: { companyId: number }) {
           <span className="text-gray-900 font-medium">Employees</span>
         </div>
         
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">All Employees</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              {selectedGroupId !== 0 ? (
-                <>Filtered by: <span className="font-semibold text-blue-600">{allGroups.find(g => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}</span></>
-              ) : (
-                <>Showing all employees</>
-              )}
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">All Employees</h1>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-sm text-gray-600">
+                  {selectedGroupId !== 0 ? (
+                    <>Filtered by: <span className="font-semibold text-blue-600">{allGroups.find(g => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}</span></>
+                  ) : (
+                    <>Showing all employees</>
+                  )}
+                </span>
+                
+                {/* {displayTotalCount > 0 && (
+                  <span className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    {displayTotalCount.toLocaleString()} employees total
+                  </span>
+                )} */}
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              {/* Bulk Download Button
+              <BulkDownloadButton
+                companyId={companyId}
+                groupId={selectedGroupId}
+                totalEmployees={displayTotalCount}
+                variant="default"
+                size="md"
+                className="flex-shrink-0"
+              /> */}
           </div>
           
           {/* <FilterComponent

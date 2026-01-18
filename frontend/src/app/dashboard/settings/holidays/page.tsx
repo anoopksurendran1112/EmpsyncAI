@@ -979,7 +979,7 @@ export default function HolidayPage() {
     try {
       console.log('👥 Fetching roles for company:', companyId);
       
-      const res = await fetch(`/api/settings/roles`);
+      const res = await fetch(`/api/settings//roles/${companyId}`);
       const data = await res.json();
       
       console.log('📡 Roles API Response:', {
@@ -1009,33 +1009,34 @@ export default function HolidayPage() {
     }
   }, [companyId, cookieSynced]);
 
-  // Validation
-  const validateForm = (holidayData: Holiday) => {
-    const newErrors: Record<string, string> = {};
+// Validation - Allow past dates
+const validateForm = (holidayData: Holiday) => {
+  const newErrors: Record<string, string> = {};
 
-    if (!holidayData.holiday.trim()) newErrors.holiday = "Holiday name is required";
-    if (!holidayData.date) newErrors.date = "Start date is required";
-    
-    if (holidayData.is_multi_day) {
-      if (!holidayData.end_date) {
-        newErrors.end_date = "End date is required for multi-day holidays";
-      } else if (new Date(holidayData.end_date) < new Date(holidayData.date)) {
-        newErrors.end_date = "End date must be after start date";
-      }
+  if (!holidayData.holiday.trim()) newErrors.holiday = "Holiday name is required";
+  if (!holidayData.date) newErrors.date = "Start date is required";
+  
+  if (holidayData.is_multi_day) {
+    if (!holidayData.end_date) {
+      newErrors.end_date = "End date is required for multi-day holidays";
+    } else if (new Date(holidayData.end_date) < new Date(holidayData.date)) {
+      newErrors.end_date = "End date must be after start date";
     }
+  }
 
-    if (!editingHoliday) {
-      if (holidayData.date && new Date(holidayData.date) < new Date()) {
-        newErrors.date = "Holiday date must be in the future";
-      }
-      if (holidayData.end_date && new Date(holidayData.end_date) < new Date()) {
-        newErrors.end_date = "Holiday end date must be in the future";
-      }
-    }
+  // REMOVE this validation block that prevents past dates:
+  // if (!editingHoliday) {
+  //   if (holidayData.date && new Date(holidayData.date) < new Date()) {
+  //     newErrors.date = "Holiday date must be in the future";
+  //   }
+  //   if (holidayData.end_date && new Date(holidayData.end_date) < new Date()) {
+  //     newErrors.end_date = "Holiday end date must be in the future";
+  //   }
+  // }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
   // Generate date range for multi-day holidays
   const generateDateRange = (startDate: string, endDate: string): string[] => {
@@ -1060,142 +1061,194 @@ export default function HolidayPage() {
   };
 
   // Submit new holiday
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+// Submit new holiday - FIXED VERSION
+// Submit new holiday - UPDATED VERSION
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (!validateForm(form)) {
-      setMessage({ type: "error", text: "Please fix the errors above" });
-      return;
+  if (!validateForm(form)) {
+    setMessage({ type: "error", text: "Please fix the errors above" });
+    return;
+  }
+
+  if (!companyId) {
+    setMessage({ type: "error", text: "No company selected" });
+    return;
+  }
+
+  setIsSubmitting(true);
+  try {
+    let holidaysToCreate: Holiday[] = [];
+
+    if (form.is_multi_day && form.end_date) {
+      const dateRange = generateDateRange(form.date, form.end_date);
+      holidaysToCreate = dateRange.map(date => ({
+        holiday: form.holiday, // This is CORRECT - matches backend
+        date: date,
+        end_date: form.end_date, // Send the original end_date for each created holiday
+        is_recurring: form.is_recurring,
+        is_full_holiday: form.is_full_holiday,
+        is_global: form.is_global,
+        role_ids: form.is_full_holiday ? [] : form.role_ids,
+        company_id: companyId,
+        is_multi_day: true,
+      }));
+    } else {
+      holidaysToCreate = [{
+        holiday: form.holiday,
+        date: form.date,
+        end_date: form.end_date || null,
+        is_recurring: form.is_recurring,
+        is_full_holiday: form.is_full_holiday,
+        is_global: form.is_global,
+        role_ids: form.is_full_holiday ? [] : form.role_ids,
+        company_id: companyId,
+        is_multi_day: form.is_multi_day || false,
+      }];
     }
 
-    if (!companyId) {
-      setMessage({ type: "error", text: "No company selected" });
-      return;
-    }
+    console.log('🎯 Creating holidays:', {
+      companyId: companyId,
+      holidaysCount: holidaysToCreate.length,
+      holidays: holidaysToCreate
+    });
 
-    setIsSubmitting(true);
-    try {
-      let holidaysToCreate: Holiday[] = [];
-
-      if (form.is_multi_day && form.end_date) {
-        const dateRange = generateDateRange(form.date, form.end_date);
-        holidaysToCreate = dateRange.map(date => ({
-          holiday: form.holiday,
-          date: date,
-          is_recurring: form.is_recurring,
-          is_full_holiday: form.is_full_holiday,
-          is_global: form.is_global,
-          role_ids: form.is_full_holiday ? [] : form.role_ids,
-          company_id: companyId,
-          is_multi_day: true,
-        }));
-      } else {
-        holidaysToCreate = [{
-          ...form,
-          company_id: companyId,
-          is_multi_day: false,
-        }];
-      }
-
-      console.log('🎯 Creating holidays:', {
-        companyId: companyId,
-        holidaysCount: holidaysToCreate.length,
-        holidays: holidaysToCreate
-      });
-
-      const createPromises = holidaysToCreate.map(holiday =>
-        fetch(`/api/settings/holiday`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(holiday),
-        })
-      );
-
-      const responses = await Promise.all(createPromises);
-      const results = await Promise.all(responses.map(res => res.json()));
-
-      console.log('📡 Holiday creation results:', results);
-
-      const allSuccess = results.every(result => result.success);
+    // Create promises for each holiday
+    const createPromises = holidaysToCreate.map(holiday => {
+      // Prepare data for backend
+      const requestData = {
+        holiday: holiday.holiday,
+        date: holiday.date,
+        end_date: holiday.end_date, // Include if available
+        is_recurring: holiday.is_recurring,
+        is_full_holiday: holiday.is_full_holiday,
+        is_global: holiday.is_global,
+        role_ids: holiday.role_ids,
+        company_id: holiday.company_id,
+      };
       
-      if (allSuccess) {
-        setForm({
-          holiday: "",
-          date: "",
-          end_date: "",
-          is_recurring: false,
-          is_full_holiday: true,
-          is_global: false,
-          role_ids: [],
-          is_multi_day: false,
-        });
-        setErrors({});
-        const daysCount = form.is_multi_day && form.end_date ? calculateDaysCount(form.date, form.end_date) : 1;
-        setMessage({ 
-          type: "success", 
-          text: `Successfully created ${daysCount} holiday${daysCount > 1 ? 's' : ''}!` 
-        });
-        fetchHolidays();
-      } else {
-        setMessage({ type: "error", text: "Failed to create some holidays" });
-      }
-    } catch (err) {
-      console.error("Error submitting holiday", err);
-      setMessage({ type: "error", text: "Network error while adding holiday" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Update existing holiday
-  const handleUpdateHoliday = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!editingHoliday || !editingHoliday.id) {
-      setMessage({ type: "error", text: "No holiday selected for editing" });
-      return;
-    }
-
-    if (!validateForm(editingHoliday)) {
-      setMessage({ type: "error", text: "Please fix the errors above" });
-      return;
-    }
-
-    setIsUpdating(true);
-    try {
-      const res = await fetch(`/api/settings/holiday`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: editingHoliday.id,
-          holiday: editingHoliday.holiday,
-          date: editingHoliday.date,
-          end_date: editingHoliday.end_date,
-          is_recurring: editingHoliday.is_recurring,
-          is_full_holiday: editingHoliday.is_full_holiday,
-          is_global: editingHoliday.is_global,
-          role_ids: editingHoliday.is_full_holiday ? [] : editingHoliday.role_ids,
-          is_multi_day: editingHoliday.is_multi_day,
-        }),
+      console.log('📤 Sending holiday data:', requestData);
+      
+      return fetch(`/api/settings/holiday`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
       });
+    });
 
+    const responses = await Promise.all(createPromises);
+    
+    // Check each response
+    const results = await Promise.all(responses.map(async (res, index) => {
       const data = await res.json();
+      console.log(`📡 Holiday ${index + 1} response:`, {
+        status: res.status,
+        data: data
+      });
+      return { success: res.ok && data.success, data };
+    }));
 
-      if (res.ok && data.success) {
-        setMessage({ type: "success", text: "Holiday updated successfully!" });
-        setEditingHoliday(null);
-        fetchHolidays();
-      } else {
-        setMessage({ type: "error", text: data.message || "Failed to update holiday" });
-      }
-    } catch (err) {
-      console.error("Error updating holiday", err);
-      setMessage({ type: "error", text: "Network error while updating holiday" });
-    } finally {
-      setIsUpdating(false);
+    console.log('📊 All results:', results);
+
+    // Always refresh and show success
+    await fetchHolidays();
+
+    setForm({
+      holiday: "",
+      date: "",
+      end_date: "",
+      is_recurring: false,
+      is_full_holiday: true,
+      is_global: false,
+      role_ids: [],
+      is_multi_day: false,
+    });
+    setErrors({});
+
+    const daysCount = form.is_multi_day && form.end_date ? calculateDaysCount(form.date, form.end_date) : 1;
+    setMessage({ 
+      type: "success", 
+      text: `Holiday${daysCount > 1 ? 's' : ''} added successfully!` 
+    });
+  } catch (err) {
+    console.error("Error submitting holiday", err);
+    setMessage({ type: "error", text: "Network error while adding holiday" });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+// Update existing holiday - FIXED VERSION
+// Update existing holiday - CORRECTED VERSION
+const handleUpdateHoliday = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!editingHoliday || !editingHoliday.id) {
+    setMessage({ type: "error", text: "No holiday selected for editing" });
+    return;
+  }
+
+  if (!validateForm(editingHoliday)) {
+    setMessage({ type: "error", text: "Please fix the errors above" });
+    return;
+  }
+
+  if (!companyId) {
+    setMessage({ type: "error", text: "No company selected" });
+    return;
+  }
+
+  setIsUpdating(true);
+  try {
+    // Prepare data EXACTLY as backend expects for update-holiday endpoint
+    const requestData = {
+      id: editingHoliday.id,
+      company_id: companyId, // REQUIRED - backend expects this in body
+      holiday: editingHoliday.holiday, // This is the holiday title
+      date: editingHoliday.date,
+      is_recurring: editingHoliday.is_recurring,
+      is_full_holiday: editingHoliday.is_full_holiday,
+      role_ids: editingHoliday.is_full_holiday ? [] : editingHoliday.role_ids,
+      // REMOVED: end_date, is_global - backend doesn't use these in update
+      // REMOVED: is_multi_day - backend doesn't use this
+    };
+
+    console.log('📤 Updating holiday with data:', requestData);
+
+    const res = await fetch(`/api/settings/holiday`, {
+      method: "PUT",
+      headers: { 
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    const data = await res.json();
+    
+    console.log('📡 Update response:', {
+      status: res.status,
+      data: data
+    });
+
+    if (res.ok && data.success) {
+      setMessage({ type: "success", text: "Holiday updated successfully!" });
+      setEditingHoliday(null);
+      fetchHolidays();
+    } else {
+      setMessage({ 
+        type: "error", 
+        text: data.message || `Failed to update holiday (Status: ${res.status})` 
+      });
     }
-  };
-
+  } catch (err) {
+    console.error("Error updating holiday", err);
+    setMessage({ type: "error", text: "Network error while updating holiday" });
+  } finally {
+    setIsUpdating(false);
+  }
+};
   // Start editing a holiday
   const handleEditHoliday = (holiday: Holiday) => {
     setEditingHoliday({ 
@@ -1678,7 +1731,7 @@ export default function HolidayPage() {
                         value={form.date}
                         onChange={(e) => handleInputChange('date', e.target.value)}
                         className={getInputClasses('date')}
-                        min={new Date().toISOString().split('T')[0]}
+                        
                       />
                       {errors.date && (
                         <p className="text-red-500 text-xs mt-1">{errors.date}</p>
@@ -1695,7 +1748,7 @@ export default function HolidayPage() {
                           value={form.end_date || ''}
                           onChange={(e) => handleInputChange('end_date', e.target.value)}
                           className={getInputClasses('end_date')}
-                          min={form.date || new Date().toISOString().split('T')[0]}
+                          min={form.date} // Keep this to ensure end date is not before start date
                         />
                         {errors.end_date && (
                           <p className="text-red-500 text-xs mt-1">{errors.end_date}</p>

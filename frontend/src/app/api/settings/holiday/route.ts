@@ -861,6 +861,7 @@ export async function POST(req: Request) {
 }
 
 // PUT: Update a holiday for current company
+// PUT: Update a holiday for current company
 export async function PUT(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -884,26 +885,18 @@ export async function PUT(req: Request) {
     const body = await req.json();
     const { 
       id, 
-      holiday, // Use 'holiday' directly (not 'name')
+      holiday,
       date, 
-      end_date, 
       is_recurring, 
       is_full_holiday, 
-      is_global, 
       role_ids 
     } = body;
 
-    // Validate required fields
-    if (!id || !holiday || !date) {
+    if (!id) {
       return NextResponse.json(
         { 
           success: false, 
-          message: "Missing required fields",
-          details: {
-            id: !!id,
-            holiday: !!holiday,
-            date: !!date
-          }
+          message: "Missing required field: holiday ID"
         },
         { status: 400 }
       );
@@ -919,23 +912,18 @@ export async function PUT(req: Request) {
 
     const backendUrl = `${apiUrl}/update-holiday`;
     
-    console.log('🔄 PUT Holiday Request:', {
-      backendUrl,
-      company_id,
-      body: { id, holiday, date, end_date, is_recurring, is_full_holiday, is_global, role_ids }
-    });
-
-    // Prepare the data for backend - use the same field names as backend expects
-    const backendData = {
+    // Prepare the data for backend
+    const backendData: any = {
       id,
-      holiday: holiday, // Use 'holiday' directly (not 'name')
-      date,
-      end_date: end_date || null,
-      is_recurring: is_recurring || false,
-      is_full_holiday: is_full_holiday !== undefined ? is_full_holiday : true,
-      is_global: is_global || false,
-      role_ids: role_ids || [],
+      company_id, // REQUIRED - must be in body
     };
+
+    // Add optional fields only if provided
+    if (holiday !== undefined) backendData.holiday = holiday;
+    if (date !== undefined) backendData.date = date;
+    if (is_recurring !== undefined) backendData.is_recurring = is_recurring;
+    if (is_full_holiday !== undefined) backendData.is_full_holiday = is_full_holiday;
+    if (role_ids !== undefined) backendData.role_ids = role_ids || [];
 
     const response = await fetch(backendUrl, {
       method: "PUT",
@@ -943,45 +931,28 @@ export async function PUT(req: Request) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
-        "X-Company-ID": company_id,
+        // NO X-Company-ID header needed for this endpoint
       },
       body: JSON.stringify(backendData),
     });
 
-    console.log('📡 PUT Holiday Backend Response:', {
-      status: response.status,
-      statusText: response.statusText
-    });
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ PUT Holiday Backend request failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorText
-      });
-      
       return NextResponse.json(
         { 
           success: false, 
           message: "Backend request failed",
-          status: response.status
+          error: errorText
         },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    
-    console.log('✅ PUT Holiday Success:', {
-      success: data.success,
-      message: data.message
-    });
-    
     return NextResponse.json(data, { status: response.status });
     
   } catch (err: any) {
-    console.error("❌ PUT Holiday Error:", err);
+    console.error("PUT Holiday Error:", err);
     return NextResponse.json(
       { 
         success: false, 
