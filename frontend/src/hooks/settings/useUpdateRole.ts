@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 
 interface UpdateRoleData {
-  id: number;
+  id: number; // Role ID
   new_role: string;
   working_hour?: number;
 }
@@ -16,12 +16,13 @@ export function useUpdateRole() {
     mutationFn: async (data: UpdateRoleData) => {
       if (!company?.id) throw new Error("Company not found");
 
+      // Send company ID in URL (from route param), role data in body
       const res = await fetch(`/api/settings/roles/${company.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id: roleId }), 
+        body: JSON.stringify(data), // Send role ID in body
       });
 
       if (!res.ok) {
@@ -32,7 +33,6 @@ export function useUpdateRole() {
       return res.json();
     },
     onSuccess: () => {
-      // ✅ Refetch roles after successful update
       queryClient.invalidateQueries({ queryKey: ["roles", company?.id] });
     },
   });

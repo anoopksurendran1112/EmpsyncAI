@@ -90,7 +90,7 @@ export async function PUT(
   { params }: { params: { companyId: string } }
 ) {
   try {
-    const { companyId } = await params; // ✅ Await params
+    const { companyId } = params;
     const cookieStore = await cookies();
     const token = cookieStore.get("access_token")?.value;
 
@@ -99,8 +99,21 @@ export async function PUT(
     }
 
     const body = await req.json();
+    
+    // Extract role ID from request body (PUT needs role ID, not company ID)
+    const roleId = body.id;
+    
+    if (!roleId) {
+      return NextResponse.json(
+        { error: "Role ID is required in request body for PUT" },
+        { status: 400 }
+      );
+    }
 
-    const res = await fetch(`${BASE_URL}/role/${companyId}`, {
+    console.log(`PUT Request - Company ID from URL: ${companyId}, Role ID from body: ${roleId}`);
+
+    // IMPORTANT: PUT uses role ID in URL, not company ID
+    const res = await fetch(`${BASE_URL}/role/${roleId}/`, { // Use roleId with trailing slash
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -109,19 +122,52 @@ export async function PUT(
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
+    // First get response as text to debug
+    const responseText = await res.text();
+    
+    // Check if response is JSON
+    if (res.headers.get('content-type')?.includes('application/json')) {
+      try {
+        const data = JSON.parse(responseText);
+        
+        if (!res.ok) {
+          return NextResponse.json(
+            { error: data.message || `Failed to update role (${res.status})` },
+            { status: res.status }
+          );
+        }
+        
+        return NextResponse.json(data);
+      } catch (parseError) {
+        console.error("Failed to parse JSON:", parseError);
+      }
+    }
+    
+    // If we get here, response wasn't valid JSON
+    console.error("Non-JSON response from PUT:", responseText.substring(0, 500));
+    
+    // Check if it's an HTML error page
+    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
       return NextResponse.json(
-        { error: data.message || "Failed to update role" },
-        { status: res.status }
+        { 
+          error: "Backend returned HTML error page. Check: 1) URL is correct, 2) Role ID exists, 3) Authentication is valid",
+          hint: "PUT endpoint expects /role/{roleId}/ with role ID in URL, not company ID"
+        },
+        { status: 502 }
       );
     }
-
-    return NextResponse.json(data);
+    
+    return NextResponse.json(
+      { error: `Unexpected response: ${responseText.substring(0, 200)}` },
+      { status: 500 }
+    );
+    
   } catch (err: any) {
     console.error("Error updating role:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: err.message || "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 
