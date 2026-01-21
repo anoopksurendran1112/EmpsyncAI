@@ -416,67 +416,87 @@ function EmployeesList({ companyId }: { companyId: number }) {
     return employees;
   }, [employees]);
 
-  // Total count calculation
-  const displayTotalCount = useMemo(() => {
-    if (hasActiveFilters && filteredEmployeesData) {
-      return filteredEmployeesData.totalEmployees || 0;
-    }
-    
-    if (typeof totalCompanyEmployees === 'number' && totalCompanyEmployees > 0) {
-      return totalCompanyEmployees;
-    }
-    
-    if (employeesData && typeof employeesData.totalEmployees === 'number' && employeesData.totalEmployees > 0) {
-      return employeesData.totalEmployees;
-    }
-    
-    if (employeesData && typeof employeesData.totalCount === 'number' && employeesData.totalCount > 0) {
-      return employeesData.totalCount;
-    }
-    
-    return employees.length || 0;
-  }, [employeesData, totalCompanyEmployees, employees.length, hasActiveFilters, filteredEmployeesData]);
+// Find lines 415-444 (the startSerialNumber calculation) and REPLACE it with:
 
-  const currentPageEmployeesCount = filteredEmployees.length;
+// Calculate starting serial number - SIMPLIFIED VERSION
+const startSerialNumber = useMemo(() => {
+  if (hasActiveFilters) {
+    // For filtered results, start from 1 on each page
+    return 1;
+  }
+  
+  // For regular pagination, calculate based on page number
+  return (currentPage - 1) * pageSize + 1;
+}, [hasActiveFilters, currentPage, pageSize]);
 
-  // Calculate range for display
-  const calculateRange = () => {
-    const totalEmployees = displayTotalCount;
-    const currentPageCount = filteredEmployees.length;
-    
-    if (totalEmployees === 0 || currentPageCount === 0) {
-      return { start: 0, end: 0 };
-    }
-    
-    if (hasActiveFilters) {
-      const start = ((currentPage - 1) * pageSize) + 1;
-      const end = Math.min(start + currentPageCount - 1, totalEmployees);
-      return { start, end };
-    }
-    
-    if (currentPage === 1) {
-      return {
-        start: 1,
-        end: currentPageCount
-      };
-    }
-    
-    const previousPagesCount = (currentPage - 1) * pageSize;
-    let start = previousPagesCount + 1;
-    let end = start + currentPageCount - 1;
-    
-    if (end > totalEmployees) {
-      end = totalEmployees;
-    }
-    
-    if (start > totalEmployees) {
-      start = Math.max(1, totalEmployees - currentPageCount + 1);
-    }
-    
+// Total count calculation - MOVE THIS BEFORE startSerialNumber if it's used elsewhere
+const displayTotalCount = useMemo(() => {
+  if (hasActiveFilters && filteredEmployeesData) {
+    return filteredEmployeesData.totalEmployees || 0;
+  }
+  
+  if (typeof totalCompanyEmployees === 'number' && totalCompanyEmployees > 0) {
+    return totalCompanyEmployees;
+  }
+  
+  if (employeesData && typeof employeesData.totalEmployees === 'number' && employeesData.totalEmployees > 0) {
+    return employeesData.totalEmployees;
+  }
+  
+  if (employeesData && typeof employeesData.totalCount === 'number' && employeesData.totalCount > 0) {
+    return employeesData.totalCount;
+  }
+  
+  return employees.length || 0;
+}, [employeesData, totalCompanyEmployees, employees.length, hasActiveFilters, filteredEmployeesData]);
+
+const currentPageEmployeesCount = filteredEmployees.length;
+
+// Calculate range for display
+const { start, end } = useMemo(() => {
+  const totalEmployees = displayTotalCount;
+  const currentPageCount = filteredEmployees.length;
+  
+  if (totalEmployees === 0 || currentPageCount === 0) {
+    return { start: 0, end: 0 };
+  }
+  
+  if (hasActiveFilters) {
+    const start = ((currentPage - 1) * pageSize) + 1;
+    const end = Math.min(start + currentPageCount - 1, totalEmployees);
     return { start, end };
-  };
+  }
+  
+  if (currentPage === 1) {
+    return {
+      start: 1,
+      end: currentPageCount
+    };
+  }
+  
+  const previousPagesCount = (currentPage - 1) * pageSize;
+  let start = previousPagesCount + 1;
+  let end = start + currentPageCount - 1;
+  
+  if (end > totalEmployees) {
+    end = totalEmployees;
+  }
+  
+  if (start > totalEmployees) {
+    start = Math.max(1, totalEmployees - currentPageCount + 1);
+  }
+  
+  return { start, end };
+}, [displayTotalCount, filteredEmployees.length, hasActiveFilters, currentPage, pageSize]);
 
-  const { start, end } = calculateRange();
+// ADJUSTED startSerialNumber that uses the calculated start value
+const adjustedStartSerialNumber = useMemo(() => {
+  if (hasActiveFilters) {
+    return 1;
+  }
+  // Use the calculated start value which is already correct
+  return start;
+}, [hasActiveFilters, start]);
 
   // ⚡ OPTIMIZED: Employee click handler with fast lookup
   const handleEmployeeClick = useCallback(async (employee: EmployeeWithKey, e: React.MouseEvent) => {
@@ -841,7 +861,8 @@ function EmployeesList({ companyId }: { companyId: number }) {
       ) : (
         <>
           <ul className="space-y-3">
-            {filteredEmployees.map((emp) => {
+            {filteredEmployees.map((emp, index) => {
+              const serialNumber = adjustedStartSerialNumber + index;
               const profileUrl = getProfileImageUrl(emp);
               const initials = `${emp.first_name?.[0] || ""}${emp.last_name?.[0] || ""}`;
               const punch = punches[emp.uniqueKey];
@@ -854,11 +875,16 @@ function EmployeesList({ companyId }: { companyId: number }) {
               return (
                 <li
                   key={emp.uniqueKey}
-                  className="border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm group"
+                  className="border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm group relative"
                   onMouseEnter={() => onHoverStart(emp.id.toString())}
                   onMouseLeave={() => onHoverEnd(emp.id.toString())}
                   onClick={(e) => handleEmployeeClick(emp, e)}
                 >
+                  {/* Serial Number Badge - Added here */}
+                  <div className="absolute -top-2 -left-2 bg-blue-600 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center z-10 shadow-md">
+                    {serialNumber}
+                  </div>
+                  
                   <div className="flex items-center justify-between">
                     {/* Left Section - Profile and Employee Details */}
                     <div className="flex items-center gap-4 flex-1">
@@ -910,11 +936,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
                               {totalSessions} Sessions
                             </span>
                           )}
-                          {/* {emp.predictedPage && emp.predictedPage > 1 && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                              Page {emp.predictedPage}
-                            </span>
-                          )} */}
                         </div>
                       </div>
                     </div>
@@ -1044,8 +1065,6 @@ export default function EmployeesPage() {
 
   return <EmployeesList companyId={company.id} />;
 }
-
-
 
 // "use client";
 

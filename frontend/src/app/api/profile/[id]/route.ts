@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
  */
 // app/api/profile/[id]/route.ts
 
+// Update the GET function in your API route:
+
 export async function GET(
   req: Request, 
   { params }: { params: Promise<{ id: string }> }
@@ -25,12 +27,19 @@ export async function GET(
     }
 
     const apiUrl = process.env.API_URL;
-    const response = await fetch(`${apiUrl}/profile/${id}`, {
+    
+    // Add cache busting parameter
+    const cacheBuster = `?_t=${Date.now()}`;
+    
+    const response = await fetch(`${apiUrl}/profile/${id}${cacheBuster}`, {
       method: "GET",
       headers: {
         "X-Company-ID": company_id.toString(),
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
       },
       cache: "no-store",
     });
@@ -41,7 +50,6 @@ export async function GET(
       const errorText = await response.text();
       console.error("Django API GET error:", errorText);
       
-      // If employee not found, return specific error
       if (response.status === 404) {
         return NextResponse.json(
           { 
@@ -62,7 +70,19 @@ export async function GET(
     const result = await response.json();
     console.log("🔍 Backend response data:", result);
     
-    return NextResponse.json({ success: true, data: result }, { status: 200 });
+    // Return with headers to prevent caching at Next.js level
+    return NextResponse.json({ 
+      success: true, 
+      data: result,
+      fromCache: false // Explicitly indicate this is fresh data
+    }, { 
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
+    });
   } catch (err) {
     console.error("Profile GET error:", err);
     return NextResponse.json(
@@ -332,12 +352,24 @@ export async function PUT(
       );
     }
 
-    const result = await response.json();
-    return NextResponse.json({ 
-      success: true, 
-      data: result.data || result,
-      message: result.message || "Profile updated successfully"
-    }, { status: 200 });
+// In the PUT function, after successful update:
+      const result = await response.json();
+
+      // Add cache invalidation headers
+      const headers = {
+        'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      };
+
+      return NextResponse.json({ 
+        success: true, 
+        data: result.data || result,
+        message: result.message || "Profile updated successfully"
+      }, { 
+        status: 200,
+        headers: headers
+      });
   } catch (err) {
     console.error("Profile PUT error:", err);
     return NextResponse.json(
