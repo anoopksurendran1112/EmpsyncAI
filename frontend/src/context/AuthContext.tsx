@@ -19,6 +19,8 @@ export type User = {
   is_sms: boolean;
   is_wfh: boolean;
   group: string;
+  role_id?: number;
+  group_id?: number;
 };
 
 export type Company = {
@@ -112,7 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ company_id: newCompany.id }),
       });
-      
+
       console.log("Company switched successfully:", newCompany.company_name);
     } catch (err) {
       console.error("Failed to update company cookie on server:", err);

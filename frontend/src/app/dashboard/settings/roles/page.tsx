@@ -146,7 +146,7 @@ export default function RolesPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleEdit(role)}
-                      className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+                      className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
