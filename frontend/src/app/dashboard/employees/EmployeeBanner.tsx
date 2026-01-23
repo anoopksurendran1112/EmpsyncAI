@@ -282,13 +282,13 @@ export default function EmployeeBanner({
                     )}
                   </div>
                   
-                  {/* Debug info (optional) */}
+                  {/* Debug info (optional)
                   {editMode && process.env.NODE_ENV === 'development' && (
                     <div className="text-xs text-gray-500 mt-1">
                       Role ID in DB: {employee.role_id || "Not set"} | 
                       Matched ID: {getCurrentRoleId() || "Not found"}
                     </div>
-                  )}
+                  )} */}
                 </div>
               ) : (
                 <p className="text-lg text-muted-foreground mb-2">

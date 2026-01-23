@@ -40,6 +40,123 @@ export async function GET(
 }
 
 
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  console.log("🚀 PUT handler triggered");
+
+  try {
+    const { id } = await params;
+    
+    if (!id) {
+      console.warn("⚠️ Missing company ID in URL");
+      return NextResponse.json(
+        { success: false, message: "Company ID is required in URL" },
+        { status: 400 }
+      );
+    }
+
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+
+    if (!token) {
+      console.warn("⚠️ Unauthorized: No token found");
+      return NextResponse.json(
+        { success: false, message: "Unauthorized: No access token found" },
+        { status: 401 }
+      );
+    }
+
+    // Parse request body
+    let body: any;
+    try {
+      body = await req.json();
+      console.log("👉 PUT Request body parsed:", body);
+    } catch (err) {
+      console.warn("⚠️ Invalid JSON in request body:", err);
+      return NextResponse.json(
+        { success: false, message: "Invalid JSON in request body" },
+        { status: 400 }
+      );
+    }
+
+    // Validate required fields
+    const { new_group, short_name, groupId } = body;
+    
+    if (!groupId) {
+      console.warn("⚠️ Missing group ID in request body");
+      return NextResponse.json(
+        { success: false, message: "Group ID is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!new_group) {
+      console.warn("⚠️ Missing new_group in request body");
+      return NextResponse.json(
+        { success: false, message: "new_group is required" },
+        { status: 400 }
+      );
+    }
+
+    // Prepare data for backend (matching Django backend expectations)
+    const putData = {
+      id: groupId,
+      new_group: new_group,
+      short_name: short_name || "" // Handle optional short_name
+    };
+
+    const requestUrl = `https://empsyncai.kochi.digital/api/group/${id}`;
+    console.log("🌍 Sending PUT request to:", requestUrl);
+    console.log("📦 PUT data:", putData);
+
+    const res = await fetch(requestUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(putData),
+    });
+
+    console.log("📡 Backend response status:", res.status);
+
+    let responseData: any;
+    try {
+      const contentType = res.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        responseData = await res.json();
+        console.log("✅ Parsed JSON response:", responseData);
+      } else {
+        const text = await res.text();
+        console.log("⚠️ Non-JSON response received:", text.slice(0, 200));
+        responseData = { message: text };
+      }
+    } catch (parseErr) {
+      console.error("❌ Failed to parse response as JSON:", parseErr);
+      responseData = { message: "Invalid response format" };
+    }
+
+    if (!res.ok) {
+      console.error("❌ PUT request failed:", responseData);
+      return NextResponse.json(
+        { success: false, error: responseData },
+        { status: res.status }
+      );
+    }
+
+    console.log("✅ PUT request successful:", responseData);
+    return NextResponse.json(responseData, { status: res.status });
+  } catch (error) {
+    console.error("💥 Uncaught Error in PUT handler:", error);
+    return NextResponse.json(
+      { success: false, message: "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
 
 export async function DELETE(
   req: NextRequest,

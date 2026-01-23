@@ -784,6 +784,8 @@ const handleSaveAllChanges = async () => {
             setFormData(prev => ({
               ...prev!,
               ...freshData.data,
+               role: freshData.data.role || prev!.role,
+              role_id: freshData.data.role_id !== undefined ? freshData.data.role_id : prev!.role_id,
               gender_display: freshData.data.gender === 'M' ? 'Male' : 
                             freshData.data.gender === 'F' ? 'Female' : 'Other'
             }));
@@ -1040,14 +1042,14 @@ const handleSaveAllChanges = async () => {
                         }).filter(Boolean)}
                       </SelectContent>
                     </Select>
-                    {/* Debug info */}
+                    {/* Debug info
                     {process.env.NODE_ENV === 'development' && (
                       <div className="text-xs text-gray-500 mt-1">
                         Groups loaded: {groups.length} | 
                         Current Group ID: {formData.group_id || "None"} | 
                         Current Group: {formData.group || "None"}
                       </div>
-                    )}
+                    )} */}
                   </div>
                 ) : (
                   <p className="text-sm font-medium text-foreground">
