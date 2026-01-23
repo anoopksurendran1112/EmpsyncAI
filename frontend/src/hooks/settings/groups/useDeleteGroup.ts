@@ -1,3 +1,4 @@
+// hooks/settings/groups/useDeleteGroup.ts 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
