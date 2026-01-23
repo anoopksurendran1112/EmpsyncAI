@@ -60,7 +60,7 @@
 //         refetch();
 //         setRetryCount(prev => prev + 1);
 //       }, 1000);
-      
+
 //       return () => clearTimeout(timer);
 //     }
 //   }, [isError, retryCount, refetch]);
@@ -78,7 +78,7 @@
 //   //   }
 
 //   //   setIsSaving(true);
-    
+
 //   //   try {
 //   //     const payload = {
 //   //       first_name: formData.first_name,
@@ -117,7 +117,7 @@
 //   //           : "Employee deactivated successfully!"
 //   //       );
 //   //       setEditMode(false);
-        
+
 //   //       // Refetch to get updated data
 //   //       setTimeout(() => {
 //   //         refetch();
@@ -132,8 +132,8 @@
 //   //     setIsSaving(false);
 //   //   }
 //   // };
-  
-  
+
+
 // const handleSaveAllChanges = async () => {
 //   if (!formData || !company) {
 //     toast.error("Missing employee data or company information");
@@ -141,7 +141,7 @@
 //   }
 
 //   setIsSaving(true);
-  
+
 //   try {
 //     const payload = {
 //       first_name: formData.first_name,
@@ -177,7 +177,7 @@
 //     if (result.success) {
 //       toast.success("Employee updated successfully!");
 //       setEditMode(false);
-      
+
 //       // Refetch to get updated data
 //       setTimeout(() => {
 //         refetch();
@@ -228,7 +228,7 @@
 //           <p className="text-muted-foreground mb-4">
 //             Unable to load employee ID: {employeeId}
 //           </p>
-          
+
 //           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
 //             <p className="text-yellow-800 text-sm">
 //               This might be because:
@@ -248,7 +248,7 @@
 //               <RefreshCw className="h-4 w-4 mr-2" />
 //               Try Loading Again
 //             </Button>
-            
+
 //             <Link href="/dashboard/employees">
 //               <Button variant="outline" className="w-full">
 //                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -300,7 +300,7 @@
 //               Back to Employees
 //             </Button>
 //           </Link>
-          
+
 //           <div className="flex items-center gap-2">
 //             {!formData.is_active && (
 //               <Badge variant="secondary" className="bg-gray-100 text-gray-700">
@@ -585,17 +585,17 @@ export default function EmployeeDetailsPage() {
 
   const fetchGroups = async () => {
     if (!companyId) return;
-    
+
     setLoadingGroups(true);
     try {
       const response = await fetch(`/api/settings/groups/${companyId}`);
       if (!response.ok) throw new Error("Failed to fetch groups");
-      
+
       const result = await response.json();
       console.log("📊 Groups API response:", result);
-      
+
       let groupsArray: Group[] = [];
-      
+
       if (Array.isArray(result)) {
         groupsArray = result;
       } else if (result.success && Array.isArray(result.data)) {
@@ -605,7 +605,7 @@ export default function EmployeeDetailsPage() {
       } else if (result.groups) {
         groupsArray = result.groups;
       }
-      
+
       // Debug log to see the actual structure
       console.log("🔍 Groups array structure:", groupsArray.map(g => ({
         id: g.id,
@@ -615,7 +615,7 @@ export default function EmployeeDetailsPage() {
         short_name: g.short_name,
         allKeys: Object.keys(g)
       })));
-      
+
       // Filter out groups with invalid IDs or names
       const validGroups = groupsArray.filter(group => {
         const groupId = group.id?.toString()?.trim();
@@ -623,7 +623,7 @@ export default function EmployeeDetailsPage() {
         const groupName = (group.group || group.name || group.group_name || "").trim();
         return groupId && groupId !== "" && groupName !== "";
       });
-      
+
       console.log("✅ Valid groups after filtering:", validGroups);
       setGroups(validGroups);
     } catch (err) {
@@ -642,16 +642,17 @@ export default function EmployeeDetailsPage() {
         refetch();
         setRetryCount(prev => prev + 1);
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [isError, retryCount, refetch]);
 
   const handleChange = (field: keyof User, value: any) => {
-    if (formData) {
-      console.log("🔄 Field changed:", { field, value, current: formData[field] });
-      setFormData({ ...formData, [field]: value });
-    }
+    setFormData(prev => {
+      if (!prev) return null;
+      console.log("🔄 Field changed:", { field, value });
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleGroupChange = (groupId: string) => {
@@ -660,7 +661,7 @@ export default function EmployeeDetailsPage() {
         console.log("Clearing group selection");
         setFormData({
           ...formData,
-          group_id: null,
+          group_id: undefined,
           group: ""
         });
       } else {
@@ -668,12 +669,12 @@ export default function EmployeeDetailsPage() {
         if (selectedGroup) {
           // Get the group name from any possible field
           const groupName = selectedGroup.group || selectedGroup.name || selectedGroup.group_name || "";
-          
+
           console.log("🎯 Group selected:", {
             group_id: Number(groupId),
             group: groupName
           });
-          
+
           setFormData({
             ...formData,
             group_id: Number(groupId),
@@ -689,128 +690,128 @@ export default function EmployeeDetailsPage() {
     return group.group || group.name || group.group_name || `Group ${group.id}`;
   };
 
-// In your EmployeeDetailsPage component, update handleSaveAllChanges:
+  // In your EmployeeDetailsPage component, update handleSaveAllChanges:
 
-const handleSaveAllChanges = async () => {
-  if (!formData || !company) {
-    toast.error("Missing employee data or company information");
-    return;
-  }
-
-  setIsSaving(true);
-  
-  try {
-    const payload = {
-      first_name: formData.first_name,
-      last_name: formData.last_name,
-      email: formData.email,
-      mobile: formData.mobile,
-      role: formData.role,
-      gender: formData.gender,
-      group: formData.group,
-      is_wfh: formData.is_wfh,
-      is_active: formData.is_active,
-      role_id: formData.role_id,
-      group_id: formData.group_id,
-      is_whatsapp: formData.is_whatsapp || false,
-      is_sms: formData.is_sms || false,
-    };
-
-    console.log("💾 Saving employee with payload:", payload);
-
-    // Add cache busting to the PUT request
-    const response = await fetch(`/api/profile/${formData.id}?_t=${Date.now()}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "x-company-id": company.id.toString(),
-        "Cache-Control": "no-cache",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await response.json();
-    console.log("💾 Save response:", result);
-
-    if (result.success) {
-      toast.success("Employee updated successfully!");
-      setEditMode(false);
-      
-      // CRITICAL: Update formData IMMEDIATELY with the response
-      if (result.data) {
-        console.log("🚨 UPDATING FORM DATA FROM RESPONSE:", result.data);
-        
-        // Create updated employee object
-        const updatedEmployee = {
-          ...formData,
-          // Update all fields from response
-          first_name: result.data.first_name || formData.first_name,
-          last_name: result.data.last_name || formData.last_name,
-          email: result.data.email || formData.email,
-          mobile: result.data.mobile || formData.mobile,
-          role: result.data.role || formData.role,
-          gender: result.data.gender || formData.gender,
-          group: result.data.group || formData.group,
-          is_wfh: result.data.is_wfh !== undefined ? result.data.is_wfh : formData.is_wfh,
-          is_active: result.data.is_active !== undefined ? result.data.is_active : formData.is_active,
-          role_id: result.data.role_id || formData.role_id,
-          group_id: result.data.group_id || formData.group_id,
-          is_whatsapp: result.data.is_whatsapp !== undefined ? result.data.is_whatsapp : formData.is_whatsapp,
-          is_sms: result.data.is_sms !== undefined ? result.data.is_sms : formData.is_sms,
-          // Calculate gender_display
-          gender_display: result.data.gender === 'M' ? 'Male' : 
-                         result.data.gender === 'F' ? 'Female' : 'Other'
-        };
-        
-        console.log("✅ UPDATED EMPLOYEE DATA:", updatedEmployee);
-        setFormData(updatedEmployee);
-      }
-      
-      // Force a hard refresh of employee data with cache busting
-      setTimeout(() => {
-        console.log("🔄 Forcing hard refresh...");
-        
-        // Create a new promise for refetch with cache busting
-        fetch(`/api/profile/${formData.id}?_t=${Date.now()}&force=true`, {
-          headers: {
-            "x-company-id": company.id.toString(),
-          },
-          cache: 'no-store'
-        })
-        .then(res => res.json())
-        .then(freshData => {
-          console.log("🔄 Fresh data from hard refresh:", freshData);
-          if (freshData.success && freshData.data) {
-            setFormData(prev => ({
-              ...prev!,
-              ...freshData.data,
-               role: freshData.data.role || prev!.role,
-              role_id: freshData.data.role_id !== undefined ? freshData.data.role_id : prev!.role_id,
-              gender_display: freshData.data.gender === 'M' ? 'Male' : 
-                            freshData.data.gender === 'F' ? 'Female' : 'Other'
-            }));
-          }
-        })
-        .catch(err => console.error("Error in hard refresh:", err));
-        
-        // Also call the original refetch
-        refetch();
-      }, 1000);
-      
-    } else {
-      if (result.backendMessage?.includes('Messaging services')) {
-        toast.error("Cannot update while messaging services are disabled. Please contact your administrator.");
-      } else {
-        toast.error(result.message || "Failed to update employee profile");
-      }
+  const handleSaveAllChanges = async () => {
+    if (!formData || !company) {
+      toast.error("Missing employee data or company information");
+      return;
     }
-  } catch (error) {
-    console.error("Error updating employee profile:", error);
-    toast.error("Failed to update employee profile");
-  } finally {
-    setIsSaving(false);
-  }
-};
+
+    setIsSaving(true);
+
+    try {
+      const payload = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        mobile: formData.mobile,
+        role: formData.role,
+        gender: formData.gender,
+        group: formData.group,
+        is_wfh: formData.is_wfh,
+        is_active: formData.is_active,
+        role_id: formData.role_id,
+        group_id: formData.group_id,
+        is_whatsapp: formData.is_whatsapp || false,
+        is_sms: formData.is_sms || false,
+      };
+
+      console.log("💾 Saving employee with payload:", payload);
+
+      // Add cache busting to the PUT request
+      const response = await fetch(`/api/profile/${formData.id}?_t=${Date.now()}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-company-id": company.id.toString(),
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+      console.log("💾 Save response:", result);
+
+      if (result.success) {
+        toast.success("Employee updated successfully!");
+        setEditMode(false);
+
+        // CRITICAL: Update formData IMMEDIATELY with the response
+        if (result.data) {
+          console.log("🚨 UPDATING FORM DATA FROM RESPONSE:", result.data);
+
+          // Create updated employee object
+          const updatedEmployee = {
+            ...formData,
+            // Update all fields from response
+            first_name: result.data.first_name || formData.first_name,
+            last_name: result.data.last_name || formData.last_name,
+            email: result.data.email || formData.email,
+            mobile: result.data.mobile || formData.mobile,
+            role: result.data.role || formData.role,
+            gender: result.data.gender || formData.gender,
+            group: result.data.group || formData.group,
+            is_wfh: result.data.is_wfh !== undefined ? result.data.is_wfh : formData.is_wfh,
+            is_active: result.data.is_active !== undefined ? result.data.is_active : formData.is_active,
+            role_id: result.data.role_id || formData.role_id,
+            group_id: result.data.group_id || formData.group_id,
+            is_whatsapp: result.data.is_whatsapp !== undefined ? result.data.is_whatsapp : formData.is_whatsapp,
+            is_sms: result.data.is_sms !== undefined ? result.data.is_sms : formData.is_sms,
+            // Calculate gender_display
+            gender_display: result.data.gender === 'M' ? 'Male' :
+              result.data.gender === 'F' ? 'Female' : 'Other'
+          };
+
+          console.log("✅ UPDATED EMPLOYEE DATA:", updatedEmployee);
+          setFormData(updatedEmployee);
+        }
+
+        // Force a hard refresh of employee data with cache busting
+        setTimeout(() => {
+          console.log("🔄 Forcing hard refresh...");
+
+          // Create a new promise for refetch with cache busting
+          fetch(`/api/profile/${formData.id}?_t=${Date.now()}&force=true`, {
+            headers: {
+              "x-company-id": company.id.toString(),
+            },
+            cache: 'no-store'
+          })
+            .then(res => res.json())
+            .then(freshData => {
+              console.log("🔄 Fresh data from hard refresh:", freshData);
+              if (freshData.success && freshData.data) {
+                setFormData(prev => ({
+                  ...prev!,
+                  ...freshData.data,
+                  role: freshData.data.role || prev!.role,
+                  role_id: freshData.data.role_id !== undefined ? freshData.data.role_id : prev!.role_id,
+                  gender_display: freshData.data.gender === 'M' ? 'Male' :
+                    freshData.data.gender === 'F' ? 'Female' : 'Other'
+                }));
+              }
+            })
+            .catch(err => console.error("Error in hard refresh:", err));
+
+          // Also call the original refetch
+          refetch();
+        }, 1000);
+
+      } else {
+        if (result.backendMessage?.includes('Messaging services')) {
+          toast.error("Cannot update while messaging services are disabled. Please contact your administrator.");
+        } else {
+          toast.error(result.message || "Failed to update employee profile");
+        }
+      }
+    } catch (error) {
+      console.error("Error updating employee profile:", error);
+      toast.error("Failed to update employee profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Manual retry function
   const handleManualRetry = () => {
@@ -842,7 +843,7 @@ const handleSaveAllChanges = async () => {
           <p className="text-muted-foreground mb-4">
             Unable to load employee ID: {employeeId}
           </p>
-          
+
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
             <p className="text-yellow-800 text-sm">
               This might be because:
@@ -855,14 +856,14 @@ const handleSaveAllChanges = async () => {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button 
+            <Button
               onClick={handleManualRetry}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Try Loading Again
             </Button>
-            
+
             <Link href="/dashboard/employees">
               <Button variant="outline" className="w-full">
                 <ArrowLeft className="h-4 w-4 mr-2" />
@@ -900,7 +901,7 @@ const handleSaveAllChanges = async () => {
           <Alert className="mb-6 bg-yellow-50 border-yellow-200">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-800">
-              <strong>This employee is inactive.</strong> They cannot access the system. 
+              <strong>This employee is inactive.</strong> They cannot access the system.
               You can reactivate them using the toggle in edit mode.
             </AlertDescription>
           </Alert>
@@ -914,7 +915,7 @@ const handleSaveAllChanges = async () => {
               Back to Employees
             </Button>
           </Link>
-          
+
           <div className="flex items-center gap-2">
             {!formData.is_active && (
               <Badge variant="secondary" className="bg-gray-100 text-gray-700">
@@ -927,16 +928,16 @@ const handleSaveAllChanges = async () => {
               onClick={() => setEditMode(!editMode)}
               disabled={isSaving}
             >
-              <Pen className="h-4 w-4 mr-1" /> 
+              <Pen className="h-4 w-4 mr-1" />
               {editMode ? "Cancel" : "Edit"}
             </Button>
           </div>
         </div>
 
         {/* Employee Banner */}
-        <EmployeeBanner 
-          employee={formData} 
-          editMode={editMode} 
+        <EmployeeBanner
+          employee={formData}
+          editMode={editMode}
           onChange={handleChange}
         />
 
@@ -1009,7 +1010,7 @@ const handleSaveAllChanges = async () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Group Dropdown - UPDATED */}
               <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                 <MapPin className="h-4 w-4 text-yellow-600" />
@@ -1028,12 +1029,12 @@ const handleSaveAllChanges = async () => {
                         {groups.map((group) => {
                           const groupId = group.id?.toString() || "";
                           const groupName = getGroupDisplayName(group);
-                          
+
                           if (!groupId || groupId.trim() === "" || !groupName.trim()) {
                             console.warn("Skipping group with invalid data:", group);
                             return null;
                           }
-                          
+
                           return (
                             <SelectItem key={group.id} value={groupId}>
                               {groupName}
