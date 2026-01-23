@@ -26,7 +26,7 @@ import { useState } from "react"
 import { AddGroupForm } from "./add-group-form"
 import { useAuth } from "@/context/AuthContext";
 import { useDeleteGroup } from "@/hooks/settings/groups/useDeleteGroup";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function GroupsPage() {
@@ -40,9 +40,9 @@ export default function GroupsPage() {
       toast.error("Company information not available.");
       return;
     }
-    deleteGroupMutation.mutate({ 
-        groupId, 
-        body: { company_id: [company.id],id: groupId } 
+    deleteGroupMutation.mutate({
+      groupId,
+      body: { company_id: [company.id], id: groupId }
     })
   }
 
@@ -55,7 +55,9 @@ export default function GroupsPage() {
         <h1 className="text-xl font-bold">Groups</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>Add Group</Button>
+            <Button>
+              <Plus className="h-4 w-4" />Add Group
+              </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -73,10 +75,9 @@ export default function GroupsPage() {
         {data?.data?.map((group: any) => (
           <li
             key={group.id}
-            className="flex items-center justify-between border p-2 rounded-md bg-gray-50 hover:bg-gray-100"
+            className="flex items-center justify-between border p-2 rounded-md bg-gray-50 hover:bg-gray-100 min-h-[60px]"
           >
             <div>
-              <p>{group.id}</p>
               <p className="font-medium">{group.group}</p>
               <p className="text-sm text-gray-500">{group.short_name}</p>
             </div>
@@ -95,7 +96,10 @@ export default function GroupsPage() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDelete(group.id)}>
+                  <AlertDialogAction
+                    onClick={() => handleDelete(group.id)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
                     Delete
                   </AlertDialogAction>
                 </AlertDialogFooter>

@@ -26,7 +26,7 @@ type AddGroupFormData = z.infer<typeof addGroupSchema>
 
 export function AddGroupForm({ setOpen }: { setOpen: (open: boolean) => void }) {
   const { company } = useAuth()
-  const { data: employees, isLoading: isLoadingEmployees } = useEmployees(company?.id)
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees(company?.id || 0, 1, 1000)
   const addGroupMutation = useAddGroup()
   const {
     register,
@@ -42,6 +42,7 @@ export function AddGroupForm({ setOpen }: { setOpen: (open: boolean) => void }) 
   })
 
   const selectedMemberIds = watch("members") || []
+  const employees = (employeesData as any)?.employees || []
 
   const onSubmit = (data: AddGroupFormData) => {
     if (!company?.id) {
@@ -70,43 +71,43 @@ export function AddGroupForm({ setOpen }: { setOpen: (open: boolean) => void }) 
       : [...currentMembers, memberId]
     setValue("members", newMembers, { shouldValidate: true })
   }
-  
-  const selectedEmployees = employees?.filter(emp => selectedMemberIds.includes(emp.id)) || [];
+
+  const selectedEmployees = employees?.filter((emp: any) => selectedMemberIds.includes(emp.id)) || [];
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <div className="grid gap-4 py-4">
         <div>
-          <Label htmlFor="groupType">Group Type</Label>
+          <Label htmlFor="groupType" className="mb-2">Group Type</Label>
           <Input id="groupType" {...register("groupType")} />
           {errors.groupType && <p className="text-red-500 text-sm">{errors.groupType.message}</p>}
         </div>
         <div>
-          <Label htmlFor="shortName">Short Name</Label>
+          <Label htmlFor="shortName" className="mb-2">Short Name</Label>
           <Input id="shortName" {...register("shortName")} />
           {errors.shortName && <p className="text-red-500 text-sm">{errors.shortName.message}</p>}
         </div>
         <div>
-          <Label>Add Members</Label>
+          <Label className="mb-2">Add Members</Label>
           <Command className="border rounded-lg">
             <div className="p-2 flex flex-wrap gap-1">
-                {selectedEmployees.map(employee => (
-                    <Badge key={employee.id} variant="secondary">
-                        {employee.first_name} {employee.last_name}
-                        <button type="button" onClick={() => toggleMember(employee.id)} className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                            <RemoveIcon className="h-3 w-3" />
-                        </button>
-                    </Badge>
-                ))}
+              {selectedEmployees.map((employee: any) => (
+                <Badge key={employee.id} variant="secondary">
+                  {employee.first_name} {employee.last_name}
+                  <button type="button" onClick={() => toggleMember(employee.id)} className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                    <RemoveIcon className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
             </div>
             <CommandInput placeholder="Search employees..." />
             <CommandList>
               <CommandEmpty>No employees found.</CommandEmpty>
-              <CommandGroup>
+              <CommandGroup className="max-h-[150px] overflow-y-auto">
                 {isLoadingEmployees ? (
                   <CommandItem>Loading...</CommandItem>
                 ) : (
-                  employees?.map((employee) => (
+                  employees?.map((employee: any) => (
                     <CommandItem
                       key={employee.id}
                       onSelect={() => toggleMember(employee.id)}
@@ -121,7 +122,7 @@ export function AddGroupForm({ setOpen }: { setOpen: (open: boolean) => void }) 
           </Command>
         </div>
       </div>
-      <DialogFooter>
+      <DialogFooter className="mt-4">
         <Button type="submit">Save Group</Button>
       </DialogFooter>
     </form>

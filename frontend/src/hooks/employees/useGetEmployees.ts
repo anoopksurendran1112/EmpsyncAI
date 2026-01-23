@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { User } from "@/context/AuthContext";
 
-interface PaginatedResponse {
+export interface PaginatedResponse {
   employees: User[];
   currentPage: number;
   totalPages: number;
@@ -19,7 +19,7 @@ async function fetchEmployees(companyId: number, page: number, limit: number, gr
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       company_id: companyId,
       page,
       limit,
@@ -32,9 +32,9 @@ async function fetchEmployees(companyId: number, page: number, limit: number, gr
   }
 
   const responseData = await res.json();
-  
+
   console.log('🔍 API Response:', responseData);
-  
+
   return {
     employees: responseData.employees || [],
     currentPage: responseData.currentPage || page,
@@ -52,7 +52,7 @@ export function useEmployees(companyId: number, page: number, limit: number = 50
     queryFn: () => fetchEmployees(companyId, page, limit, group),
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
-    keepPreviousData: true,
+
   });
 }
 

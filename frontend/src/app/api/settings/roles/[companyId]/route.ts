@@ -113,7 +113,7 @@ export async function PUT(
     console.log(`PUT Request - Company ID from URL: ${companyId}, Role ID from body: ${roleId}`);
 
     // IMPORTANT: PUT uses role ID in URL, not company ID
-    const res = await fetch(`${BASE_URL}/role/${roleId}/`, { // Use roleId with trailing slash
+    const res = await fetch(`${BASE_URL}/role/${roleId}`, { // Use roleId with trailing slash
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
