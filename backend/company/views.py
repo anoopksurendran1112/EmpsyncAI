@@ -1,9 +1,9 @@
 from datetime import date, datetime
-from django.shortcuts import render
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup
+
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory
 from punch.models import PunchRecords
 from rest_framework import status
-from .serializer import CompanySerializer,DeviceSerializer
+from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer
 from drf_spectacular.utils import extend_schema,OpenApiParameter, OpenApiTypes
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import AllowAny
@@ -14,35 +14,22 @@ from django.db.models import ProtectedError
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
-
-
-
-
-
-
-
-#creating a company user machine 
-
-# company/views.py
 from django.shortcuts import render
 from django.views.generic import TemplateView
-
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.contrib import messages
 from .forms import CombinedForm
 from .models import College, Machine, User
-
-
-
 from dotenv import load_dotenv
 import os
 
-load_dotenv()  # loads variables from .env
 
+load_dotenv()  # loads variables from .env
 DEFAULT_JWT_TOKEN = os.getenv("DEFAULT_JWT_TOKEN")
 
 
+# Create your views here.
 
 def create_all_view(request):
     if request.method == 'POST':
@@ -81,26 +68,11 @@ def create_all_view(request):
                 college_code=cd['college_code'],
                 jwt_token=cd.get('jwt_token') or DEFAULT_JWT_TOKEN 
             )
-
             messages.success(request, "✅ Data inserted successfully into secondary DB.")
             return redirect('create_all')
-
     else:
         form = CombinedForm()
-
     return render(request, 'create_college.html', {'form': form})
-
-
-
-
-
-# Create your views here.
-
-
-
-
-
-
 
 
 @extend_schema(request=CompanySerializer,responses=CompanySerializer(many=True))
@@ -126,36 +98,27 @@ def getCompany(request=CompanySerializer):
                     'status':status.HTTP_200_OK,
                     'data':serializer.data
                 })
-    if request.method == 'GET':
 
+    elif request.method == 'GET':
         companies = Company.objects.all()
         serializer = CompanySerializer(companies,many=True)
-
-      
-
-
         return Response({
             'status': status.HTTP_200_OK,
             'success': True,
             'data': serializer.data
-            
         })
 
-        
     else:
         return Response({
             'status': status.HTTP_403_FORBIDDEN,
             'message': 'User is not an admin'
-        },)
+        })
 
 
-
-    
 @extend_schema(request=DeviceSerializer, responses=DeviceSerializer)
 @api_view(['POST', 'PUT'])  # Handle both POST for creating and PUT for updating
 def device(request):
     company_id = request.data.get('company_id')
-
     admin_status = getattr(request.user, 'admin', False)
     super_admin_status = getattr(request.user, 'super_admin', False)
 
@@ -241,9 +204,6 @@ def device(request):
             })
 
 
-
-
-    
 @extend_schema(request=CompanySerializer,responses=CompanySerializer(many=True))
 @api_view(['POST'])
 def addCompany(request=CompanySerializer):
@@ -287,13 +247,10 @@ def addCompany(request=CompanySerializer):
         },)
     
 
-
 @api_view(['GET','DELETE','PUT'])
 @permission_classes([AllowAny])
 def getCompanyRoles(request, id):
     if request.method == 'GET':    
-    
-
         if id:
             roles = CompanyRole.objects.filter(company__id=id)
         else:
@@ -316,7 +273,6 @@ def getCompanyRoles(request, id):
     elif request.method == 'PUT':
         new_role = request.data.get('new_role')
         working_hour = request.data.get('working_hour')
-
         id = request.data.get('id')
 
         if not new_role:
@@ -349,13 +305,11 @@ def getCompanyRoles(request, id):
             }, status=status.HTTP_404_NOT_FOUND)
     
     elif request.method == 'DELETE':
-
         id = request.data.get('id')
         company_id = request.data.get('company_id')
         users = CustomUser.objects.filter(company__in=company_id, role=id)
         users.update( role=None)  # Assuming you are nullifying the role field
         
-
         if not id:
                 return Response({
                     'status': status.HTTP_404_NOT_FOUND,
@@ -445,8 +399,6 @@ def addCompanyGroup(request):
             'message': 'Group added successfully',
            
         }, status=status.HTTP_201_CREATED)
-
-    
 
 
 @api_view(['GET','DELETE','PUT'])
@@ -543,7 +495,6 @@ def getCompanyGroups(request, id):
                 'message': 'Cannot delete group. It is assigned to users.',
                 'success': False,
             }, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 @extend_schema(
@@ -942,3 +893,99 @@ def delete_virtual_device(request,id):
         'message': 'Virtual device deleted',
        
     })
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def staff_category_view(request, category_id=None):
+    # 1. Extract Company ID (GET uses query_params, others use data body)
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+    else:
+        company_id = request.data.get('company_id')
+
+    if not company_id:
+        return Response({'error': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Handle LIST (GET without ID) and CREATE (POST)
+    if category_id is None:
+        if request.method == 'GET':
+            categories = StaffCategory.objects.filter(company_id=company_id)
+            serializer = StaffCategorySerializer(categories, many=True)
+            return Response({'categories': serializer.data}, status=status.HTTP_200_OK)
+
+        elif request.method == 'POST':
+            serializer = StaffCategorySerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status':status.HTTP_201_CREATED,'message':'Staff category created successfully', 'data':serializer.data}, status=status.HTTP_201_CREATED)
+            return Response({'status':status.HTTP_400_BAD_REQUEST,'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. Handle DETAIL (GET with ID), UPDATE (PUT), and DELETE
+    else:
+        # get_object_or_404 ensures the ID exists AND belongs to the company
+        category = get_object_or_404(StaffCategory, id=category_id, company_id=company_id)
+
+        if request.method == 'GET':
+            serializer = StaffCategorySerializer(category)
+            return Response({'status':status.HTTP_200_OK,'data':serializer.data}, status=status.HTTP_200_OK)
+
+        elif request.method == 'PUT':
+            serializer = StaffCategorySerializer(category, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status':status.HTTP_200_OK,'message':'Staff category updated successfully', 'data':serializer.data}, status=status.HTTP_200_OK)
+            return Response({'status':status.HTTP_400_BAD_REQUEST,'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        elif request.method == 'DELETE':
+            category.delete()
+            return Response({'status':status.HTTP_200_OK,'message': 'Deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+    return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def staff_type_view(request, type_id=None):
+    # 1. Extract Company ID (GET uses query_params, others use data body)
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+    else:
+        company_id = request.data.get('company_id')
+
+    if not company_id:
+        return Response({'error': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 2. Handle LIST (GET without ID) and CREATE (POST)
+    if type_id is None:
+        if request.method == 'GET':
+            types = StaffType.objects.filter(company_id=company_id)
+            serializer = StaffTypeSerializer(types, many=True)
+            return Response({'types': serializer.data}, status=status.HTTP_200_OK)
+
+        elif request.method == 'POST':
+            serializer = StaffTypeSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status':status.HTTP_201_CREATED,'message':'Staff type created successfully', 'data':serializer.data}, status=status.HTTP_201_CREATED)
+            return Response({'status':status.HTTP_400_BAD_REQUEST,'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. Handle DETAIL (GET with ID), UPDATE (PUT), and DELETE
+    else:
+        # get_object_or_404 ensures the ID exists AND belongs to the company
+        staff_type = get_object_or_404(StaffType, id=type_id, company_id=company_id)
+
+        if request.method == 'GET':
+            serializer = StaffTypeSerializer(staff_type)
+            return Response({'status':status.HTTP_200_OK,'data':serializer.data}, status=status.HTTP_200_OK)
+
+        elif request.method == 'PUT':
+            serializer = StaffTypeSerializer(staff_type, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status':status.HTTP_200_OK,'message':'Staff type updated successfully', 'data':serializer.data}, status=status.HTTP_200_OK)
+            return Response({'status':status.HTTP_400_BAD_REQUEST,'message':serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        elif request.method == 'DELETE':
+            staff_type.delete()
+            return Response({'status':status.HTTP_200_OK,'message': 'Deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+    return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)

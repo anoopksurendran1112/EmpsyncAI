@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company,Device
+from .models import Company,Device,StaffType,StaffCategory
 
 
 
@@ -34,4 +34,28 @@ class CompanySerializer(serializers.ModelSerializer):
         from .models import CompanyUser
         cu = CompanyUser.objects.filter(company=company, user=user).first()
         return cu.is_admin if cu else False
+
+
+class StaffTypeSerializer(serializers.ModelSerializer):
+    company_id = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        source='company',
+        write_only=True
+    )
+
+    class Meta:
+        model = StaffType
+        fields = ['id', 'type_name', 'company_id']
+
+
+class StaffCategorySerializer(serializers.ModelSerializer):
+    company_id = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        source='company',
+        write_only=True
+    )
+
+    class Meta:
+        model = StaffCategory
+        fields = ['id', 'category_name', 'company_id']
 
