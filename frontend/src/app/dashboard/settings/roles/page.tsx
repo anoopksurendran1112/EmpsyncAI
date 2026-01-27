@@ -6,16 +6,17 @@ import { useUpdateRole } from "@/hooks/settings/useUpdateRole";
 import { useDeleteRole } from "@/hooks/settings/useDeleteRole";
 import LoadingPage from "../../loading";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { AddRoleForm } from "./add-role-form";
-import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,43 +28,108 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/context/AuthContext";
+
+// Add this form component for editing roles
+function EditRoleForm({
+  role,
+  setOpen,
+}: {
+  role: any;
+  setOpen: (open: boolean) => void;
+}) {
+  const [roleName, setRoleName] = useState(role.role || "");
+  const [workingHours, setWorkingHours] = useState<number | undefined>(
+    role.working_hour
+  );
+  const updateRoleMutation = useUpdateRole();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!roleName.trim()) {
+      toast.error("Role name is required");
+      return;
+    }
+
+    updateRoleMutation.mutate(
+      {
+        id: role.id,
+        new_role: roleName.trim(),
+        working_hour: workingHours,
+      },
+      {
+        onSuccess: () => {
+          setOpen(false);
+          toast.success("Role updated successfully");
+        },
+      }
+    );
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label htmlFor="roleName" className="text-sm font-medium">
+          Role Name *
+        </label>
+        <input
+          id="roleName"
+          type="text"
+          value={roleName}
+          onChange={(e) => setRoleName(e.target.value)}
+          className="w-full px-3 py-2 border rounded-md"
+          placeholder="Enter role name"
+          required
+        />
+      </div>
+      <div className="space-y-2">
+        <label htmlFor="workingHours" className="text-sm font-medium">
+          Working Hours
+        </label>
+        <input
+          id="workingHours"
+          type="number"
+          value={workingHours ?? ""}
+          onChange={(e) => setWorkingHours(Number(e.target.value))}
+          className="w-full px-3 py-2 border rounded-md"
+          placeholder="Enter working hours"
+          min="0"
+          max="24"
+        />
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setOpen(false)}
+          disabled={updateRoleMutation.isPending}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={updateRoleMutation.isPending}>
+          {updateRoleMutation.isPending ? "Updating..." : "Update Role"}
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 export default function RolesPage() {
   const { data, isLoading, isError } = useRoles();
-  const updateRoleMutation = useUpdateRole();
   const deleteRoleMutation = useDeleteRole();
+  const { company } = useAuth();
 
-  const [editingRoleId, setEditingRoleId] = useState<number | null>(null);
-  const [editedRole, setEditedRole] = useState("");
-  const [editedHours, setEditedHours] = useState<number | undefined>(undefined);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<any>(null);
 
   if (isLoading) return <LoadingPage />;
   if (isError) return <p>Failed to load Roles</p>;
 
   const handleEdit = (role: any) => {
-    setEditingRoleId(role.id);
-    setEditedRole(role.role);
-    setEditedHours(role.working_hour);
-  };
-
-  const handleUpdate = (id: number) => {
-    if (!editedRole.trim()) return;
-
-    updateRoleMutation.mutate(
-      {
-        id,
-        new_role: editedRole.trim(),
-        working_hour: editedHours,
-      },
-      {
-        onSuccess: () => {
-          setEditingRoleId(null);
-          setEditedRole("");
-          setEditedHours(undefined);
-        },
-      }
-    );
+    setSelectedRole(role);
+    setEditOpen(true);
   };
 
   const handleDelete = (id: number) => {
@@ -83,11 +149,27 @@ export default function RolesPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Role</DialogTitle>
+              <DialogDescription>
+                Create a new role and set permissions.
+              </DialogDescription>
             </DialogHeader>
             <AddRoleForm setOpen={setIsAddOpen} />
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Role</DialogTitle>
+            <DialogDescription>Update the role information.</DialogDescription>
+          </DialogHeader>
+          {selectedRole && (
+            <EditRoleForm role={selectedRole} setOpen={setEditOpen} />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ul className="space-y-2">
         {data && data.length > 0 ? (
@@ -96,88 +178,48 @@ export default function RolesPage() {
               key={role.id}
               className="flex items-center justify-between border p-2 rounded-md bg-gray-50 hover:bg-gray-100 min-h-[60px]"
             >
-              {editingRoleId === role.id ? (
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
-                  <Input
-                    type="text"
-                    value={editedRole}
-                    onChange={(e) => setEditedRole(e.target.value)}
-                    className="flex-1 h-9"
-                    placeholder="Role name"
-                  />
-                  <Input
-                    type="number"
-                    value={editedHours ?? ""}
-                    onChange={(e) => setEditedHours(Number(e.target.value))}
-                    placeholder="Hours"
-                    className="w-24 h-9"
-                    min="0"
-                    max="24"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleUpdate(role.id)}
-                      disabled={updateRoleMutation.isPending}
-                      className="bg-green-600 hover:bg-green-700 h-9 w-9 p-0"
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => setEditingRoleId(null)}
-                      variant="ghost"
-                      className="h-9 w-9 p-0 bg-gray-200 hover:bg-gray-300 text-black"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <p className="font-medium">{role.role}</p>
-                    <p className="text-sm text-gray-500">
-                      Working Hours: {role.working_hour || "Not set"}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(role)}
-                      className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+              <div className="flex-1">
+                <p className="font-medium">{role.role}</p>
+                <p className="text-sm text-gray-500">
+                  Working Hours: {role.working_hour || "Not set"}
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleEdit(role)}
+                  className="text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
 
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the role.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDelete(role.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </>
-              )}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently
+                        delete the role.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(role.id)}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
             </li>
           ))
         ) : (

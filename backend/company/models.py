@@ -153,6 +153,17 @@ class VirtualDevice(models.Model):
     is_active = models.BooleanField(default=True)
 
 
-    
+# Staff type and Staff Category tables    
+class StaffType(models.Model):
+    type_name = models.CharField(max_length=100)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
+    def __str__(self):
+        return self.type_name
 
+class StaffCategory(models.Model):
+    category_name = models.CharField(max_length=100)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.category_name
