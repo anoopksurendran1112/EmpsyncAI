@@ -715,6 +715,8 @@ export default function EmployeeDetailsPage() {
         group_id: formData.group_id,
         is_whatsapp: formData.is_whatsapp || false,
         is_sms: formData.is_sms || false,
+        // ✅ Include prof_img if it has changed (base64 or URL)
+        ...(formData.prof_img && { prof_img: formData.prof_img }),
       };
 
       console.log("💾 Saving employee with payload:", payload);
@@ -758,6 +760,8 @@ export default function EmployeeDetailsPage() {
             group_id: result.data.group_id || formData.group_id,
             is_whatsapp: result.data.is_whatsapp !== undefined ? result.data.is_whatsapp : formData.is_whatsapp,
             is_sms: result.data.is_sms !== undefined ? result.data.is_sms : formData.is_sms,
+            // ✅ Update prof_img from response
+            prof_img: result.data.prof_img || formData.prof_img,
             // Calculate gender_display
             gender_display: result.data.gender === 'M' ? 'Male' :
               result.data.gender === 'F' ? 'Female' : 'Other'
@@ -787,6 +791,7 @@ export default function EmployeeDetailsPage() {
                   ...freshData.data,
                   role: freshData.data.role || prev!.role,
                   role_id: freshData.data.role_id !== undefined ? freshData.data.role_id : prev!.role_id,
+                  prof_img: freshData.data.prof_img || prev!.prof_img,
                   gender_display: freshData.data.gender === 'M' ? 'Male' :
                     freshData.data.gender === 'F' ? 'Female' : 'Other'
                 }));
