@@ -13,6 +13,8 @@ import {
   MapPin,
   Building2,
   Users,
+  Tag,
+  Layers,
 } from "lucide-react"
 
 export default function SettingsPage() {
@@ -64,6 +66,18 @@ export default function SettingsPage() {
           description: "Manage company holidays and observances",
           icon: Palmtree,
           href: "/dashboard/settings/holidays",
+        },
+        {
+          title: "Staff Type",
+          description: "Manage different types of staff ",
+          icon: Tag,
+          href: "/dashboard/settings/staff-types",
+        },
+        {
+          title: "Staff Category",
+          description: "Define staff categories ",
+          icon: Layers,
+          href: "/dashboard/settings/staff-categories",
         },
       ],
     },
