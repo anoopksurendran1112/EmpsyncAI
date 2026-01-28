@@ -244,15 +244,12 @@ export async function PUT(
       return NextResponse.json({ success: false, message: "Invalid JSON body" }, { status: 400 });
     }
 
-    // Remove prof_img
+    // Separate prof_img from other fields
     const { prof_img, ...bodyWithoutProfImg } = body;
     
     console.log("📤 Original request from frontend:", bodyWithoutProfImg);
 
-    // ⚠️ SIMPLIFIED APPROACH: Since your Axios test works directly,
-    // let's just forward the request exactly as we receive it
-    
-    // But first, let's get current data to compare
+    // Get current data to compare
     const getResponse = await fetch(`${apiUrl}/profile/${employeeId}`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -261,7 +258,7 @@ export async function PUT(
       cache: "no-store",
     });
 
-    let finalPayload = { ...bodyWithoutProfImg };
+    let finalPayload: Record<string, any> = { ...bodyWithoutProfImg };
     
     if (getResponse.ok) {
       const currentData = await getResponse.json();
@@ -295,7 +292,6 @@ export async function PUT(
         }, { status: 200 });
       }
     } else {
-      // If we can't get current data, just use the original payload
       console.log("⚠️ Could not fetch current data, using original payload");
     }
 
@@ -304,9 +300,65 @@ export async function PUT(
     delete finalPayload.is_whatsapp;
     
     console.log("📤 Final payload to Django:", finalPayload);
-    
+
+    // Determine if we need FormData (has prof_img) or JSON (text fields only)
+    let requestBody: any;
+    let contentTypeHeader: Record<string, string> = {};
+
+    if (prof_img && prof_img.trim() !== "") {
+      console.log("📸 Profile image detected, using FormData");
+      
+      // If prof_img is a base64 string or data URL, convert it
+      const formData = new FormData();
+
+      // Add all text fields to FormData
+      Object.keys(finalPayload).forEach(key => {
+        const value = finalPayload[key];
+        if (value !== null && value !== undefined) {
+          formData.append(key, String(value));
+        }
+      });
+
+      // Handle prof_img - convert base64/data URL to File
+      if (prof_img.startsWith("data:")) {
+        // Data URL format: data:image/jpeg;base64,/9j/4AAQSkZJ...
+        const [header, data] = prof_img.split(",");
+        const mimeType = header.match(/:(.*?);/)?.[1] || "image/jpeg";
+        const binaryString = atob(data);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: mimeType });
+        formData.append("prof_img", blob, `profile_${Date.now()}.jpg`);
+      } else if (prof_img.startsWith("/") || prof_img.includes(".")) {
+        // It's a URL string - don't send it as a file
+        console.log("Profile image is a URL, skipping file upload");
+      } else {
+        // Assume it's base64
+        const binaryString = atob(prof_img);
+        const bytes = new Uint8Array(binaryString.length);
+        
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: "image/jpeg" });
+        formData.append("prof_img", blob, `profile_${Date.now()}.jpg`);
+      }
+
+      requestBody = formData;
+      // Don't set Content-Type for FormData - browser will set it with boundary
+    } else {
+      console.log("📝 No profile image, using JSON");
+      requestBody = JSON.stringify(finalPayload);
+      contentTypeHeader = { "Content-Type": "application/json" };
+    }
+
     // Check if we have any fields to update
-    if (Object.keys(finalPayload).length === 0) {
+    if (Object.keys(finalPayload).length === 0 && !prof_img) {
       return NextResponse.json({ 
         success: true, 
         message: "No changes to update",
@@ -314,19 +366,18 @@ export async function PUT(
       }, { status: 200 });
     }
 
-    // Forward the request to Django - similar to your Axios test
+    // Forward the request to Django
     const response = await fetch(`${apiUrl}/profile/${employeeId}`, {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
         "X-Company-ID": company_id.toString(),
-        // Optionally add cookie if available
+        ...contentTypeHeader,
         ...(cookieStore.get("refresh_token")?.value && {
           "Cookie": `refresh_token=${cookieStore.get("refresh_token")?.value}`
         })
       },
-      body: JSON.stringify(finalPayload),
+      body: requestBody,
       cache: "no-store",
     });
 
@@ -352,24 +403,23 @@ export async function PUT(
       );
     }
 
-// In the PUT function, after successful update:
-      const result = await response.json();
+    const result = await response.json();
 
-      // Add cache invalidation headers
-      const headers = {
-        'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-      };
+    // Add cache invalidation headers
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    };
 
-      return NextResponse.json({ 
-        success: true, 
-        data: result.data || result,
-        message: result.message || "Profile updated successfully"
-      }, { 
-        status: 200,
-        headers: headers
-      });
+    return NextResponse.json({ 
+      success: true, 
+      data: result.data || result,
+      message: result.message || "Profile updated successfully"
+    }, { 
+      status: 200,
+      headers: headers
+    });
   } catch (err) {
     console.error("Profile PUT error:", err);
     return NextResponse.json(

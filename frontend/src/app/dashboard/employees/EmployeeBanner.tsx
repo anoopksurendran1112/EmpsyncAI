@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import FullCalendarView from "@/components/FullCalendarView";
 import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 interface EmployeeBannerProps {
   employee: User;
@@ -91,16 +92,19 @@ export default function EmployeeBanner({
 
   // Find current role ID by matching role name
   const getCurrentRoleId = () => {
-    if (!employee.role || roles.length === 0) return "";
-    
-    // Try to find role by name (case-insensitive)
-    const foundRole = roles.find(role => {
-      const roleName = (role.role || role.name || "").toLowerCase().trim();
-      const employeeRole = (employee.role || "").toLowerCase().trim();
-      return roleName === employeeRole;
-    });
-    
-    return foundRole?.id.toString() || "";
+    if (!employee.role_id && !employee.role) return "";
+    // Prefer role_id if present
+    if (employee.role_id) return employee.role_id.toString();
+    // Fallback: try to find by role name
+    if (roles.length > 0 && employee.role) {
+      const foundRole = roles.find(role => {
+        const roleName = (role.role || role.name || "").toLowerCase().trim();
+        const employeeRole = (employee.role || "").toLowerCase().trim();
+        return roleName === employeeRole;
+      });
+      return foundRole?.id.toString() || "";
+    }
+    return "";
   };
 
   const getProfileImageUrl = () => {
@@ -117,7 +121,10 @@ export default function EmployeeBanner({
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
-        onChange?.("prof_img", reader.result as string);
+        // Store the base64 data URL
+        const base64String = reader.result as string;
+        console.log("📸 Image selected (base64):", base64String.substring(0, 50) + "...");
+        onChange?.("prof_img", base64String);
         setImageError(false);
       };
       reader.readAsDataURL(file);
@@ -151,19 +158,15 @@ export default function EmployeeBanner({
     onChange?.("is_active", checked);
   };
 
-  // ✅ Handle role change
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    
-    if (value) {
-      const selectedRole = roles.find(role => role.id.toString() === value);
+  // Handle role change for Select
+  const handleRoleSelectChange = (roleId: string) => {
+    if (roleId) {
+      const selectedRole = roles.find(role => role.id.toString() === roleId);
       if (selectedRole) {
-        // Update both role_id and role
-        onChange?.("role_id", Number(value));
+        onChange?.("role_id", Number(roleId));
         onChange?.("role", selectedRole.role || selectedRole.name || "");
       }
     } else {
-      // Clear both if no role selected
       onChange?.("role_id", "");
       onChange?.("role", "");
     }
@@ -175,41 +178,66 @@ export default function EmployeeBanner({
         <CardHeader className="pb-4 flex justify-between items-start">
           <div className="flex items-start gap-4">
             {/* Profile image */}
-            <div className="relative">
-              <Avatar className="h-16 w-16 border-2 border-background shadow-lg">
-                {editMode ? (
-                  <div className="flex flex-col items-center justify-center h-16 w-16 gap-1">
-                    <Input
-                      type="text"
-                      value={employee.prof_img || ""}
-                      placeholder="Profile Image URL"
-                      onChange={(e) => onChange?.("prof_img", e.target.value)}
-                      className="h-8 w-full text-xs p-1"
-                    />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="text-xs"
-                    />
+            <div className="relative group">
+              {editMode ? (
+                // Edit mode: Clickable image with file input
+                <label className="relative cursor-pointer block">
+                  <Avatar className="h-16 w-16 border-2 border-background shadow-lg hover:opacity-80 transition-opacity">
+                    {employee.prof_img && !imageError && typeof employee.prof_img === 'string' && (employee.prof_img.startsWith('data:') || employee.prof_img.startsWith('http')) ? (
+                      <div className="relative w-full h-full rounded-full overflow-hidden">
+                        <Image
+                          src={employee.prof_img}
+                          alt="Profile Preview"
+                          fill
+                          className="object-cover w-full h-full"
+                          onError={() => setImageError(true)}
+                        />
+                      </div>
+                    ) : (
+                      <AvatarFallback className="text-lg font-bold bg-blue-100 text-blue-700 flex items-center justify-center">
+                        {employee.first_name?.[0]}
+                        {employee.last_name?.[0]}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  
+                  {/* Upload hint overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 rounded-full transition-opacity pointer-events-none">
+                    <span className="text-white text-xs font-semibold">Click to change</span>
                   </div>
-                ) : showInitials ? (
-                  <AvatarFallback className="text-lg font-bold bg-blue-100 text-blue-700 flex items-center justify-center">
-                    {employee.first_name?.[0]}
-                    {employee.last_name?.[0]}
-                  </AvatarFallback>
-                ) : (
-                  <div className="relative h-16 w-16 rounded-full overflow-hidden">
-                    <Image
-                      src={getProfileImageUrl()}
-                      alt={`${employee.first_name} ${employee.last_name}`}
-                      fill
-                      className="object-cover w-full h-full"
-                      onError={() => setImageError(true)}
-                    />
-                  </div>
-                )}
-              </Avatar>
+                  
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    title="Click to change profile image"
+                  />
+                </label>
+              ) : (
+                // View mode: Static image
+                <Avatar className="h-16 w-16 border-2 border-background shadow-lg">
+                  {showInitials ? (
+                    <AvatarFallback className="text-lg font-bold bg-blue-100 text-blue-700 flex items-center justify-center">
+                      {employee.first_name?.[0]}
+                      {employee.last_name?.[0]}
+                    </AvatarFallback>
+                  ) : (
+                    <div className="relative h-16 w-16 rounded-full overflow-hidden">
+                      <Image
+                        src={getProfileImageUrl()}
+                        alt={`${employee.first_name} ${employee.last_name}`}
+                        fill
+                        className="object-cover w-full h-full"
+                        onError={() => setImageError(true)}
+                      />
+                    </div>
+                  )}
+                </Avatar>
+              )}
+              
+              {/* Status indicator */}
               <div
                 className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-background ${
                   employee.is_active ? "bg-green-500" : "bg-gray-400"
@@ -250,45 +278,48 @@ export default function EmployeeBanner({
                 </Badge>
               </div>
 
-              {/* ROLE SECTION - FIXED */}
+              {/* ROLE SECTION - Use ShadCN Select */}
               {editMode ? (
                 <div className="mb-2">
                   <div className="flex items-center gap-3">
-                    <select
-                      value={getCurrentRoleId()}
-                      onChange={handleRoleChange}
-                      className="w-full max-w-xs p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary text-lg"
-                      disabled={loadingRoles}
-                    >
-                      <option value="">Select Role</option>
-                      {roles.length > 0 ? (
-                        roles.map((role) => (
-                          <option key={role.id} value={role.id}>
-                            {role.role || role.name}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="" disabled>
-                          {loadingRoles ? "Loading roles..." : "No roles available"}
-                        </option>
-                      )}
-                    </select>
-                    
-                    {/* Display current role name */}
+                    <div className="w-full max-w-xs">
+                      <Select
+                        value={getCurrentRoleId() || "no-role"}
+                        onValueChange={(value) => {
+                          if (value === "no-role") {
+                            handleRoleSelectChange("");
+                          } else {
+                            handleRoleSelectChange(value);
+                          }
+                        }}
+                        disabled={loadingRoles}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="no-role">No Role</SelectItem>
+                          {roles.length > 0 ? (
+                            roles.map((role) => (
+                              <SelectItem key={role.id} value={role.id.toString()}>
+                                {role.role || role.name}
+                              </SelectItem>
+                            ))
+                          ) : !loadingRoles ? (
+                            <SelectItem value="no-role" disabled>
+                              No roles available
+                            </SelectItem>
+                          ) : null}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Display current role name
                     {employee.role && (
                       <Badge variant="outline" className="whitespace-nowrap">
                         Current: {employee.role}
                       </Badge>
-                    )}
+                    )} */}
                   </div>
-                  
-                  {/* Debug info (optional)
-                  {editMode && process.env.NODE_ENV === 'development' && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Role ID in DB: {employee.role_id || "Not set"} | 
-                      Matched ID: {getCurrentRoleId() || "Not found"}
-                    </div>
-                  )} */}
                 </div>
               ) : (
                 <p className="text-lg text-muted-foreground mb-2">
