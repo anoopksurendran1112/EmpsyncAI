@@ -1,3 +1,4 @@
+//src/components/AddLeaveButton.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -46,6 +47,7 @@ export default function AddLeaveButton({
   const [successMessage, setSuccessMessage] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  
 
   const [formData, setFormData] = useState({
     user_id: "",
@@ -60,6 +62,10 @@ export default function AddLeaveButton({
 
   const [selectedFromDate, setSelectedFromDate] = useState<Date | null>(null);
   const [selectedToDate, setSelectedToDate] = useState<Date | null>(null);
+
+    // Add this after your state declarations
+  const today = new Date();
+  const maxDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
   // Fetch employees when modal opens (admin only)
   useEffect(() => {
@@ -148,6 +154,23 @@ export default function AddLeaveButton({
 
       if (isAdmin && !formData.user_id) {
         setError("Please select an employee");
+        setLoading(false);
+        return;
+      }
+
+      // Add this validation after your existing validations in handleSubmit
+      // Validate dates are in the past
+      const fromDate = new Date(formData.from_date);
+      const toDate = new Date(formData.to_date);
+
+      if (fromDate > maxDate) {
+        setError("From date cannot be in the future. Please select a past date.");
+        setLoading(false);
+        return;
+      }
+
+      if (toDate > maxDate) {
+        setError("To date cannot be in the future. Please select a past date.");
         setLoading(false);
         return;
       }
@@ -277,13 +300,13 @@ export default function AddLeaveButton({
     }));
   };
 
-  const getButtonText = () => {
-    return isAdmin ? "Add Leave Record" : "Apply for Leave";
-  };
+    const getButtonText = () => {
+      return "Add Past Leave"; // Changed from "Add Leave Record" or "Apply for Leave"
+    };
 
-  const getModalTitle = () => {
-    return isAdmin ? "Add Leave Record (Admin)" : "Apply for Leave";
-  };
+    const getModalTitle = () => {
+      return isAdmin ? "Add Past Leave Record" : "Add Past Leave";
+    };
 
   // Debug: Check employees array
   console.log('Employees loaded:', employees.length, employees);
@@ -323,11 +346,17 @@ export default function AddLeaveButton({
             <div className="flex justify-between items-center border-b px-4 py-3">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">{getModalTitle()}</h3>
+                
                 <p className="text-xs text-gray-500 mt-1">
                   {isAdmin 
-                    ? "Manually record leave taken by employees" 
-                    : "Submit your leave application"}
+                    ? "Record past leaves taken by employees" 
+                    : "Record your past leave"}
                 </p>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                    ⏰ Past dates only (up to today)
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -432,6 +461,7 @@ export default function AddLeaveButton({
                     placeholderText="From"
                     className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     disabled={loading}
+                    maxDate={maxDate} // Add this line
                   />
                 </div>
                 <div>
@@ -446,6 +476,7 @@ export default function AddLeaveButton({
                     placeholderText="To"
                     className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     minDate={selectedFromDate || undefined}
+                    maxDate={maxDate} // Add this line
                     disabled={loading}
                   />
                 </div>
