@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser
 from punch.models import PunchRecords
 from rest_framework import status
 from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer
@@ -252,22 +252,14 @@ def addCompany(request=CompanySerializer):
 def getCompanyRoles(request, id):
     if request.method == 'GET':    
         if id:
-            roles = CompanyRole.objects.filter(company__id=id)
+            roles = CompanyRole.objects.filter(company__id=id).values('id', 'role', 'working_hour')
         else:
-            roles = CompanyRole.objects.all()
-
-        data = []
-        for role in roles:
-            data.append({
-                'id': role.id,
-                'role': role.role,
-                'working_hour':role.working_hour
-            })
+            roles = CompanyRole.objects.values('id', 'role', 'working_hour')
 
         return Response({
             'status': status.HTTP_200_OK,
             'success': True,
-            'data': data
+            'data': list(roles)
         })
     
     elif request.method == 'PUT':
@@ -284,6 +276,15 @@ def getCompanyRoles(request, id):
 
         try:
             role_obj = CompanyRole.objects.get(id=id)
+            
+            # Check if user is admin of any company associated with this role
+            if not CompanyUser.objects.filter(user=request.user, company__in=role_obj.company.all(), is_admin=True).exists():
+                 return Response({
+                    'status': status.HTTP_403_FORBIDDEN,
+                    'success': False,
+                    'message': 'Unauthorized access. Admin privileges required.',
+                }, status=status.HTTP_403_FORBIDDEN)
+
             role_obj.role = new_role
             role_obj.working_hour = working_hour
             role_obj.save()
@@ -318,6 +319,14 @@ def getCompanyRoles(request, id):
                 }, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            # Check for admin privileges
+            if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+                 return Response({
+                    'status': status.HTTP_403_FORBIDDEN,
+                    'success': False,
+                    'message': 'Unauthorized access. Admin privileges required.',
+                }, status=status.HTTP_403_FORBIDDEN)
+
             company = Company.objects.get(id=company_id)
             role = CompanyRole.objects.get(id=id)
             company.roles.remove(role) 
@@ -369,28 +378,22 @@ def addCompanyGroup(request):
         id = company_id[0]
         company = Company.objects.get(id=id)
 
+        # Check for admin privileges
+        if not CompanyUser.objects.filter(user=request.user, company=company, is_admin=True).exists():
+             return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'message': 'Unauthorized access. Admin privileges required.',
+                'success': False,
+            }, status=status.HTTP_403_FORBIDDEN)
+
      
 
         new_group = CompanyGroup.objects.create(group=group_name,short_name=short_name,company=company)
 
         if member_ids:
-           for member_id in member_ids:
-            try:
-                member = CustomUser.objects.get(id=member_id)
-                print(f"Assigning group to member {member.id}, current group: {member.group}")
-
-                # Optional: skip if already in a group
-                if member.group is not None:
-                    print(f"Member {member.id} already in group: {member.group}. Skipping.")
-                    continue
-
-                member.group = new_group
-                member.save()
-                print(f"Assigned group {new_group.id} to member {member.id}")
-
-            except CustomUser.DoesNotExist:
-                print(f"Member {member_id} not found.")
-                continue
+            # Optimized: Bulk update users who are not already in a group
+            updated_count = CustomUser.objects.filter(id__in=member_ids, group__isnull=True).update(group=new_group)
+            print(f"Assigned group {new_group.id} to {updated_count} members.")
 
        
 
@@ -405,24 +408,15 @@ def addCompanyGroup(request):
 @permission_classes([AllowAny])
 def getCompanyGroups(request, id):
     if request.method == 'GET':    
-    
-
         if id:
-            groups = CompanyGroup.objects.filter(company__id=id)
-
-
-        data = []
-        for group in groups:
-            data.append({
-                'id': group.id,
-                'group': group.group,
-                'short_name': group.short_name
-            })
+            groups = CompanyGroup.objects.filter(company__id=id).values('id', 'group', 'short_name')
+        else:
+             groups = CompanyGroup.objects.values('id', 'group', 'short_name')
 
         return Response({
             'status': status.HTTP_200_OK,
             'success': True,
-            'data': data
+            'data': list(groups)
         })
     
     elif request.method == 'PUT':
@@ -441,6 +435,15 @@ def getCompanyGroups(request, id):
 
         try:
             group_obj = CompanyGroup.objects.get(id=id)
+            
+            # Check for admin privileges
+            if not CompanyUser.objects.filter(user=request.user, company=group_obj.company, is_admin=True).exists():
+                 return Response({
+                    'status': status.HTTP_403_FORBIDDEN,
+                    'success': False,
+                    'message': 'Unauthorized access. Admin privileges required.',
+                }, status=status.HTTP_403_FORBIDDEN)
+
             group_obj.group = new_group
             group_obj.short_name = short_name
 
@@ -474,6 +477,14 @@ def getCompanyGroups(request, id):
                 }, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            # Check for admin privileges
+            if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+                 return Response({
+                    'status': status.HTTP_403_FORBIDDEN,
+                    'message': 'Unauthorized access. Admin privileges required.',
+                    'success': False,
+                }, status=status.HTTP_403_FORBIDDEN)
+
             group = CompanyGroup.objects.get(id=id)
             group.delete()
             return Response({
@@ -551,6 +562,20 @@ def addCompanyRoles(request):
                     'message': 'No valid companies found for provided IDs',
                     'status': status.HTTP_400_BAD_REQUEST
                 })
+
+            # Check for admin privileges for ALL provided companies
+            admin_companies_count = CompanyUser.objects.filter(
+                user=request.user, 
+                company__in=companies, 
+                is_admin=True
+            ).values('company').distinct().count()
+
+            if admin_companies_count != companies.count():
+                 return Response({
+                    'success': False,
+                    'message': 'Unauthorized access. Admin privileges required for all selected companies.',
+                    'status': status.HTTP_403_FORBIDDEN
+                }, status=status.HTTP_403_FORBIDDEN)
 
             company_role = CompanyRole.objects.create(role=role_name,working_hour=working_hour)
             company_role.company.set(companies)
@@ -906,6 +931,17 @@ def staff_category_view(request, category_id=None):
     if not company_id:
         return Response({'error': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Check for admin privileges for non-GET methods
+    if request.method != 'GET':
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+             return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'message': 'Unauthorized access. Admin privileges required.',
+            }, status=status.HTTP_403_FORBIDDEN)
+
     # 2. Handle LIST (GET without ID) and CREATE (POST)
     if category_id is None:
         if request.method == 'GET':
@@ -953,6 +989,17 @@ def staff_type_view(request, type_id=None):
 
     if not company_id:
         return Response({'error': 'company_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check for admin privileges for non-GET methods
+    if request.method != 'GET':
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+        if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+             return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'message': 'Unauthorized access. Admin privileges required.',
+            }, status=status.HTTP_403_FORBIDDEN)
 
     # 2. Handle LIST (GET without ID) and CREATE (POST)
     if type_id is None:

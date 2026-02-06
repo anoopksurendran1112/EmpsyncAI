@@ -19,6 +19,7 @@ from notification.views import send_push_notification
 from notification.models import FcmToken
 from datetime import date
 from django.utils import timezone
+from django.db import transaction
 
 
 
@@ -271,6 +272,10 @@ def apply_leave(request):
         company_id = request.data.get('company_id')
         custom_reason = request.data.get('custom_reason')
 
+        # 1. Basic Validation
+        if not all([from_date, to_date, leave_id, leave_choice, company_id]):
+             return Response({'success': False, 'message': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
+
         # Validate company ID
         try:
             company = Company.objects.get(id=company_id)
@@ -291,24 +296,94 @@ def apply_leave(request):
         except LeaveType.DoesNotExist:
             return Response({'success': False, 'message': 'Leave type not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Try parsing date in multiple formats
-        for fmt in ('%d-%b-%Y', '%Y-%m-%d'):
-            try:
-                from_date_obj = datetime.strptime(from_date, fmt).date()
-                break
-            except ValueError:
-                pass
-        else:
-            return Response({'success': False, 'message': f'Invalid from_date format: {from_date}'}, status=status.HTTP_400_BAD_REQUEST)
+        # helper function for date parsing
+        def parse_date(date_str):
+            for fmt in ('%d-%b-%Y', '%Y-%m-%d'):
+                try:
+                    return datetime.strptime(date_str, fmt).date()
+                except ValueError:
+                    continue
+            return None
 
-        for fmt in ('%d-%b-%Y', '%Y-%m-%d'):
-            try:
-                to_date_obj = datetime.strptime(to_date, fmt).date()
-                break
-            except ValueError:
-                pass
-        else:
+        from_date_obj = parse_date(from_date)
+        to_date_obj = parse_date(to_date)
+
+        if not from_date_obj:
+            return Response({'success': False, 'message': f'Invalid from_date format: {from_date}'}, status=status.HTTP_400_BAD_REQUEST)
+        if not to_date_obj:
             return Response({'success': False, 'message': f'Invalid to_date format: {to_date}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if to_date_obj < from_date_obj:
+             return Response({'success': False, 'message': 'To Date cannot be before From Date'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ------------------------------------------------------------------
+        # 2. Strict Duplicate Check (Check for exact match)
+        # ------------------------------------------------------------------
+        if Leave.objects.filter(
+            user=user,
+            leave_type=leave_type,
+            from_date=from_date_obj,
+            to_date=to_date_obj,
+            leave_choice=leave_choice,
+            company=company,
+            status__in=['P', 'A']
+        ).exists():
+            return Response({'success': False, 'message': 'Duplicate leave request found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # ------------------------------------------------------------------
+        # 3. Overlap & Logic Validation (Half vs Full Day)
+        # ------------------------------------------------------------------
+        # Fetch overlapping leaves ONCE to avoid multiple DB hits
+        overlapping_leaves = list(Leave.objects.filter(
+            user=user,
+            company=company,
+            status__in=['P', 'A'],
+            from_date__lte=to_date_obj,
+            to_date__gte=from_date_obj
+        ))
+
+        if leave_choice == 'F':
+            # If requesting Full Day, NO overlaps of any kind are allowed
+            if overlapping_leaves:
+                conflict = overlapping_leaves[0]
+                return Response({
+                    'success': False, 
+                    'message': f'Overlap detected with existing {conflict.get_leave_choice_display()} leave ({conflict.from_date} to {conflict.to_date}). Cannot apply for Full Day.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        elif leave_choice == 'H':
+            # If requesting Half Day:
+            # - Cannot overlap with any Full Day leave
+            # - Can overlap with Half Day leave ONLY if the day doesn't already have 2 Half Days
+            # Check for any Full Day blocks in memory
+
+            full_day_conflicts = [l for l in overlapping_leaves if l.leave_choice == 'F']
+            if full_day_conflicts:
+                conflict = full_day_conflicts[0]
+                return Response({
+                    'success': False, 
+                    'message': f'Overlap detected with existing Full Day leave ({conflict.from_date} to {conflict.to_date}).'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check strictly for Half Day limits (Max 2 per day)
+            # We iterate through the requested range day by day to ensure no day exceeds 2 Half Days total
+            # Optimization: Done in-memory
+
+            current_check_date = from_date_obj
+            while current_check_date <= to_date_obj:
+                # Count existing Half Day leaves for this specific day
+                existing_half_leaves_count = sum(
+                    1 for l in overlapping_leaves 
+                    if l.leave_choice == 'H' and l.from_date <= current_check_date <= l.to_date
+                )
+                
+                if existing_half_leaves_count >= 2:
+                    return Response({
+                        'success': False, 
+                        'message': f'Date {current_check_date} already has 2 Half Day leaves. Cannot add more.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                current_check_date += timedelta(days=1)
 
         leave_days = (to_date_obj - from_date_obj).days + 1
         if leave_choice == 'H':
@@ -327,31 +402,37 @@ def apply_leave(request):
         if leave_type.monthly_limit and (monthly_leaves + leave_days) > leave_type.monthly_limit:
             return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check credit
-        if leave_type.use_credit:
-            credit_obj, _ = LeaveCredit.objects.get_or_create(user=user, leave_type=leave_type)
-            if leave_days > credit_obj.credits:
-                return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
-            credit_obj.credits -= leave_days
-            credit_obj.save()
+        # ------------------------------------------------------------------
+        # 4. Atomic Transaction: Credit Deduction + Creation
+        # ------------------------------------------------------------------
+        with transaction.atomic():
+            # Check credit
+            if leave_type.use_credit:
+                # Lock the credit row to prevent race conditions
+                credit_obj, _ = LeaveCredit.objects.select_for_update().get_or_create(user=user, leave_type=leave_type)
+                
+                if leave_days > credit_obj.credits:
+                    return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                credit_obj.credits -= leave_days
+                credit_obj.save()
 
-        # Create leave
-        leave = Leave.objects.create(
-            user=user,
-            leave_type=leave_type,
-            from_date=from_date_obj,
-            company = company,
-            to_date=to_date_obj,
-            leave_choice=leave_choice,
-            custom_reason = custom_reason,       
-            status='P',
-            days_taken=leave_days
-        )
+            # Create leave
+            leave = Leave.objects.create(
+                user=user,
+                leave_type=leave_type,
+                from_date=from_date_obj,
+                company = company,
+                to_date=to_date_obj,
+                leave_choice=leave_choice,
+                custom_reason = custom_reason,       
+                status='P',
+                days_taken=leave_days
+            )
 
-        # Notify company admins
+        # Notify company admins (Moved outside atomic block to keep transaction short)
         admins = CompanyUser.objects.filter(company=company, is_admin=True).values_list('user', flat=True)
         tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
-
         send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
 
         return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
@@ -471,6 +552,10 @@ def get_leave_types(request):
         company = Company.objects.get(id=company_id)
     except Company.DoesNotExist:
         return Response({'success': False, 'message': 'Company not found'}, status=404)
+
+    if request.method != 'GET':
+        if not CompanyUser.objects.filter(user=user, company=company, is_admin=True).exists():
+            return Response({'success': False, 'message': 'Unauthorized access'}, status=status.HTTP_403_FORBIDDEN)
 
     # -------------------------- GET --------------------------
     if request.method == 'GET':
@@ -605,6 +690,24 @@ def update_leave_type(request):
 
 @api_view(['PUT'])
 def update_leave_status(request):
+    # ----------------------------------------------------------------------
+    # 1. AUTHENTICATION
+    # ----------------------------------------------------------------------
+    company_id = request.data.get('company_id')
+    try:
+        if not CompanyUser.objects.get(user=request.user, company_id=company_id).is_admin:
+            return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'success': False,
+                'message': 'Unauthorized access.'
+            }, status=status.HTTP_403_FORBIDDEN)
+    except CompanyUser.DoesNotExist:
+        return Response({
+            'status': status.HTTP_403_FORBIDDEN,
+            'success': False,
+            'message': 'Unauthorized access or Company not found.'
+        }, status=status.HTTP_403_FORBIDDEN)
+        
     id = request.data.get('id')
     new_status = request.data.get('status')
     leave = Leave.objects.get(id=id)
@@ -681,9 +784,9 @@ def add_holiday(request):
     except Company.DoesNotExist:
         return Response({"success": False, "message": "Invalid company ID."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Check if user belongs to the company
-    if not user.company.filter(id=company.id).exists():
-        return Response({"success": False, "message": "User not associated with the selected company."}, status=status.HTTP_403_FORBIDDEN)
+    # Check if user is admin of the company
+    if not CompanyUser.objects.filter(user=user, company=company, is_admin=True).exists():
+        return Response({"success": False, "message": "Unauthorized access. Admin privileges required."}, status=status.HTTP_403_FORBIDDEN)
 
     # Validate role IDs (if provided)
     roles = []
@@ -750,6 +853,10 @@ def update_holiday(request):
         if not company_id:
             return Response({"success": False, "message": "Missing X-Company-ID header."},
                             status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for admin privileges
+        if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+             return Response({"success": False, "message": "Unauthorized access. Admin privileges required."}, status=status.HTTP_403_FORBIDDEN)
 
         # Normalize is_full_holiday to bool
         if isinstance(is_full_holiday_raw, str):
@@ -851,6 +958,10 @@ def get_holiday(request):
         if not holiday_id:
             return Response({'success': False, 'message': 'Holiday ID is required.'},
                             status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for admin privileges
+        if not CompanyUser.objects.filter(user=request.user, company_id=company_id, is_admin=True).exists():
+             return Response({'success': False, 'message': 'Unauthorized access. Admin privileges required.'}, status=status.HTTP_403_FORBIDDEN)
 
         try:
             holiday = Holiday.objects.get(id=holiday_id, company__id=company_id)
