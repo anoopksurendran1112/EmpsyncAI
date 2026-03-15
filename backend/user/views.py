@@ -2228,6 +2228,7 @@ def profile(request, id):
         group_id = request.data.get('group_id')
         is_sms = request.data.get('is_sms')
         is_whatsapp = request.data.get('is_whatsapp')
+        is_wfh = request.data.get('is_wfh')
 
         # --- Company-level controls first ---
         if company.soft_disable:
@@ -2277,6 +2278,17 @@ def profile(request, id):
             else:
                 user.is_whatsapp = is_whatsapp
                 user.save()
+                
+        # --- WFH control ---
+        if 'is_wfh' in request.data:
+            wfh_val = str(is_wfh).lower()
+            if wfh_val in ['true', '1']:
+                user.is_wfh = True
+            elif wfh_val in ['false', '0']:
+                user.is_wfh = False
+            else:
+                user.is_wfh = bool(is_wfh)
+            user.save()
 
         # --- Admin, Role, and Group updates ---
         if 'is_admin' in request.data:

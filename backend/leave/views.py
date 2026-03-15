@@ -742,21 +742,97 @@ def get_requested_leaves(request,page):
     user = request.user
     company_id = request.headers.get('X-Company-ID')
 
+    # 1. Fetch Leaves (Paginated)
     leaves = Leave.objects.filter(company_id=company_id).select_related('user').order_by('-from_date')
-
-
     paginator = Paginator(leaves,10)
-
     page_data = paginator.get_page(page)
-    serializer = LeaveSerializer(page_data, many=True)
+
+    # 2. Extract Data for Bulk Query
+    leave_list = list(page_data)
+    if not leave_list:
+         return Response({
+            'success': True,
+            'total': paginator.count,
+            'page': page,
+            'total_page': paginator.num_pages,
+            'data': []
+        })
+
+    # Get range of dates and users involved in this page
+    min_date = min(l.from_date for l in leave_list)
+    max_date = max(l.to_date for l in leave_list)
+    # We need biometric_ids for PunchRecords
+    user_map = {l.user.id: l.user.biometric_id for l in leave_list if l.user.biometric_id}
+    biometric_ids = list(user_map.values())
+
+    # 3. Fetch Punch Records (Secondary DB)
+    # efficient query: fetch only needed fields for relevant users in date range
+    punches = PunchRecords.objects.using('secondary').filter(
+        user_id__in=biometric_ids,
+        punch_time__date__gte=min_date, # Optimization: distinct date filter if possible, but range is safe
+        punch_time__date__lte=max_date
+    ).values('user_id', 'punch_time__date', 'status')
+
+    # 4. Process Punches into a Lookup Structure
+    # Structure: {(user_id, date): {'Check-In', 'Check-Out'}}
+    worked_days = defaultdict(set)
+    for p in punches:
+        if p['user_id'] and p['punch_time__date'] and p['status']:
+            worked_days[(p['user_id'], p['punch_time__date'])].add(p['status'])
+
+    # 5. Filter Leaves
+    filtered_leaves = []
+    for leave in leave_list:
+        biometric_id = leave.user.biometric_id
+        if not biometric_id:
+            filtered_leaves.append(leave) # Keep if no biometric ID (can't verify work)
+            continue
+            
+        # Check every day of the leave
+        is_worked = False
+        current_date = leave.from_date
+        while current_date <= leave.to_date:
+            statuses = worked_days.get((biometric_id, current_date))
+            # Definition of "Worked": Has BOTH Check-In and Check-Out
+            if statuses and 'Check-In' in statuses and 'Check-Out' in statuses:
+                is_worked = True
+                break
+            current_date += timedelta(days=1)
+        
+        if not is_worked:
+            filtered_leaves.append(leave)
+
+    serializer = LeaveSerializer(filtered_leaves, many=True)
 
     return Response({
         'success': True,
-         'total': paginator.count,
+         'total': paginator.count, # Total count remains total requests, not filtered
         'page': page,
         'total_page': paginator.num_pages,
         'data': serializer.data
     })
+
+
+# @api_view(['GET'])
+# def get_requested_leaves(request,page):
+#     user = request.user
+#     company_id = request.headers.get('X-Company-ID')
+
+#     leaves = Leave.objects.filter(company_id=company_id).select_related('user').order_by('-from_date')
+
+
+#     paginator = Paginator(leaves,10)
+
+#     page_data = paginator.get_page(page)
+#     serializer = LeaveSerializer(page_data, many=True)
+
+#     return Response({
+#         'success': True,
+#          'total': paginator.count,
+#         'page': page,
+#         'total_page': paginator.num_pages,
+#         'data': serializer.data
+#     })
 
 
 
