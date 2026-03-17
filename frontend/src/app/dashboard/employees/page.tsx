@@ -881,7 +881,7 @@ const adjustedStartSerialNumber = useMemo(() => {
                   onClick={(e) => handleEmployeeClick(emp, e)}
                 >
                   {/* Serial Number Badge - Added here */}
-                <div className="absolute -top-2 -left-2 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center z-10 shadow-sm border border-blue-300">
+                  <div className="absolute -top-2 -left-2 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center z-10 shadow-sm border border-blue-300">
                     {serialNumber}
                   </div>
                   
@@ -1065,6 +1065,8 @@ export default function EmployeesPage() {
 
   return <EmployeesList companyId={company.id} />;
 }
+
+
 
 // "use client";
 

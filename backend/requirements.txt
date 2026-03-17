@@ -11,4 +11,3 @@ requests
 firebase-admin
 django-cors-headers
 django-redis
-

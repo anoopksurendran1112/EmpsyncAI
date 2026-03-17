@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
 
+// ================== TYPES ==================
+
 export type User = {
   prof_img: string;
   first_name: string;
@@ -45,9 +47,14 @@ type AuthContextType = {
   loading: boolean;
   setAuthData: (user: User, company: Company, isAdmin: boolean) => void;
   switchCompany: (newCompany: Company) => void;
+  updateUser: (updatedUser: User) => void; // ✅ ADDED
 };
 
+// ================== CONTEXT ==================
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// ================== PROVIDER ==================
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -55,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Load auth data from localStorage on mount
+  // ================== LOAD FROM STORAGE ==================
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("user");
@@ -72,12 +79,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Set user + company data on login or refresh
+  // ================== SET AUTH DATA ==================
   const setAuthData = (userData: User, companyData: Company, isAdminData: boolean) => {
-    // Ensure mediaBaseUrl has a default value if not provided
     const companyWithDefaultMediaUrl = {
       ...companyData,
-      mediaBaseUrl: companyData.mediaBaseUrl || process.env.NEXT_PUBLIC_MEDIA_URL || "https://empsyncai.kochi.digital"
+      mediaBaseUrl:
+        companyData.mediaBaseUrl ||
+        process.env.NEXT_PUBLIC_MEDIA_URL ||
+        "https://empsyncai.kochi.digital",
     };
 
     setUser(userData);
@@ -88,53 +97,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem("user", JSON.stringify(userData));
       localStorage.setItem("company", JSON.stringify(companyWithDefaultMediaUrl));
       localStorage.setItem("isAdmin", JSON.stringify(isAdminData));
-      document.cookie = `company_id=${companyData.id}; path=/;`; // update cookie for backend APIs
+      document.cookie = `company_id=${companyData.id}; path=/;`;
     } catch (error) {
       console.error("Failed to save auth data to localStorage", error);
     }
   };
 
-  // Switch company without logging out - UPDATED VERSION
+  // ================== UPDATE USER (NEW) ==================
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+
+    try {
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error("Failed to update user in localStorage", error);
+    }
+  };
+
+  // ================== SWITCH COMPANY ==================
   const switchCompany = async (newCompany: Company) => {
-    // Ensure mediaBaseUrl has a default value if not provided
     const companyWithDefaultMediaUrl = {
       ...newCompany,
-      mediaBaseUrl: newCompany.mediaBaseUrl || process.env.NEXT_PUBLIC_MEDIA_URL || "https://empsyncai.kochi.digital"
+      mediaBaseUrl:
+        newCompany.mediaBaseUrl ||
+        process.env.NEXT_PUBLIC_MEDIA_URL ||
+        "https://empsyncai.kochi.digital",
     };
 
-    // Update context state
     setCompany(companyWithDefaultMediaUrl);
     localStorage.setItem("company", JSON.stringify(companyWithDefaultMediaUrl));
     document.cookie = `company_id=${newCompany.id}; path=/;`;
 
     try {
-      // Update company_id cookie via API for server-side usage
-      await fetch('/api/update-company-cookie', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/update-company-cookie", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ company_id: newCompany.id }),
       });
 
       console.log("Company switched successfully:", newCompany.company_name);
     } catch (err) {
       console.error("Failed to update company cookie on server:", err);
-      // Don't throw error here - we still want to update the client state even if server update fails
     }
 
-    // Optional: notify backend if needed (keep your existing endpoint if required)
     fetch("/api/switch-company", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ company_id: newCompany.id }),
     }).catch((err) => console.error("Failed to switch company on server", err));
   };
 
+  // ================== PROVIDER ==================
   return (
-    <AuthContext.Provider value={{ user, company, isAdmin, loading, setAuthData, switchCompany }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        company,
+        isAdmin,
+        loading,
+        setAuthData,
+        switchCompany,
+        updateUser, // ✅ ADDED HERE
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
+
+// ================== HOOK ==================
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
