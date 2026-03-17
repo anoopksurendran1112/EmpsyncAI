@@ -568,6 +568,8 @@ export default function EmployeeDetailsPage() {
   const [retryCount, setRetryCount] = useState(0);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
 
   // Update formData when employee data loads
   useEffect(() => {
@@ -584,26 +586,24 @@ export default function EmployeeDetailsPage() {
     }
   }, [employee]);
 
-  // Fetch groups when modal opens
+  // Fetch groups and roles when modal opens
   useEffect(() => {
     if (isEditModalOpen && companyId) {
       fetchGroups();
+      fetchRoles();
     }
   }, [isEditModalOpen, companyId]);
 
   const fetchGroups = async () => {
     if (!companyId) return;
-
     setLoadingGroups(true);
     try {
       const response = await fetch(`/api/settings/groups/${companyId}`);
       if (!response.ok) throw new Error("Failed to fetch groups");
-
       const result = await response.json();
       console.log("📊 Groups API response:", result);
 
       let groupsArray: Group[] = [];
-
       if (Array.isArray(result)) {
         groupsArray = result;
       } else if (result.success && Array.isArray(result.data)) {
@@ -639,6 +639,36 @@ export default function EmployeeDetailsPage() {
     }
   };
 
+  const fetchRoles = async () => {
+    if (!companyId) return;
+    setLoadingRoles(true);
+    try {
+      const response = await fetch(`/api/settings/roles/${companyId}`);
+      if (!response.ok) throw new Error("Failed to fetch roles");
+      const result = await response.json();
+      console.log("📊 Roles API response:", result);
+
+      let rolesArray: any[] = [];
+      if (Array.isArray(result)) {
+        rolesArray = result;
+      } else if (result.success && Array.isArray(result.data)) {
+        rolesArray = result.data;
+      } else if (Array.isArray(result.data)) {
+        rolesArray = result.data;
+      } else if (result.roles) {
+        rolesArray = result.roles;
+      }
+
+      console.log("🔍 Roles array:", rolesArray);
+      setRoles(rolesArray);
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+      setRoles([]);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
   // Auto-retry if employee might be inactive
   useEffect(() => {
     if (isError && retryCount < 2) {
@@ -647,7 +677,6 @@ export default function EmployeeDetailsPage() {
         refetch();
         setRetryCount(prev => prev + 1);
       }, 1000);
-
       return () => clearTimeout(timer);
     }
   }, [isError, retryCount, refetch]);
@@ -682,6 +711,22 @@ export default function EmployeeDetailsPage() {
             group_id: Number(groupId),
             group: groupName
           });
+        }
+      }
+    }
+  };
+
+  const handleRoleChange = (roleId: string) => {
+    if (formData) {
+      if (roleId === "none") {
+        handleChange("role_id", undefined);
+        handleChange("role", "");
+      } else {
+        const selected = roles.find(r => r.id.toString() === roleId);
+        if (selected) {
+          handleChange("role_id", Number(roleId));
+          // Use the correct field name – adjust if your API uses something else (e.g., selected.name)
+          handleChange("role", selected.role || selected.name || "");
         }
       }
     }
@@ -734,7 +779,7 @@ export default function EmployeeDetailsPage() {
 
       if (result.success) {
         toast.success("Employee updated successfully!");
-        setIsEditModalOpen(false); // Close modal
+        setIsEditModalOpen(false);
 
         if (result.data) {
           console.log("🚨 UPDATING FORM DATA FROM RESPONSE:", result.data);
@@ -918,8 +963,8 @@ export default function EmployeeDetailsPage() {
         {/* Employee Banner (always read‑only now) */}
         <EmployeeBanner
           employee={formData}
-          editMode={false} // Keep banner read‑only
-          onChange={() => {}} // No changes allowed in banner
+          editMode={false}
+          onChange={() => {}}
         />
 
         {/* Other Cards - all read‑only now */}
@@ -1059,56 +1104,79 @@ export default function EmployeeDetailsPage() {
                   />
                 </div>
 
-                {/* Professional Information */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Role</label>
-                  <Input
-                    value={formData.role || ""}
-                    onChange={(e) => handleChange("role", e.target.value)}
-                  />
-                </div>
+                {/* Professional Information - Role, Group, Gender in one line */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Role Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Role</label>
+                    <Select
+                      value={formData.role_id?.toString() || "none"}
+                      onValueChange={handleRoleChange}
+                      disabled={loadingRoles}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Role</SelectItem>
+                        {roles.map((role) => {
+                          const roleId = role.id?.toString();
+                          if (!roleId) return null;
+                          const roleName = role.role || role.name || `Role ${role.id}`;
+                          return (
+                            <SelectItem key={role.id} value={roleId}>
+                              {roleName}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Group</label>
-                  <Select
-                    value={formData.group_id?.toString() || "none"}
-                    onValueChange={handleGroupChange}
-                    disabled={loadingGroups}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={loadingGroups ? "Loading groups..." : "Select Group"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Group</SelectItem>
-                      {groups.map((group) => {
-                        const groupId = group.id?.toString() || "";
-                        const groupName = getGroupDisplayName(group);
-                        if (!groupId || groupId.trim() === "" || !groupName.trim()) return null;
-                        return (
-                          <SelectItem key={group.id} value={groupId}>
-                            {groupName}
-                          </SelectItem>
-                        );
-                      }).filter(Boolean)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  {/* Group Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Group</label>
+                    <Select
+                      value={formData.group_id?.toString() || "none"}
+                      onValueChange={handleGroupChange}
+                      disabled={loadingGroups}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingGroups ? "Loading groups..." : "Select Group"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No Group</SelectItem>
+                        {groups.map((group) => {
+                          const groupId = group.id?.toString() || "";
+                          const groupName = getGroupDisplayName(group);
+                          if (!groupId || groupId.trim() === "" || !groupName.trim()) return null;
+                          return (
+                            <SelectItem key={group.id} value={groupId}>
+                              {groupName}
+                            </SelectItem>
+                          );
+                        }).filter(Boolean)}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Gender</label>
-                  <Select
-                    value={formData.gender || ""}
-                    onValueChange={(val) => handleChange("gender", val)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="M">Male</SelectItem>
-                      <SelectItem value="F">Female</SelectItem>
-                      <SelectItem value="O">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* Gender Dropdown */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Gender</label>
+                    <Select
+                      value={formData.gender || ""}
+                      onValueChange={(val) => handleChange("gender", val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="M">Male</SelectItem>
+                        <SelectItem value="F">Female</SelectItem>
+                        <SelectItem value="O">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {/* Status Toggles */}
