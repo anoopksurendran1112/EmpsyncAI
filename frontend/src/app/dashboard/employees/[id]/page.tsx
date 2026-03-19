@@ -513,19 +513,23 @@
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Loader,
   Mail,
   Phone,
   UserIcon,
+  UserMinus,
   MapPin,
   ArrowLeft,
   MessageSquare,
   Home,
   Pen,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  Camera,
+  X,
+  Upload
 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -570,6 +574,7 @@ export default function EmployeeDetailsPage() {
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [roles, setRoles] = useState<any[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Update formData when employee data loads
   useEffect(() => {
@@ -1059,7 +1064,7 @@ export default function EmployeeDetailsPage() {
 
         {/* Edit Modal */}
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <DialogHeader>
               <DialogTitle>Edit Employee</DialogTitle>
               <DialogDescription>
@@ -1068,162 +1073,245 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
 
             {formData && (
-              <div className="grid gap-4 py-4">
-                {/* Personal Information */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">First Name</label>
-                    <Input
-                      value={formData.first_name || ""}
-                      onChange={(e) => handleChange("first_name", e.target.value)}
+              <div className="space-y-5 py-2">
+                {/* Profile Image & Personal Info */}
+                <div className="space-y-4">
+                  {/* Circular Image Upload */}
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                      <div title="Change Photo"
+                        className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 overflow-hidden bg-gray-50 dark:bg-gray-800"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {formData.prof_img ? (
+                          <div className="relative w-full h-full group">
+                            <img 
+                              src={(formData.prof_img.startsWith("http") || formData.prof_img.startsWith("data:")) ? formData.prof_img : (company?.mediaBaseUrl ? `${company.mediaBaseUrl}${formData.prof_img}` : formData.prof_img)} 
+                              alt="Profile preview" 
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-full flex items-center justify-center">
+                              <Camera className="h-6 w-6 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center p-2">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-full mb-1">
+                              <Upload className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                            </div>
+                            <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">Upload Photo</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {formData.prof_img && (
+                        <button
+                          type="button" title="Remove Photo"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChange("prof_img", "");
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                          className="cursor-pointer absolute top-0 right-0 translate-x-1/4 -translate-y-1/4 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors z-10 shadow-sm"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          handleChange("prof_img", reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      accept="image/*"
+                      className="hidden"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Last Name</label>
-                    <Input
-                      value={formData.last_name || ""}
-                      onChange={(e) => handleChange("last_name", e.target.value)}
+
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    {/* Input fields */}
+                    <div className="md:col-span-3">
+                      <Input
+                        value={formData.first_name || ""}
+                        onChange={(e) => handleChange("first_name", e.target.value)}
+                        placeholder="First Name *"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Input
+                        value={formData.last_name || ""}
+                        onChange={(e) => handleChange("last_name", e.target.value)}
+                        placeholder="Last Name *"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Input
+                        type="email"
+                        value={formData.email || ""}
+                        onChange={(e) => handleChange("email", e.target.value)}
+                        placeholder="Email *"
+                      />
+                    </div>
+                    <div className="md:col-span-3">
+                      <Input
+                        value={formData.mobile || ""}
+                        onChange={(e) => handleChange("mobile", e.target.value)}
+                        placeholder="Mobile *"
+                      />
+                    </div>
+
+                    {/* Select fields */}
+                    <div className="md:col-span-2">
+                      <Select
+                        value={formData.gender || ""}
+                        onValueChange={(val) => handleChange("gender", val)}
+                      >
+                        <SelectTrigger className="w-full bg-white dark:bg-gray-800">
+                          <SelectValue placeholder="Select Gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="M">Male</SelectItem>
+                          <SelectItem value="F">Female</SelectItem>
+                          <SelectItem value="O">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Select
+                        value={formData.role_id?.toString() || "none"}
+                        onValueChange={handleRoleChange}
+                        disabled={loadingRoles}
+                      >
+                        <SelectTrigger className="w-full bg-white dark:bg-gray-800">
+                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Role</SelectItem>
+                          {roles.map((role) => (
+                            <SelectItem key={role.id} value={role.id?.toString() || ""}>
+                              {role.role || role.name || `Role ${role.id}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <Select
+                        value={formData.group_id?.toString() || "none"}
+                        onValueChange={handleGroupChange}
+                        disabled={loadingGroups}
+                      >
+                        <SelectTrigger className="w-full bg-white dark:bg-gray-800">
+                          <SelectValue placeholder={loadingGroups ? "Loading groups..." : "Select Group"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Group</SelectItem>
+                          {groups.map((group) => (
+                            <SelectItem key={group.id} value={group.id?.toString() || ""}>
+                              {getGroupDisplayName(group)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-px bg-border w-full" />
+
+                {/* Status & Notifications */}
+                <div className="space-y-4">
+                  {/* Status Toggle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-gray-50 dark:bg-gray-800 rounded-lg border gap-3">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-1.5 rounded-full flex-shrink-0 ${formData.is_active ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'}`}>
+                        {formData.is_active ? (
+                          <UserIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <UserMinus className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium leading-none">Employee Status</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {formData.is_active 
+                            ? "Active employees can log in and use the system" 
+                            : "Inactive employees cannot log in"}
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={formData.is_active || false}
+                      onCheckedChange={(val) => handleChange("is_active", val)}
+                      className={formData.is_active ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
                     />
                   </div>
-                </div>
 
-                {/* Contact Information */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
-                  <Input
-                    type="email"
-                    value={formData.email || ""}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Mobile</label>
-                  <Input
-                    value={formData.mobile || ""}
-                    onChange={(e) => handleChange("mobile", e.target.value)}
-                  />
-                </div>
-
-                {/* Professional Information - Role, Group, Gender in one line */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Role Dropdown */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role</label>
-                    <Select
-                      value={formData.role_id?.toString() || "none"}
-                      onValueChange={handleRoleChange}
-                      disabled={loadingRoles}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Role</SelectItem>
-                        {roles.map((role) => {
-                          const roleId = role.id?.toString();
-                          if (!roleId) return null;
-                          const roleName = role.role || role.name || `Role ${role.id}`;
-                          return (
-                            <SelectItem key={role.id} value={roleId}>
-                              {roleName}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                  {/* Notification Preferences */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
+                      <label htmlFor="is_whatsapp" className="text-[13px] font-medium cursor-pointer select-none">WhatsApp</label>
+                      <Switch
+                        id="is_whatsapp"
+                        checked={formData.is_whatsapp || false}
+                        onCheckedChange={(val) => handleChange("is_whatsapp", val)}
+                        className={formData.is_whatsapp ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
+                      <label htmlFor="is_sms" className="text-[13px] font-medium cursor-pointer select-none">SMS</label>
+                      <Switch
+                        id="is_sms"
+                        checked={formData.is_sms || false}
+                        onCheckedChange={(val) => handleChange("is_sms", val)}
+                        className={formData.is_sms ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
+                      <label htmlFor="is_wfh" className="text-[13px] font-medium cursor-pointer select-none">WFH</label>
+                      <Switch
+                        id="is_wfh"
+                        checked={formData.is_wfh || false}
+                        onCheckedChange={(val) => handleChange("is_wfh", val)}
+                        className={formData.is_wfh ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                      />
+                    </div>
                   </div>
-
-                  {/* Group Dropdown */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Group</label>
-                    <Select
-                      value={formData.group_id?.toString() || "none"}
-                      onValueChange={handleGroupChange}
-                      disabled={loadingGroups}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingGroups ? "Loading groups..." : "Select Group"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Group</SelectItem>
-                        {groups.map((group) => {
-                          const groupId = group.id?.toString() || "";
-                          const groupName = getGroupDisplayName(group);
-                          if (!groupId || groupId.trim() === "" || !groupName.trim()) return null;
-                          return (
-                            <SelectItem key={group.id} value={groupId}>
-                              {groupName}
-                            </SelectItem>
-                          );
-                        }).filter(Boolean)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Gender Dropdown */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Gender</label>
-                    <Select
-                      value={formData.gender || ""}
-                      onValueChange={(val) => handleChange("gender", val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="M">Male</SelectItem>
-                        <SelectItem value="F">Female</SelectItem>
-                        <SelectItem value="O">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Status Toggles */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Active</span>
-                  <Switch
-                    checked={formData.is_active || false}
-                    onCheckedChange={(val) => handleChange("is_active", val)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">WhatsApp Notifications</span>
-                  <Switch
-                    checked={formData.is_whatsapp || false}
-                    onCheckedChange={(val) => handleChange("is_whatsapp", val)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">SMS Notifications</span>
-                  <Switch
-                    checked={formData.is_sms || false}
-                    onCheckedChange={(val) => handleChange("is_sms", val)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Work From Home</span>
-                  <Switch
-                    checked={formData.is_wfh || false}
-                    onCheckedChange={(val) => handleChange("is_wfh", val)}
-                  />
                 </div>
               </div>
             )}
+            
+            <div className="h-px bg-border w-full mt-1" />
 
-            <DialogFooter>
+            <DialogFooter className="pt-1">
               <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveAllChanges}
                 disabled={isSaving}
-                className="bg-green-600 hover:bg-green-700"
+                className="text-white min-w-[140px]"
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Pen className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
