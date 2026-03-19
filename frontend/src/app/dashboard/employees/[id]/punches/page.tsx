@@ -1006,82 +1006,128 @@ export default function EmployeePunchPage() {
     }
   }, [company, startDate, endDate, employee, id, biometricIdFromQuery, fetchTodaysPunch, fetchAllPunches, formatTimeDirect, formatMinutesToTime, calculateWorkTime]);
 
-  // ADDED FOR PDF EXPORT
-  const exportToPDF = useCallback(() => {
-    if (!punches.length) return;
+// ADDED FOR PDF EXPORT - UPDATED FOR GRID LAYOUT
+const exportToPDF = useCallback(() => {
+  if (!punches.length) return;
 
-    // Create a new PDF document (portrait)
-    const doc = new jsPDF();
+  const doc = new jsPDF();
+  const navyBlue = [22, 53, 91]; // Professional Navy Blue
+  const lightGrey = [245, 245, 245];
 
-    // Add title and employee info
-    const employeeName = `${employee?.first_name || ''} ${employee?.last_name || ''}`.trim() || 'Employee';
-    const dateRangeText = `${startDate ? format(startDate, 'dd-MMM-yyyy') : '?'} to ${endDate ? format(endDate, 'dd-MMM-yyyy') : '?'}`;
+  // 1. Header Section
+  const biometricId = employee?.biometric_id || 'N/A';
+  doc.setFontSize(18);
+  doc.setTextColor(navyBlue[0], navyBlue[1], navyBlue[2]);
+  doc.setFont("helvetica", "bold");
+  doc.text(`PUNCH RECORDS: [Biometric ID: ${biometricId}]`, 105, 15, { align: 'center' });
+  
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100);
+  doc.text(`Employee Attendance Report | Generated on ${format(new Date(), 'dd MMM yyyy')}`, 105, 22, { align: 'center' });
 
-    doc.setFontSize(16);
-    doc.text('Punch Records', 14, 15);
-    doc.setFontSize(11);
-    doc.text(`Employee: ${employeeName} (ID: ${employee?.id || ''})`, 14, 22);
-    doc.text(`Period: ${dateRangeText}`, 14, 29);
+  // 2. Punch Summary Grid (Using autoTable for perfect alignment)
+  const employeeName = `${employee?.first_name || ''} ${employee?.last_name || ''}`.trim() || 'N/A';
+  const startDateStr = startDate ? format(startDate, 'dd/MM/yyyy') : '-';
+  const endDateStr = endDate ? format(endDate, 'dd/MM/yyyy') : '-';
 
-    // Prepare table data
-    const tableBody = punches.map(row => {
-      // For multi‑mode days, build multi‑line strings for punch in/out
-      let punchInCell = row.punchIn;       // fallback
-      let punchOutCell = row.punchOut;     // fallback
+  // Calculate stats (Replace these placeholders with your actual state variables)
+  const totalDays = punches.length;
+  const workingDays = punches.filter(p => p.status === 'Present').length;
+  const partialDays = punches.filter(p => p.status === 'Partial').length;
+  const avgWorkHours = "8.4 h"; // Replace with your calculated average
 
-      if (row.isMultiMode && row.punches?.length) {
-        // Extract all check‑ins and check‑outs, sort by time
-        const checkIns = row.punches
-          .filter(p => p.status === 'Check-In' || p.status === 'pending')
-          .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
-          .map(p => formatTimeDirect(p.punch_time))
-          .filter(t => t !== '-');
+  autoTable(doc, {
+    startY: 28,
+    head: [['PUNCH SUMMARY', '', '', '']], // Span across 4 columns
+    body: [
+      ['Employee Name:', employeeName, 'Start Date:', startDateStr],
+      ['Email:', employee?.email || 'N/A', 'End Date:', endDateStr],
+      ['Employee ID:', employee?.id || 'N/A', 'Total Days:', totalDays],
+      ['Phone Number:', employee?.phone || 'N/A', 'Working Days:', workingDays],
+      ['Company Name:', employee?.company_name || 'N/A', 'Partial Days:', partialDays],
+      ['Gender:', employee?.gender || 'N/A', 'Average Work Hour:', avgWorkHours],
+    ],
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [255, 255, 255], 
+      textColor: navyBlue, 
+      halign: 'center', 
+      fontSize: 10, 
+      fontStyle: 'bold' 
+    },
+    styles: { fontSize: 9, cellPadding: 2 },
+    columnStyles: {
+      0: { fontStyle: 'bold', fillColor: lightGrey, cellWidth: 35 },
+      1: { cellWidth: 60 },
+      2: { fontStyle: 'bold', fillColor: lightGrey, cellWidth: 35 },
+      3: { cellWidth: 52 },
+    },
+  });
 
-        const checkOuts = row.punches
-          .filter(p => p.status === 'Check-Out')
-          .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
-          .map(p => formatTimeDirect(p.punch_time))
-          .filter(t => t !== '-');
+  // 3. Main Attendance Log Table
+  const tableBody = punches.map(row => {
+    let punchInCell = row.punchIn;
+    let punchOutCell = row.punchOut;
 
-        punchInCell = checkIns.length ? checkIns.join('\n') : '-';
-        punchOutCell = checkOuts.length ? checkOuts.join('\n') : '-';
+    if (row.isMultiMode && row.punches?.length) {
+      const checkIns = row.punches
+        .filter(p => p.status === 'Check-In' || p.status === 'pending')
+        .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
+        .map(p => formatTimeDirect(p.punch_time))
+        .filter(t => t !== '-');
+
+      const checkOuts = row.punches
+        .filter(p => p.status === 'Check-Out')
+        .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
+        .map(p => formatTimeDirect(p.punch_time))
+        .filter(t => t !== '-');
+
+      punchInCell = checkIns.length ? checkIns.join('\n') : '-';
+      punchOutCell = checkOuts.length ? checkOuts.join('\n') : '-';
+    }
+
+    return [
+      row.dateDisplay,
+      punchInCell,
+      punchOutCell,
+      row.totalWorkTime > 0 ? formatMinutesToTime(row.totalWorkTime) : '-',
+      row.status,
+    ];
+  });
+
+  doc.setFontSize(11);
+  doc.setTextColor(navyBlue[0], navyBlue[1], navyBlue[2]);
+  doc.text('ATTENDANCE LOG', 105, doc.lastAutoTable.finalY + 10, { align: 'center' });
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 15,
+    head: [['Date', 'Punch In', 'Punch Out', 'Work Time', 'Status']],
+    body: tableBody,
+    theme: 'striped',
+    headStyles: { fillColor: navyBlue, textColor: 255, halign: 'center' },
+    styles: { halign: 'center', fontSize: 9, cellPadding: 3 },
+    columnStyles: {
+      0: { cellWidth: 35 }, // Date
+      1: { cellWidth: 40 }, // Punch In
+      2: { cellWidth: 40 }, // Punch Out
+      3: { cellWidth: 35 }, // Work Time
+      4: { cellWidth: 32 }, // Status
+    },
+    didParseCell: function (data) {
+      // Color coding for Status column
+      if (data.column.index === 4 && data.section === 'body') {
+        const status = data.cell.raw;
+        if (status === 'Present') data.cell.styles.textColor = [39, 174, 96]; // Green
+        if (status === 'Absent') data.cell.styles.textColor = [192, 57, 43]; // Red
       }
+    },
+  });
 
-      return [
-        row.dateDisplay,
-        punchInCell,
-        punchOutCell,
-        row.totalWorkTime > 0 ? formatMinutesToTime(row.totalWorkTime) : '-',
-        row.status,
-      ];
-    });
-
-    // Generate the table
-    autoTable(doc, {
-      head: [['Date', 'Punch In', 'Punch Out', 'Work Time', 'Status']],
-      body: tableBody,
-      startY: 35,
-      theme: 'striped',
-      headStyles: { fillColor: [41, 128, 185] },
-      columnStyles: {
-        0: { cellWidth: 35 }, // Date
-        1: { cellWidth: 40 }, // Punch In
-        2: { cellWidth: 40 }, // Punch Out
-        3: { cellWidth: 30 }, // Work Time
-        4: { cellWidth: 35 }, // Status
-      },
-      didParseCell: function (data) {
-        // Preserve line breaks in cells
-        if (data.column.index === 1 || data.column.index === 2) {
-          data.cell.styles.cellPadding = 2;
-        }
-      },
-    });
-
-    // Save the PDF
-    const fileName = `punch_records_${employee?.id || 'employee'}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-    doc.save(fileName);
-  }, [punches, employee, startDate, endDate, formatTimeDirect, formatMinutesToTime]);
+  // Save the PDF
+  const fileName = `Punch_Report_${employee?.id || 'EMP'}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+  doc.save(fileName);
+}, [punches, employee, startDate, endDate, formatTimeDirect, formatMinutesToTime]);
 
   // Set default dates
   useEffect(() => {
@@ -1283,55 +1329,56 @@ export default function EmployeePunchPage() {
           </button>
         </div>
       )}
+      {/* <div className="flex items-start justify-between mb-6 p-4 bg-gray-50 rounded-lg"> */}
 
       {/* Date Range Selector - with grouped buttons */}
-      <div className="flex items-start justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+      <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-6 p-6 bg-gray-50 rounded-lg shadow-sm border border-gray-200">
         {/* Date Pickers */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
           <div>
-            <label className="block text-sm font-medium mb-1">Start Date:</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
             <DatePicker
               selected={startDate}
               onChange={(d: Date) => setStartDate(d)}
               dateFormat="dd-MMM-yyyy"
               placeholderText="Select start date"
-              className="border px-3 py-2 rounded w-40"
+              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               maxDate={new Date()}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">End Date:</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
             <DatePicker
               selected={endDate}
               onChange={(d: Date) => setEndDate(d)}
               dateFormat="dd-MMM-yyyy"
               placeholderText="Select end date"
-              className="border px-3 py-2 rounded w-40"
+              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow"
               maxDate={new Date()}
             />
           </div>
         </div>
 
         {/* Button group */}
-        <div className="flex mt-6 rounded-lg overflow-hidden border shadow-sm">
+        <div className="flex rounded-md overflow-hidden border border-gray-200 shadow-sm w-full md:w-auto h-[42px]">
           {/* Refresh */}
           <button
             onClick={fetchPunches}
             disabled={loading}
-            className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 transition disabled:opacity-50 border-r"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-70 border-r border-blue-700 font-medium text-sm"
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             {loading ? "Loading..." : "Refresh"}
           </button>
 
-          {/* Fix Now – matching layout but keeping original colors */}
+          {/* Fix Now */}
           {company && (
             <FixPunch
               companyId={company.id}
               disabled={loading || !company}
-              className="flex items-center gap-1 px-4 py-2 bg-green-100 text-green-700 hover:bg-green-200 transition disabled:opacity-50 border-r"
-              onComplete={(result) => {
+              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition disabled:opacity-50 border-r border-gray-200 font-medium text-sm"
+              onComplete={(result: any) => {
                 if (result.success && (result.fixed > 0 || result.updated > 0)) {
                   setTimeout(() => {
                     fetchPunches();
@@ -1345,7 +1392,7 @@ export default function EmployeePunchPage() {
           <button
             onClick={exportToPDF}
             disabled={loading || punches.length === 0}
-            className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white hover:bg-green-600 transition disabled:opacity-50"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-70 font-medium text-sm"
           >
             <Download size={16} />
             Export PDF
