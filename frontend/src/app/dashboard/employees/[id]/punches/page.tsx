@@ -9,17 +9,31 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { format, parseISO, differenceInMinutes } from "date-fns";
 import Link from "next/link";
-import { ArrowLeft, UserIcon, Activity, ArrowUpCircle, ArrowDownCircle, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  UserIcon,
+  Activity,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Clock,
+  RefreshCw,
+  Download,
+} from "lucide-react";
 import Image from "next/image";
 import { useEmployee } from "@/hooks/employees/useGetEmployee";
 import FixPunch from "@/components/fix-punch";
 
-// TimeCircle component
+// ADDED FOR PDF EXPORT
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// TimeCircle component (unchanged)
 function TimeCircle({ checkIn, checkOut, size = 70 }: {
   checkIn: string;
   checkOut: string;
   size?: number
 }) {
+  // ... (your existing TimeCircle code) ...
   const calculateWorkHours = (checkIn: string, checkOut: string): string => {
     if (checkIn === "-" || checkOut === "-" || checkIn === "--" || checkOut === "--") return "--";
 
@@ -183,7 +197,7 @@ function TimeCircle({ checkIn, checkOut, size = 70 }: {
   );
 }
 
-// Helper to extract time from datetime string
+// Helper to extract time from datetime string (unchanged)
 const extractTime = (datetime: string | null): string => {
   if (!datetime) return "-";
   
@@ -236,7 +250,7 @@ const extractTime = (datetime: string | null): string => {
   }
 };
 
-// Helper to calculate session duration
+// Helper to calculate session duration (unchanged)
 const calculateSessionDuration = (start: string, end: string): string => {
   try {
     const startDate = new Date(start);
@@ -254,7 +268,7 @@ const calculateSessionDuration = (start: string, end: string): string => {
   }
 };
 
-// Helper to calculate total work time for a day
+// Helper to calculate total work time for a day (unchanged)
 const calculateTotalWorkTimeForDay = (punches: any[]): number => {
   try {
     let totalMinutes = 0;
@@ -279,7 +293,7 @@ const calculateTotalWorkTimeForDay = (punches: any[]): number => {
   }
 };
 
-// Helper to format duration
+// Helper to format duration (unchanged)
 const formatDuration = (minutes: number): string => {
   if (!minutes || minutes <= 0) return "-";
   
@@ -290,7 +304,7 @@ const formatDuration = (minutes: number): string => {
   return `${hours}h ${mins}m`;
 };
 
-// Component to display multiple punch sessions in table format
+// Component to display multiple punch sessions in table format (unchanged)
 const MultiPunchTableDisplay = ({ punches, dateKey, totalWorkTime }: { punches: any[], dateKey: string, totalWorkTime: number }) => {
   if (!punches || punches.length === 0) {
     return (
@@ -397,102 +411,102 @@ export default function EmployeePunchPage() {
       : emp.prof_img;
   };
 
-const formatTimeDirect = useCallback((originalTimeString?: string | null): string => {
-  if (!originalTimeString) return "-";
+  const formatTimeDirect = useCallback((originalTimeString?: string | null): string => {
+    if (!originalTimeString) return "-";
 
-  if (originalTimeString === "null" || originalTimeString === "undefined" || originalTimeString.trim() === "") {
-    return "-";
-  }
-
-  if (originalTimeString.includes('05:30:00') || originalTimeString.includes('T05:30:00Z')) {
-    return "-";
-  }
-
-  // Handle time-only strings like "09:43:02" (from partial punch records)
-  if (originalTimeString.includes(':') && !originalTimeString.includes('T') && !originalTimeString.includes(' ') && !originalTimeString.includes('AM') && !originalTimeString.includes('PM')) {
-    try {
-      const [hours, minutes, seconds] = originalTimeString.split(':');
-      const hourNum = parseInt(hours);
-      
-      if (isNaN(hourNum)) return originalTimeString;
-      
-      const period = hourNum >= 12 ? 'PM' : 'AM';
-      const hour12 = hourNum % 12 || 12;
-      
-      // Return in format like "09:43 AM"
-      return `${hour12.toString().padStart(2, '0')}:${minutes} ${period}`;
-    } catch (e) {
-      console.log("Failed to parse time-only string:", e);
-      return originalTimeString;
+    if (originalTimeString === "null" || originalTimeString === "undefined" || originalTimeString.trim() === "") {
+      return "-";
     }
-  }
 
-  // Handle format like "2025-12-13 06:36:57" (multi-mode)
-  if (originalTimeString.includes(' ') && originalTimeString.includes(':')) {
-    try {
-      const parts = originalTimeString.split(' ');
-      if (parts.length >= 2) {
-        const timePart = parts[1];
-        const [hours, minutes] = timePart.split(':');
+    if (originalTimeString.includes('05:30:00') || originalTimeString.includes('T05:30:00Z')) {
+      return "-";
+    }
+
+    // Handle time-only strings like "09:43:02" (from partial punch records)
+    if (originalTimeString.includes(':') && !originalTimeString.includes('T') && !originalTimeString.includes(' ') && !originalTimeString.includes('AM') && !originalTimeString.includes('PM')) {
+      try {
+        const [hours, minutes, seconds] = originalTimeString.split(':');
         const hourNum = parseInt(hours);
-
+        
+        if (isNaN(hourNum)) return originalTimeString;
+        
         const period = hourNum >= 12 ? 'PM' : 'AM';
         const hour12 = hourNum % 12 || 12;
-
+        
+        // Return in format like "09:43 AM"
         return `${hour12.toString().padStart(2, '0')}:${minutes} ${period}`;
+      } catch (e) {
+        console.log("Failed to parse time-only string:", e);
+        return originalTimeString;
       }
-    } catch (e) {
-      console.log("Failed to parse datetime string:", e);
     }
-  }
 
-  // Handle ISO format like "2025-12-12T09:23:25Z" (single-mode)
-  if (originalTimeString.includes('T') && originalTimeString.includes('Z')) {
-    try {
-      const date = new Date(originalTimeString);
-      if (!isNaN(date.getTime())) {
-        const hours = date.getUTCHours();
-        const minutes = date.getUTCMinutes();
-        
-        // Check for placeholder time
-        if (hours === 5 && minutes === 30) {
-          return "-";
+    // Handle format like "2025-12-13 06:36:57" (multi-mode)
+    if (originalTimeString.includes(' ') && originalTimeString.includes(':')) {
+      try {
+        const parts = originalTimeString.split(' ');
+        if (parts.length >= 2) {
+          const timePart = parts[1];
+          const [hours, minutes] = timePart.split(':');
+          const hourNum = parseInt(hours);
+
+          const period = hourNum >= 12 ? 'PM' : 'AM';
+          const hour12 = hourNum % 12 || 12;
+
+          return `${hour12.toString().padStart(2, '0')}:${minutes} ${period}`;
         }
-        
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const hour12 = hours % 12 || 12;
-        
-        return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+      } catch (e) {
+        console.log("Failed to parse datetime string:", e);
       }
-    } catch (e) {
-      console.log("Failed to parse ISO string:", e);
     }
-  }
 
-  // Handle ISO format without Z
-  if (originalTimeString.includes('T') && originalTimeString.includes(':')) {
-    try {
-      const date = new Date(originalTimeString);
-      if (!isNaN(date.getTime())) {
-        const hours = date.getUTCHours();
-        const minutes = date.getUTCMinutes();
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const hour12 = hours % 12 || 12;
-        
-        return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+    // Handle ISO format like "2025-12-12T09:23:25Z" (single-mode)
+    if (originalTimeString.includes('T') && originalTimeString.includes('Z')) {
+      try {
+        const date = new Date(originalTimeString);
+        if (!isNaN(date.getTime())) {
+          const hours = date.getUTCHours();
+          const minutes = date.getUTCMinutes();
+          
+          // Check for placeholder time
+          if (hours === 5 && minutes === 30) {
+            return "-";
+          }
+          
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const hour12 = hours % 12 || 12;
+          
+          return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+        }
+      } catch (e) {
+        console.log("Failed to parse ISO string:", e);
       }
-    } catch (e) {
-      console.log("Failed to parse ISO string:", e);
     }
-  }
 
-  // If it's already in the correct format (has AM/PM), return as is
-  if (originalTimeString.includes('AM') || originalTimeString.includes('PM')) {
+    // Handle ISO format without Z
+    if (originalTimeString.includes('T') && originalTimeString.includes(':')) {
+      try {
+        const date = new Date(originalTimeString);
+        if (!isNaN(date.getTime())) {
+          const hours = date.getUTCHours();
+          const minutes = date.getUTCMinutes();
+          const period = hours >= 12 ? 'PM' : 'AM';
+          const hour12 = hours % 12 || 12;
+          
+          return `${hour12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+        }
+      } catch (e) {
+        console.log("Failed to parse ISO string:", e);
+      }
+    }
+
+    // If it's already in the correct format (has AM/PM), return as is
+    if (originalTimeString.includes('AM') || originalTimeString.includes('PM')) {
+      return originalTimeString;
+    }
+
     return originalTimeString;
-  }
-
-  return originalTimeString;
-}, []);
+  }, []);
 
   const fetchTodaysPunch = useCallback(async (biometricId: string) => {
     if (!company) return null;
@@ -683,315 +697,392 @@ const formatTimeDirect = useCallback((originalTimeString?: string | null): strin
   }, []);
 
   // Fetch punches with proper handling for both multi-mode and single-mode
-          // Fetch punches with proper handling for both multi-mode and single-mode
-          const fetchPunches = useCallback(async () => {
-            if (!company || !startDate || !endDate) {
-              setError("Missing required data: company or dates");
-              return;
+  const fetchPunches = useCallback(async () => {
+    if (!company || !startDate || !endDate) {
+      setError("Missing required data: company or dates");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setMultiMode(false);
+
+    try {
+      let biometricId;
+      
+      if (biometricIdFromQuery) {
+        biometricId = biometricIdFromQuery;
+      } else if (employee?.biometric_id) {
+        biometricId = employee.biometric_id;
+      } else {
+        biometricId = id as string;
+      }
+
+      if (!biometricId) {
+        setError("Unable to determine biometric ID for fetching punches");
+        setLoading(false);
+        return;
+      }
+
+      const payload = {
+        biometric_id: biometricId,
+        company_id: company.id,
+        start_date: format(startDate, "yyyy-MM-dd"),
+        end_date: format(endDate, "yyyy-MM-dd"),
+      };
+
+      console.log("📊 Fetching punches with payload:", payload);
+
+      // Fetch today's punch data
+      const todayPunchData = await fetchTodaysPunch(biometricId);
+      setTodaysPunch(todayPunchData);
+
+      // Fetch all pages of punches
+      const { punches: allPunches, isMultiMode } = await fetchAllPunches(payload);
+      
+      setMultiMode(isMultiMode);
+      
+      if (allPunches.length === 0) {
+        console.log("No punches found");
+        // Create empty rows for all dates
+        const allDates: string[] = [];
+        const currentDate = new Date(startDate);
+        const finalEndDate = new Date(endDate);
+        
+        while (currentDate <= finalEndDate) {
+          const dateKey = format(currentDate, "yyyy-MM-dd");
+          allDates.push(dateKey);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        const rows = allDates
+          .sort((a, b) => (a < b ? 1 : -1))
+          .map((dateKey) => ({
+            dateDisplay: format(new Date(dateKey), "dd-MMM-yyyy"),
+            dateKey,
+            punches: [],
+            totalWorkTime: 0,
+            status: "No punches recorded",
+            hasPunches: false,
+            isMultiMode,
+            punchIn: "-",
+            punchOut: "-",
+          }));
+        
+        setPunches(rows);
+        setAverageWorkTime("-");
+        setLoading(false);
+        return;
+      }
+      
+      // Group punches by date
+      const punchesByDate: Record<string, any[]> = {};
+      
+      allPunches.forEach((punch) => {
+        let dateKey = "";
+        
+        if (punch.date) {
+          dateKey = punch.date;
+        } else if (punch.punch_time) {
+          // Extract date from punch_time
+          try {
+            if (punch.punch_time.includes('T')) {
+              // ISO format: "2025-12-12T09:23:25Z"
+              dateKey = punch.punch_time.split('T')[0];
+            } else if (punch.punch_time.includes(' ')) {
+              // "2025-12-13 06:36:57" format
+              dateKey = punch.punch_time.split(' ')[0];
             }
-
-            setLoading(true);
-            setError(null);
-            setMultiMode(false);
-
-            try {
-              let biometricId;
-              
-              if (biometricIdFromQuery) {
-                biometricId = biometricIdFromQuery;
-              } else if (employee?.biometric_id) {
-                biometricId = employee.biometric_id;
-              } else {
-                biometricId = id as string;
-              }
-
-              if (!biometricId) {
-                setError("Unable to determine biometric ID for fetching punches");
-                setLoading(false);
-                return;
-              }
-
-              const payload = {
-                biometric_id: biometricId,
-                company_id: company.id,
-                start_date: format(startDate, "yyyy-MM-dd"),
-                end_date: format(endDate, "yyyy-MM-dd"),
-              };
-
-              console.log("📊 Fetching punches with payload:", payload);
-
-              // Fetch today's punch data
-              const todayPunchData = await fetchTodaysPunch(biometricId);
-              setTodaysPunch(todayPunchData);
-
-              // Fetch all pages of punches
-              const { punches: allPunches, isMultiMode } = await fetchAllPunches(payload);
-              
-              setMultiMode(isMultiMode);
-              
-              if (allPunches.length === 0) {
-                console.log("No punches found");
-                // Create empty rows for all dates
-                const allDates: string[] = [];
-                const currentDate = new Date(startDate);
-                const finalEndDate = new Date(endDate);
+          } catch {
+            // If we can't parse, skip
+          }
+        }
+        
+        if (!dateKey) {
+          // For placeholder records
+          if (punch.message && (punch.message.includes("No punches") || punch.status === "leave")) {
+            dateKey = punch.date || format(new Date(), "yyyy-MM-dd");
+          } else {
+            return;
+          }
+        }
+        
+        if (!punchesByDate[dateKey]) {
+          punchesByDate[dateKey] = [];
+        }
+        punchesByDate[dateKey].push(punch);
+      });
+      
+      // Generate all dates in range
+      const allDates: string[] = [];
+      const currentDate = new Date(startDate);
+      const finalEndDate = new Date(endDate);
+      
+      while (currentDate <= finalEndDate) {
+        const dateKey = format(currentDate, "yyyy-MM-dd");
+        allDates.push(dateKey);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Create rows for display
+      const rows = allDates
+        .sort((a, b) => (a < b ? 1 : -1))
+        .map((dateKey) => {
+          const punches = punchesByDate[dateKey] || [];
+          
+          // For display purposes, filter out placeholder "No punches recorded" records
+          const displayPunches = punches.filter(p => 
+            !(p.punch_time === null && p.message && p.message.includes("No punches recorded"))
+          );
+          
+          const hasActualPunches = displayPunches.length > 0;
+          
+          // Calculate total work time
+          let totalWorkTime = 0;
+          let punchIn = "-";
+          let punchOut = "-";
+          
+          if (isMultiMode) {
+            // Multi-mode: calculate from all punches
+            totalWorkTime = calculateTotalWorkTimeForDay(displayPunches);
+            
+            // For multi-mode, find first check-in and last check-out
+            const checkIns = displayPunches.filter(p => p.status === "Check-In" || p.status === "pending");
+            const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
+            
+            punchIn = checkIns[0] ? extractTime(checkIns[0].punch_time) : "-";
+            punchOut = checkOuts[checkOuts.length - 1] ? extractTime(checkOuts[checkOuts.length - 1].punch_time) : "-";
+          } else {
+            // Single mode: calculate based on first check-in and last check-out
+            const checkIns = displayPunches.filter(p => p.status === "Check-In");
+            const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
+            
+            // FIX: Check for ALL partial punch statuses (pending OR absent)
+            const pendingPunches = displayPunches.filter(p => 
+              p.status === "pending" && p.message && p.message.includes("Partial punch recorded")
+            );
+            
+            const absentPunches = displayPunches.filter(p => 
+              p.status === "absent" && p.message && p.message.includes("Partial punch recorded")
+            );
+            
+            // Combine both pending and absent partial punches
+            const allPartialPunches = [...pendingPunches, ...absentPunches];
+            
+            // Check if this is today's date
+            const today = format(new Date(), "yyyy-MM-dd");
+            const isToday = dateKey === today;
+            
+            // For partial punches (like today's or December 8th's partial punch)
+            if (allPartialPunches.length > 0) {
+              const partialPunch = allPartialPunches[0];
+              if (partialPunch.punch_time) {
+                // Use formatTimeDirect to properly format time-only strings like "09:43:02"
+                punchIn = formatTimeDirect(partialPunch.punch_time);
+                // For partial punches in single mode, punchOut remains "-"
                 
-                while (currentDate <= finalEndDate) {
-                  const dateKey = format(currentDate, "yyyy-MM-dd");
-                  allDates.push(dateKey);
-                  currentDate.setDate(currentDate.getDate() + 1);
+                // If it's today and we have todaysPunch data, use that for consistency
+                if (isToday && todayPunchData?.first_check_in) {
+                  punchIn = formatTimeDirect(todayPunchData.first_check_in);
                 }
                 
-                const rows = allDates
-                  .sort((a, b) => (a < b ? 1 : -1))
-                  .map((dateKey) => ({
-                    dateDisplay: format(new Date(dateKey), "dd-MMM-yyyy"),
-                    dateKey,
-                    punches: [],
-                    totalWorkTime: 0,
-                    status: "No punches recorded",
-                    hasPunches: false,
-                    isMultiMode,
-                    punchIn: "-",
-                    punchOut: "-",
-                  }));
-                
-                setPunches(rows);
-                setAverageWorkTime("-");
-                setLoading(false);
-                return;
-              }
-              
-              // Group punches by date
-              const punchesByDate: Record<string, any[]> = {};
-              
-              allPunches.forEach((punch) => {
-                let dateKey = "";
-                
-                if (punch.date) {
-                  dateKey = punch.date;
-                } else if (punch.punch_time) {
-                  // Extract date from punch_time
-                  try {
-                    if (punch.punch_time.includes('T')) {
-                      // ISO format: "2025-12-12T09:23:25Z"
-                      dateKey = punch.punch_time.split('T')[0];
-                    } else if (punch.punch_time.includes(' ')) {
-                      // "2025-12-13 06:36:57" format
-                      dateKey = punch.punch_time.split(' ')[0];
-                    }
-                  } catch {
-                    // If we can't parse, skip
+                // Calculate work time from punch to now (only for today)
+                try {
+                  if (isToday) {
+                    const startTime = new Date(todayPunchData?.first_check_in || partialPunch.punch_time);
+                    const currentTime = new Date();
+                    totalWorkTime = differenceInMinutes(currentTime, startTime);
                   }
+                } catch (e) {
+                  console.error("Error calculating work time from partial punch:", e);
                 }
-                
-                if (!dateKey) {
-                  // For placeholder records
-                  if (punch.message && (punch.message.includes("No punches") || punch.status === "leave")) {
-                    dateKey = punch.date || format(new Date(), "yyyy-MM-dd");
-                  } else {
-                    return;
-                  }
-                }
-                
-                if (!punchesByDate[dateKey]) {
-                  punchesByDate[dateKey] = [];
-                }
-                punchesByDate[dateKey].push(punch);
-              });
-              
-              // Generate all dates in range
-              const allDates: string[] = [];
-              const currentDate = new Date(startDate);
-              const finalEndDate = new Date(endDate);
-              
-              while (currentDate <= finalEndDate) {
-                const dateKey = format(currentDate, "yyyy-MM-dd");
-                allDates.push(dateKey);
-                currentDate.setDate(currentDate.getDate() + 1);
               }
+            } else {
+              // Normal check-in/check-out logic
+              punchIn = checkIns[0] ? formatTimeDirect(checkIns[0].punch_time || checkIns[0].raw_time) : "-";
+              punchOut = checkOuts[checkOuts.length - 1] ? formatTimeDirect(checkOuts[checkOuts.length - 1].punch_time || checkOuts[checkOuts.length - 1].raw_time) : "-";
               
-              // Create rows for display
-              const rows = allDates
-                .sort((a, b) => (a < b ? 1 : -1))
-                .map((dateKey) => {
-                  const punches = punchesByDate[dateKey] || [];
-                  
-                  // For display purposes, filter out placeholder "No punches recorded" records
-                  const displayPunches = punches.filter(p => 
-                    !(p.punch_time === null && p.message && p.message.includes("No punches recorded"))
-                  );
-                  
-                  const hasActualPunches = displayPunches.length > 0;
-                  
-                  // Calculate total work time
-                  let totalWorkTime = 0;
-                  let punchIn = "-";
-                  let punchOut = "-";
-                  
-                  if (isMultiMode) {
-                    // Multi-mode: calculate from all punches
-                    totalWorkTime = calculateTotalWorkTimeForDay(displayPunches);
-                    
-                    // For multi-mode, find first check-in and last check-out
-                    const checkIns = displayPunches.filter(p => p.status === "Check-In" || p.status === "pending");
-                    const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
-                    
-                    punchIn = checkIns[0] ? extractTime(checkIns[0].punch_time) : "-";
-                    punchOut = checkOuts[checkOuts.length - 1] ? extractTime(checkOuts[checkOuts.length - 1].punch_time) : "-";
-                  } else {
-                    // Single mode: calculate based on first check-in and last check-out
-                    const checkIns = displayPunches.filter(p => p.status === "Check-In");
-                    const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
-                    
-                    // FIX: Check for ALL partial punch statuses (pending OR absent)
-                    const pendingPunches = displayPunches.filter(p => 
-                      p.status === "pending" && p.message && p.message.includes("Partial punch recorded")
-                    );
-                    
-                    const absentPunches = displayPunches.filter(p => 
-                      p.status === "absent" && p.message && p.message.includes("Partial punch recorded")
-                    );
-                    
-                    // Combine both pending and absent partial punches
-                    const allPartialPunches = [...pendingPunches, ...absentPunches];
-                    
-                    // Check if this is today's date
-                    const today = format(new Date(), "yyyy-MM-dd");
-                    const isToday = dateKey === today;
-                    
-                    // For partial punches (like today's or December 8th's partial punch)
-                    if (allPartialPunches.length > 0) {
-                      const partialPunch = allPartialPunches[0];
-                      if (partialPunch.punch_time) {
-                        // Use formatTimeDirect to properly format time-only strings like "09:43:02"
-                        punchIn = formatTimeDirect(partialPunch.punch_time);
-                        // For partial punches in single mode, punchOut remains "-"
-                        
-                        // If it's today and we have todaysPunch data, use that for consistency
-                        if (isToday && todayPunchData?.first_check_in) {
-                          punchIn = formatTimeDirect(todayPunchData.first_check_in);
-                        }
-                        
-                        // Calculate work time from punch to now (only for today)
-                        try {
-                          if (isToday) {
-                            const startTime = new Date(todayPunchData?.first_check_in || partialPunch.punch_time);
-                            const currentTime = new Date();
-                            totalWorkTime = differenceInMinutes(currentTime, startTime);
-                          }
-                        } catch (e) {
-                          console.error("Error calculating work time from partial punch:", e);
-                        }
-                      }
-                    } else {
-                      // Normal check-in/check-out logic
-                      punchIn = checkIns[0] ? formatTimeDirect(checkIns[0].punch_time || checkIns[0].raw_time) : "-";
-                      punchOut = checkOuts[checkOuts.length - 1] ? formatTimeDirect(checkOuts[checkOuts.length - 1].punch_time || checkOuts[checkOuts.length - 1].raw_time) : "-";
-                      
-                      if (punchIn !== "-" && punchOut !== "-") {
-                        totalWorkTime = calculateWorkTime(punchIn, punchOut);
-                      }
-                    }
-                  }
-                  // Determine status - UPDATED LOGIC for single mode partial punches
-                  let status = "No punches recorded";
-                  
-                  // Check for placeholder records first
-                  const hasLeavePlaceholder = punches.some(p => p.status === "leave");
-                  const hasPendingNoPunches = punches.some(p => 
-                    p.status === "pending" && p.message && p.message.includes("No punches recorded")
-                  );
-                  
-                  // FIX: Check for pending partial punch records specifically
-                  const hasPendingPartialPunch = displayPunches.some(p => 
-                    p.status === "pending" && p.message && p.message.includes("Partial punch recorded")
-                  );
-                  
-                  // FIX: Check for absent partial punch records (for backward compatibility)
-                  const hasAbsentPartialPunch = displayPunches.some(p => 
-                    p.status === "absent" && p.message && p.message.includes("Partial punch recorded")
-                  );
-                  
-                  const hasPartialPunchRecord = hasPendingPartialPunch || hasAbsentPartialPunch;
-                  
-                  if (hasLeavePlaceholder) {
-                    status = "Leave";
-                  } else if (hasPendingNoPunches && !hasPartialPunchRecord) {
-                    // Today or days with pending status but no actual punches
-                    status = "No punches recorded";
-                  } else if (hasPartialPunchRecord) {
-                    // This is the key fix - handle partial punches in single mode
-                    status = "Partial punch recorded";
-                  } else if (hasActualPunches) {
-                    // We have actual punch records
-                    if (isMultiMode) {
-                      // For multi-mode, check if any punches are pending
-                      const hasPending = displayPunches.some(p => p.status === "pending");
-                      const hasCheckIn = displayPunches.some(p => p.status === "Check-In");
-                      const hasCheckOut = displayPunches.some(p => p.status === "Check-Out");
-                      
-                      if (hasPending) {
-                        status = "Partial punch recorded";
-                      } else if (hasCheckIn || hasCheckOut) {
-                        status = "Present";
-                      }
-                    } else {
-                      // Single mode logic
-                      const checkIns = displayPunches.filter(p => p.status === "Check-In");
-                      const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
-                      
-                      if (checkIns.length > 0 && checkOuts.length > 0) {
-                        status = "Present";
-                      } else if (checkIns.length > 0 || checkOuts.length > 0) {
-                        status = "Partial punch recorded";
-                      }
-                    }
-                  }
-                  
-                  return {
-                    dateDisplay: format(new Date(dateKey), "dd-MMM-yyyy"),
-                    dateKey,
-                    punches: displayPunches,
-                    totalWorkTime,
-                    status,
-                    hasPunches: hasActualPunches || hasPartialPunchRecord, // Include partial punches
-                    isMultiMode,
-                    punchIn,
-                    punchOut,
-                  };
-                });
-              
-              // Calculate average work time
-              const validDays = rows.filter(day => day.status === "Present" && day.totalWorkTime > 0);
-              if (validDays.length > 0) {
-                const totalMinutes = validDays.reduce((total, day) => total + day.totalWorkTime, 0);
-                const averageMinutes = Math.round(totalMinutes / validDays.length);
-                setAverageWorkTime(formatMinutesToTime(averageMinutes));
-              } else {
-                setAverageWorkTime("-");
+              if (punchIn !== "-" && punchOut !== "-") {
+                totalWorkTime = calculateWorkTime(punchIn, punchOut);
               }
-              
-              // Set today's status
-              const today = format(new Date(), "yyyy-MM-dd");
-              const todayRow = rows.find(row => row.dateKey === today);
-              if (todayRow) {
-                setTodaysStatus(todayRow.status);
-              }
-              
-              console.log(`✅ Created ${rows.length} rows from ${Object.keys(punchesByDate).length} dates, mode: ${isMultiMode ? 'multi' : 'single'}`);
-              setPunches(rows);
-              
-            } catch (err) {
-              console.error("Failed to fetch/process punches", err);
-              const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-              setError(`Failed to load punches: ${errorMessage}`);
-              setPunches([]);
-              setAverageWorkTime("-");
-            } finally {
-              setLoading(false);
             }
-          }, [company, startDate, endDate, employee, id, biometricIdFromQuery, fetchTodaysPunch, fetchAllPunches, formatTimeDirect, formatMinutesToTime, calculateWorkTime]);
+          }
+          // Determine status - UPDATED LOGIC for single mode partial punches
+          let status = "No punches recorded";
+          
+          // Check for placeholder records first
+          const hasLeavePlaceholder = punches.some(p => p.status === "leave");
+          const hasPendingNoPunches = punches.some(p => 
+            p.status === "pending" && p.message && p.message.includes("No punches recorded")
+          );
+          
+          // FIX: Check for pending partial punch records specifically
+          const hasPendingPartialPunch = displayPunches.some(p => 
+            p.status === "pending" && p.message && p.message.includes("Partial punch recorded")
+          );
+          
+          // FIX: Check for absent partial punch records (for backward compatibility)
+          const hasAbsentPartialPunch = displayPunches.some(p => 
+            p.status === "absent" && p.message && p.message.includes("Partial punch recorded")
+          );
+          
+          const hasPartialPunchRecord = hasPendingPartialPunch || hasAbsentPartialPunch;
+          
+          if (hasLeavePlaceholder) {
+            status = "Leave";
+          } else if (hasPendingNoPunches && !hasPartialPunchRecord) {
+            // Today or days with pending status but no actual punches
+            status = "No punches recorded";
+          } else if (hasPartialPunchRecord) {
+            // This is the key fix - handle partial punches in single mode
+            status = "Partial punch recorded";
+          } else if (hasActualPunches) {
+            // We have actual punch records
+            if (isMultiMode) {
+              // For multi-mode, check if any punches are pending
+              const hasPending = displayPunches.some(p => p.status === "pending");
+              const hasCheckIn = displayPunches.some(p => p.status === "Check-In");
+              const hasCheckOut = displayPunches.some(p => p.status === "Check-Out");
+              
+              if (hasPending) {
+                status = "Partial punch recorded";
+              } else if (hasCheckIn || hasCheckOut) {
+                status = "Present";
+              }
+            } else {
+              // Single mode logic
+              const checkIns = displayPunches.filter(p => p.status === "Check-In");
+              const checkOuts = displayPunches.filter(p => p.status === "Check-Out");
+              
+              if (checkIns.length > 0 && checkOuts.length > 0) {
+                status = "Present";
+              } else if (checkIns.length > 0 || checkOuts.length > 0) {
+                status = "Partial punch recorded";
+              }
+            }
+          }
+          
+          return {
+            dateDisplay: format(new Date(dateKey), "dd-MMM-yyyy"),
+            dateKey,
+            punches: displayPunches,
+            totalWorkTime,
+            status,
+            hasPunches: hasActualPunches || hasPartialPunchRecord, // Include partial punches
+            isMultiMode,
+            punchIn,
+            punchOut,
+          };
+        });
+      
+      // Calculate average work time
+      const validDays = rows.filter(day => day.status === "Present" && day.totalWorkTime > 0);
+      if (validDays.length > 0) {
+        const totalMinutes = validDays.reduce((total, day) => total + day.totalWorkTime, 0);
+        const averageMinutes = Math.round(totalMinutes / validDays.length);
+        setAverageWorkTime(formatMinutesToTime(averageMinutes));
+      } else {
+        setAverageWorkTime("-");
+      }
+      
+      // Set today's status
+      const today = format(new Date(), "yyyy-MM-dd");
+      const todayRow = rows.find(row => row.dateKey === today);
+      if (todayRow) {
+        setTodaysStatus(todayRow.status);
+      }
+      
+      console.log(`✅ Created ${rows.length} rows from ${Object.keys(punchesByDate).length} dates, mode: ${isMultiMode ? 'multi' : 'single'}`);
+      setPunches(rows);
+      
+    } catch (err) {
+      console.error("Failed to fetch/process punches", err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to load punches: ${errorMessage}`);
+      setPunches([]);
+      setAverageWorkTime("-");
+    } finally {
+      setLoading(false);
+    }
+  }, [company, startDate, endDate, employee, id, biometricIdFromQuery, fetchTodaysPunch, fetchAllPunches, formatTimeDirect, formatMinutesToTime, calculateWorkTime]);
+
+  // ADDED FOR PDF EXPORT
+  const exportToPDF = useCallback(() => {
+    if (!punches.length) return;
+
+    // Create a new PDF document (portrait)
+    const doc = new jsPDF();
+
+    // Add title and employee info
+    const employeeName = `${employee?.first_name || ''} ${employee?.last_name || ''}`.trim() || 'Employee';
+    const dateRangeText = `${startDate ? format(startDate, 'dd-MMM-yyyy') : '?'} to ${endDate ? format(endDate, 'dd-MMM-yyyy') : '?'}`;
+
+    doc.setFontSize(16);
+    doc.text('Punch Records', 14, 15);
+    doc.setFontSize(11);
+    doc.text(`Employee: ${employeeName} (ID: ${employee?.id || ''})`, 14, 22);
+    doc.text(`Period: ${dateRangeText}`, 14, 29);
+
+    // Prepare table data
+    const tableBody = punches.map(row => {
+      // For multi‑mode days, build multi‑line strings for punch in/out
+      let punchInCell = row.punchIn;       // fallback
+      let punchOutCell = row.punchOut;     // fallback
+
+      if (row.isMultiMode && row.punches?.length) {
+        // Extract all check‑ins and check‑outs, sort by time
+        const checkIns = row.punches
+          .filter(p => p.status === 'Check-In' || p.status === 'pending')
+          .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
+          .map(p => formatTimeDirect(p.punch_time))
+          .filter(t => t !== '-');
+
+        const checkOuts = row.punches
+          .filter(p => p.status === 'Check-Out')
+          .sort((a, b) => new Date(a.punch_time).getTime() - new Date(b.punch_time).getTime())
+          .map(p => formatTimeDirect(p.punch_time))
+          .filter(t => t !== '-');
+
+        punchInCell = checkIns.length ? checkIns.join('\n') : '-';
+        punchOutCell = checkOuts.length ? checkOuts.join('\n') : '-';
+      }
+
+      return [
+        row.dateDisplay,
+        punchInCell,
+        punchOutCell,
+        row.totalWorkTime > 0 ? formatMinutesToTime(row.totalWorkTime) : '-',
+        row.status,
+      ];
+    });
+
+    // Generate the table
+    autoTable(doc, {
+      head: [['Date', 'Punch In', 'Punch Out', 'Work Time', 'Status']],
+      body: tableBody,
+      startY: 35,
+      theme: 'striped',
+      headStyles: { fillColor: [41, 128, 185] },
+      columnStyles: {
+        0: { cellWidth: 35 }, // Date
+        1: { cellWidth: 40 }, // Punch In
+        2: { cellWidth: 40 }, // Punch Out
+        3: { cellWidth: 30 }, // Work Time
+        4: { cellWidth: 35 }, // Status
+      },
+      didParseCell: function (data) {
+        // Preserve line breaks in cells
+        if (data.column.index === 1 || data.column.index === 2) {
+          data.cell.styles.cellPadding = 2;
+        }
+      },
+    });
+
+    // Save the PDF
+    const fileName = `punch_records_${employee?.id || 'employee'}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    doc.save(fileName);
+  }, [punches, employee, startDate, endDate, formatTimeDirect, formatMinutesToTime]);
+
   // Set default dates
   useEffect(() => {
     if (company && !startDate && !endDate) {
@@ -1193,53 +1284,73 @@ const formatTimeDirect = useCallback((originalTimeString?: string | null): strin
         </div>
       )}
 
-      {/* Date Range Selector */}
-      <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-        <div>
-          <label className="block text-sm font-medium mb-1">Start Date:</label>
-          <DatePicker
-            selected={startDate}
-            onChange={(d: Date) => setStartDate(d)}
-            dateFormat="dd-MMM-yyyy"
-            placeholderText="Select start date"
-            className="border px-3 py-2 rounded w-40"
-            maxDate={new Date()}
-          />
+      {/* Date Range Selector - with grouped buttons */}
+      <div className="flex items-start justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+        {/* Date Pickers */}
+        <div className="flex items-center gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Start Date:</label>
+            <DatePicker
+              selected={startDate}
+              onChange={(d: Date) => setStartDate(d)}
+              dateFormat="dd-MMM-yyyy"
+              placeholderText="Select start date"
+              className="border px-3 py-2 rounded w-40"
+              maxDate={new Date()}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">End Date:</label>
+            <DatePicker
+              selected={endDate}
+              onChange={(d: Date) => setEndDate(d)}
+              dateFormat="dd-MMM-yyyy"
+              placeholderText="Select end date"
+              className="border px-3 py-2 rounded w-40"
+              maxDate={new Date()}
+            />
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">End Date:</label>
-          <DatePicker
-            selected={endDate}
-            onChange={(d: Date) => setEndDate(d)}
-            dateFormat="dd-MMM-yyyy"
-            placeholderText="Select end date"
-            className="border px-3 py-2 rounded w-40"
-            maxDate={new Date()}
-          />
-        </div>
+        {/* Button group */}
+        <div className="flex mt-6 rounded-lg overflow-hidden border shadow-sm">
+          {/* Refresh */}
+          <button
+            onClick={fetchPunches}
+            disabled={loading}
+            className="flex items-center gap-1 px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 transition disabled:opacity-50 border-r"
+          >
+            <RefreshCw size={16} />
+            {loading ? "Loading..." : "Refresh"}
+          </button>
 
-        <button
-          onClick={fetchPunches}
-          disabled={loading}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50 mt-6"
-        >
-          {loading ? "Loading..." : "Refresh"}
-        </button>
-        {company && (
-          <FixPunch
-            companyId={company.id}
-            disabled={loading || !company}
-            className="mt-6 px-4 py-2"
-            onComplete={(result) => {
-              if (result.success && (result.fixed > 0 || result.updated > 0)) {
-                setTimeout(() => {
-                  fetchPunches()
-                }, 1000)
-              }
-            }}
-          />
-        )}
+          {/* Fix Now – matching layout but keeping original colors */}
+          {company && (
+            <FixPunch
+              companyId={company.id}
+              disabled={loading || !company}
+              className="flex items-center gap-1 px-4 py-2 bg-green-100 text-green-700 hover:bg-green-200 transition disabled:opacity-50 border-r"
+              onComplete={(result) => {
+                if (result.success && (result.fixed > 0 || result.updated > 0)) {
+                  setTimeout(() => {
+                    fetchPunches();
+                  }, 1000);
+                }
+              }}
+            />
+          )}
+
+          {/* Export PDF */}
+          <button
+            onClick={exportToPDF}
+            disabled={loading || punches.length === 0}
+            className="flex items-center gap-1 px-4 py-2 bg-green-500 text-white hover:bg-green-600 transition disabled:opacity-50"
+          >
+            <Download size={16} />
+            Export PDF
+          </button>
+        </div>
       </div>
 
       {/* Punch Records Table */}
