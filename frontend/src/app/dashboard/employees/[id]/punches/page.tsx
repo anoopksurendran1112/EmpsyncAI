@@ -33,7 +33,6 @@ function TimeCircle({ checkIn, checkOut, size = 70 }: {
   checkOut: string;
   size?: number
 }) {
-  // ... (your existing TimeCircle code) ...
   const calculateWorkHours = (checkIn: string, checkOut: string): string => {
     if (checkIn === "-" || checkOut === "-" || checkIn === "--" || checkOut === "--") return "--";
 
@@ -1006,7 +1005,7 @@ export default function EmployeePunchPage() {
     }
   }, [company, startDate, endDate, employee, id, biometricIdFromQuery, fetchTodaysPunch, fetchAllPunches, formatTimeDirect, formatMinutesToTime, calculateWorkTime]);
 
-  // UPDATED PDF EXPORT FUNCTION - uses global company name for the "Company Name" row
+  // UPDATED PDF EXPORT FUNCTION - sorts punches in chronological order (oldest first)
   const exportToPDF = useCallback(() => {
     if (!punches.length) return;
 
@@ -1043,7 +1042,6 @@ export default function EmployeePunchPage() {
     const avgWorkHours = averageWorkTime;
 
     const phoneNumber = employee?.mobile || employee?.phone || 'N/A';
-    // ⬇️ Use the same companyName as in the header – guaranteed to be correct
     const employeeCompanyName = companyName;
 
     // Summary grid
@@ -1073,8 +1071,13 @@ export default function EmployeePunchPage() {
     doc.setTextColor(navyBlue[0], navyBlue[1], navyBlue[2]);
     doc.text('Attendance Log', 14, doc.lastAutoTable.finalY + 10);
 
+    // ⭐ KEY CHANGE: Sort punches by date ascending (oldest first)
+    const sortedPunches = [...punches].sort((a, b) => 
+      new Date(a.dateKey) - new Date(b.dateKey)
+    );
+
     // Attendance table
-    const tableBody = punches.map(row => {
+    const tableBody = sortedPunches.map(row => {
       let punchInCell = row.punchIn;
       let punchOutCell = row.punchOut;
 
