@@ -575,6 +575,9 @@ export default function EmployeeDetailsPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Mobile validation state
+  const [mobileError, setMobileError] = useState('');
 
   // Update formData when employee data loads
   useEffect(() => {
@@ -588,6 +591,8 @@ export default function EmployeeDetailsPage() {
       });
       setFormData(employee);
       setRetryCount(0);
+      // Reset mobile error when employee loads
+      setMobileError('');
     }
   }, [employee]);
 
@@ -686,10 +691,28 @@ export default function EmployeeDetailsPage() {
     }
   }, [isError, retryCount, refetch]);
 
+  // Validate mobile number
+  const validateMobile = (mobile: string): boolean => {
+    if (!mobile) {
+      setMobileError('Mobile number is required');
+      return false;
+    }
+    const mobileRegex = /^\d{10}$/;
+    if (!mobileRegex.test(mobile)) {
+      setMobileError('Mobile number must be exactly 10 digits');
+      return false;
+    }
+    setMobileError('');
+    return true;
+  };
+
   const handleChange = (field: keyof User, value: any) => {
     setFormData(prev => {
       if (!prev) return null;
       console.log("🔄 Field changed:", { field, value });
+      if (field === 'mobile') {
+        validateMobile(value);
+      }
       return { ...prev, [field]: value };
     });
   };
@@ -744,6 +767,13 @@ export default function EmployeeDetailsPage() {
   const handleSaveAllChanges = async () => {
     if (!formData || !company) {
       toast.error("Missing employee data or company information");
+      return;
+    }
+
+    // Validate mobile before saving
+    const isMobileValid = validateMobile(formData.mobile);
+    if (!isMobileValid) {
+      toast.error(mobileError || "Please enter a valid 10-digit mobile number");
       return;
     }
 
@@ -1164,7 +1194,11 @@ export default function EmployeeDetailsPage() {
                         value={formData.mobile || ""}
                         onChange={(e) => handleChange("mobile", e.target.value)}
                         placeholder="Mobile *"
+                        maxLength={10}
+                        pattern="\d*"
+                        className={mobileError ? "border-red-500" : ""}
                       />
+                      {mobileError && <p className="text-red-500 text-xs mt-1">{mobileError}</p>}
                     </div>
 
                     {/* Select fields */}

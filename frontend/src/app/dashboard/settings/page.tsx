@@ -12,7 +12,8 @@ import {
   Fingerprint,
   MapPin,
   Building2,
-  Users,
+  Tags,
+  Briefcase,
 } from "lucide-react"
 
 export default function SettingsPage() {
@@ -22,13 +23,11 @@ export default function SettingsPage() {
       description: "Manage employee reports and workforce",
       cards: [
         {
-          title: "Report ",
+          title: "Report",
           description: "Generate comprehensive employee reports",
           icon: FileText,
           href: "/dashboard/settings/report",
         },
-       
-        
         {
           title: "Add Employee",
           description: "Add new team members to your organization",
@@ -52,6 +51,18 @@ export default function SettingsPage() {
           description: "Organize employees into groups and departments",
           icon: UsersIcon,
           href: "/dashboard/settings/groups",
+        },
+        {
+          title: "Staff Categories",
+          description: "Define categories of staff",
+          icon: Tags,
+          href: "/dashboard/settings/staff-categories",
+        },
+        {
+          title: "Staff Types",
+          description: "Manage different staff types and roles",
+          icon: Briefcase,
+          href: "/dashboard/settings/staff-types",
         },
         {
           title: "Leave Category",
@@ -111,7 +122,9 @@ export default function SettingsPage() {
         <div className="container mx-auto px-4 py-4">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage your account and company settings.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your account and company settings.
+            </p>
           </div>
         </div>
       </div>
@@ -121,18 +134,18 @@ export default function SettingsPage() {
           {settingsSections.map((section, sectionIndex) => (
             <div key={sectionIndex} className="space-y-4">
               <div className="space-y-2">
-                <h2 className="text-lg font-medium text-foreground border-l-4 border-blue-500 pl-3">{section.title}</h2>
+                <h2 className="text-lg font-medium text-foreground border-l-4 border-blue-500 pl-3">
+                  {section.title}
+                </h2>
                 <p className="text-sm text-muted-foreground pl-3">{section.description}</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-fr">
                 {section.cards.map((card, cardIndex) => {
                   const IconComponent = card.icon
                   return (
                     <Link href={card.href} key={cardIndex}>
-                      <Card
-                        className="group cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-500/50 border-l-4 border-l-yellow-500"
-                      >
+                      <Card className="group cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-500/50 border-l-4 border-l-yellow-500 h-full">
                         <CardHeader className="pb-3">
                           <div className="flex items-center space-x-3">
                             <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
