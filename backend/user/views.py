@@ -42,6 +42,17 @@ from datetime import datetime, timedelta
 from django.conf import settings
 import jwt
 from punch.utils.deduplication import deduplicate_punches
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from django.conf import settings
+import logging
+from .models import Religion, Caste
+from .serializer import ReligionSerializer, CasteSerializer
+
+logger = logging.getLogger(__name__)
 
 def generate_token_user(user):
 
@@ -1907,8 +1918,6 @@ def profile(request, id):
 
         user = CustomUser.objects.filter(id=id).first()
 
-
-
     except ObjectDoesNotExist:
         # If the user doesn't exist, return a 404 response
         return Response({
@@ -2375,17 +2384,6 @@ def profile(request, id):
 
 
 
-
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from django.conf import settings
-import logging
-
-logger = logging.getLogger(__name__)
-
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def token_refresh(request):
@@ -2454,3 +2452,192 @@ def token_refresh(request):
             'status': status.HTTP_401_UNAUTHORIZED,
             'message': f'Invalid or expired refresh token: {str(e)}'
         }, status=status.HTTP_401_UNAUTHORIZED)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def manageReligion(request):
+
+    if request.method == 'GET':
+        religions = Religion.objects.all()
+        serializer = ReligionSerializer(religions, many=True)
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        serializer = ReligionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Religion created successfully',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            'success': False,
+            'message': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        religion_id = request.data.get('id') or request.query_params.get('id')
+        if not religion_id:
+            return Response({
+                'success': False,
+                'message': 'Religion ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            religion = Religion.objects.get(id=religion_id)
+        except Religion.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Religion not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # Allow partial updates
+        serializer = ReligionSerializer(religion, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Religion updated successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'success': False,
+            'message': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        religion_id = request.query_params.get('religion_id')
+        if not religion_id:
+            return Response({
+                'success': False,
+                'message': 'Religion ID is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            religion = Religion.objects.get(id=religion_id)
+            religion.delete()
+            return Response({
+                'success': True,
+                'message': 'Religion deleted successfully'
+            }, status=status.HTTP_200_OK)
+        except Religion.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Religion not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def manageCaste(request):
+
+    if request.method == 'GET':
+        religion_id = request.query_params.get('religion_id')
+
+        if not religion_id:
+            return Response({
+                'success': False,
+                'message': 'religion_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        castes = Caste.objects.filter(religion__id=religion_id).select_related('religion')
+        serializer = CasteSerializer(castes, many=True)
+        
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        religion_id = request.data.get('religion_id')
+        caste_name = request.data.get('name')
+        caste_reservation = request.data.get('caste_reservation')
+
+        if not religion_id:
+            return Response({
+                'success': False,
+                'message': 'religion_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Retrieve the religion from the religion table
+        try:
+            religion = Religion.objects.get(id=religion_id)
+        except Religion.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Religion not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if not caste_name:
+             return Response({
+                'success': False,
+                'message': 'caste_name is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        caste = Caste.objects.create(religion=religion, name=caste_name, caste_reservation=caste_reservation)
+        serializer = CasteSerializer(caste)
+
+        return Response({
+            'success': True,
+            'message': 'Caste created successfully',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+    elif request.method == 'PUT':
+        caste_id = request.data.get('caste_id')
+        caste_name = request.data.get('name')
+        caste_reservation = request.data.get('caste_reservation')
+
+        if not caste_id:
+            return Response({
+                'success': False,
+                'message': 'caste_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            caste = Caste.objects.get(id=caste_id)
+        except Caste.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Caste not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+        if caste_name is not None:
+            caste.name = caste_name
+        if caste_reservation is not None:
+            caste.caste_reservation = caste_reservation
+
+        caste.save()
+        serializer = CasteSerializer(caste)
+        
+        return Response({
+            'success': True,
+            'message': 'Caste updated successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'DELETE':
+        caste_id = request.query_params.get('caste_id')
+
+        if not caste_id:
+            return Response({
+                'success': False,
+                'message': 'caste_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            caste = Caste.objects.get(id=caste_id)
+            caste.delete()
+            return Response({
+                'success': True,
+                'message': 'Caste deleted successfully'
+            }, status=status.HTTP_200_OK)
+        except Caste.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Caste not found'
+            }, status=status.HTTP_404_NOT_FOUND)

@@ -3,6 +3,37 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from company import models as c
 
 
+class Religion(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Caste(models.Model):
+    religion = models.ForeignKey(Religion, on_delete=models.CASCADE, related_name='castes')
+    name = models.CharField(max_length=255)
+    caste_reservation = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.religion.name})"
+
+
+class EmployeeAddress(models.Model):
+    address_line_1 = models.CharField(max_length=255, help_text="House No, Building Name")
+    address_line_2 = models.CharField(max_length=255, null=True, blank=True, help_text="Street, Area, Landmark")
+    city = models.CharField(max_length=100)
+    district = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    country = models.CharField(max_length=100, default='India')
+    pincode = models.CharField(max_length=10)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.address_line_1}, {self.city}"
+
+
 class CustomUserManager(BaseUserManager):
    
     def create_user(self, email, password=None, **extra_fields):
@@ -80,5 +111,56 @@ class CustomUser(AbstractUser):
         return self.email
 
 
+class EmployeeProfile(models.Model):
+    BLOOD_GROUP_CHOICES = [
+        ('A+', 'A Positive'),
+        ('A-', 'A Negative'),
+        ('B+', 'B Positive'),
+        ('B-', 'B Negative'),
+        ('AB+', 'AB Positive'),
+        ('AB-', 'AB Negative'),
+        ('O+', 'O Positive'),
+        ('O-', 'O Negative'),
+    ]
 
-  
+    # One-to-One link back to your CustomUser model
+    user = models.OneToOneField('CustomUser', on_delete=models.CASCADE, related_name='profile')
+    
+    dob = models.DateField()
+    guardian_name = models.CharField(max_length=255, null=True, blank=True)
+    guardian_phone = models.CharField(max_length=20, null=True, blank=True)
+    
+    religion = models.ForeignKey(Religion, on_delete=models.SET_NULL, null=True, blank=True)
+    caste = models.ForeignKey(Caste, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Connecting to StaffType and StaffCategory in your company app
+    staff_type = models.ForeignKey(c.StaffType, on_delete=models.SET_NULL, null=True, blank=True)
+    staff_category = models.ForeignKey(c.StaffCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Using specific related_names because they both point to the same model
+    present_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='present_in_profiles')
+    permanent_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='permanent_in_profiles')
+    
+    ktu_id = models.CharField(max_length=100, null=True, blank=True)
+    aicte_id = models.CharField(max_length=100, null=True, blank=True)
+    pan_no = models.CharField(max_length=20, null=True, blank=True)
+    aadhar_no = models.CharField(max_length=20, null=True, blank=True)
+    blood_group = models.CharField(max_length=5, choices=BLOOD_GROUP_CHOICES, null=True, blank=True)
+    alternate_mobile = models.CharField(max_length=20, null=True, blank=True)
+    alternate_email = models.EmailField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.first_name} {self.user.last_name} Profile"
+
+    def clean(self):
+        """
+        Model validation to ensure the assigned caste belongs to the assigned religion.
+        """
+        super().clean()
+        if self.caste and self.religion and self.caste.religion != self.religion:
+            raise ValidationError({
+                'caste': 'The selected caste does not belong to the selected religion.'
+            })
