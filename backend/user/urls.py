@@ -1,5 +1,11 @@
 from django.urls import path
-from .views import  signUp,profile,login,getAllUsers,todaysActiveUsers,changePassword,request_otp,verify_otp,reset_password,request_login_otp,verify_login_otp,privacy_policy,logout_view,delete_user,get_user_companies,get_team_members,getAllEmployees
+from .views import (
+    signUp, profile, login, getAllUsers, todaysActiveUsers, changePassword, request_otp,
+    verify_otp, reset_password, request_login_otp, verify_login_otp, privacy_policy,
+    logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
+    manageReligion, manageCaste
+)
+
 
 urlpatterns = [
     path('api/signup',signUp ),
@@ -19,9 +25,6 @@ urlpatterns = [
     path('api/verify-login-otp',verify_login_otp),
     path('api/user-companies',get_user_companies),
     path('api/group-members/<int:page>',get_team_members),
-
-
-
-
-    
+    path('api/manage-religion/', manageReligion, name='manage-religion'),
+    path('api/manage-caste/', manageCaste, name='manage-caste')
 ]
