@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight, Users, Settings, Building2, Calendar } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, Settings, Building2, Calendar, Fingerprint } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { useAuth } from "@/context/AuthContext"
 
 interface SidebarProps {
   className?: string
@@ -13,20 +14,13 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const { isAdmin } = useAuth()
 
   const menuItems = [
-    {
-      title: "Employees",
-      icon: Users,
-      href: "/dashboard/employees",
-    },
-    // {
-    //   title: "Calendar",
-    //   icon: Calendar,
-    //   href: "/dashboard/calendar",
-    // },
-    { icon: Settings, title: "Settings", href: "/dashboard/settings" },
-    { icon: Building2, title: "Company Profile", href: "/dashboard/company" },
+    { title: "My Punches", icon: Fingerprint, href: "/dashboard/mypunches"},
+    ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+    { title: "Settings", icon: Settings, href: "/dashboard/settings" },
+    { title: "Company Profile", icon: Building2, href: "/dashboard/company" },
   ]
 
   return (

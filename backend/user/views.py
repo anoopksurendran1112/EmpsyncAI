@@ -538,7 +538,7 @@ def login(request):
                     token = generate_token_user(user)
                     serializer = UserSerializer(user)
                     company = user.company.first()
-                    companySerializer = CompanySerializer(company)
+                    companySerializer = CompanySerializer(company, context={'user': user})
                     company_user = c.CompanyUser.objects.filter(user=user, company=company).first()
                     is_admin = company_user.is_admin if company_user else False
 
@@ -718,11 +718,10 @@ def verify_login_otp(request):
             # Invalidate the OTP after successful use
             cache.delete(f'reset_otp_{mobile}')
             serializer = UserSerializer(user)
-            companySerializer = CompanySerializer(user.company.first())
             token = generate_token_user(user)
             FcmToken.objects.update_or_create(user=user,fcm_token=fcm_token)
             company = user.company.first()
-            companySerializer = CompanySerializer(company)
+            companySerializer = CompanySerializer(company, context={'user': user})
             company_user = c.CompanyUser.objects.filter(user=user, company=company).first()
             is_admin = company_user.is_admin if company_user else False
 
@@ -2641,3 +2640,209 @@ def manageCaste(request):
                 'success': False,
                 'message': 'Caste not found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+# @api_view(['GET', 'POST', 'PUT', 'DELETE'])
+# def manageEmployeeProfile(request):
+#     from django.db import transaction
+    
+#     if request.method == 'GET':
+#         employee_id = request.query_params.get('employee_id')
+        
+#         if not employee_id:
+#             return Response({
+#                 'success': False,
+#                 'message': 'employee_id is required'
+#             }, status=status.HTTP_400_BAD_REQUEST)
+#         try:
+#             # Optimize GET with select_related for linked addresses
+#             employee = EmployeeProfile.objects.select_related('present_address', 'permanent_address', 'religion', 'caste').get(user__id=employee_id)
+#         except EmployeeProfile.DoesNotExist:
+#             return Response({
+#                 'success': False,
+#                 'message': 'Employee not found'
+#             }, status=status.HTTP_404_NOT_FOUND)
+#         serializer = EmployeeProfileSerializer(employee)
+#         return Response({
+#             'success': True,
+#             'data': serializer.data
+#         }, status=status.HTTP_200_OK)
+
+#     elif request.method == 'POST':
+#         employee_id = request.data.get('employee_id')
+        
+#         if not employee_id:
+#             return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Check if they already have a profile
+#         if EmployeeProfile.objects.filter(user__id=employee_id).exists():
+#              return Response({'success': False, 'message': 'Profile already exists for this employee. Use PUT to update.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             user_obj = CustomUser.objects.get(id=employee_id)
+#         except CustomUser.DoesNotExist:
+#             return Response({'success': False, 'message': 'Employee user not found'}, status=status.HTTP_404_NOT_FOUND)
+
+#         dob = request.data.get('dob')
+#         if not dob:
+#              return Response({'success': False, 'message': 'dob is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         with transaction.atomic():
+#             # 1. Create Addresses First
+#             present_address_data = request.data.get('present_address')
+#             permanent_address_data = request.data.get('permanent_address')
+            
+#             present_addr_obj = None
+#             if present_address_data:
+#                 addr_serializer = EmployeeAddressSerializer(data=present_address_data)
+#                 if addr_serializer.is_valid():
+#                     present_addr_obj = addr_serializer.save()
+#                 else:
+#                     return Response({'success': False, 'message': 'Invalid present address', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+#             permanent_addr_obj = None
+#             if permanent_address_data:
+#                 addr_serializer = EmployeeAddressSerializer(data=permanent_address_data)
+#                 if addr_serializer.is_valid():
+#                     permanent_addr_obj = addr_serializer.save()
+#                 else:
+#                     return Response({'success': False, 'message': 'Invalid permanent address', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+#             # 2. Extract foreign keys mapping properly
+#             religion_id = request.data.get('religion_id') or request.data.get('religion')
+#             caste_id = request.data.get('caste_id') or request.data.get('caste')
+#             staff_type_id = request.data.get('staff_type_id') or request.data.get('staff_type')
+#             staff_category_id = request.data.get('staff_category_id') or request.data.get('staff_category')
+
+#             # 3. Create the EmployeeProfile attached to the user and new addresses
+#             profile = EmployeeProfile(
+#                 user=user_obj,
+#                 dob=dob,
+#                 guardian_name=request.data.get('guardian_name'),
+#                 guardian_phone=request.data.get('guardian_phone'),
+#                 religion_id=religion_id,
+#                 caste_id=caste_id,
+#                 staff_type_id=staff_type_id,
+#                 staff_category_id=staff_category_id,
+#                 present_address=present_addr_obj,
+#                 permanent_address=permanent_addr_obj,
+#                 ktu_id=request.data.get('ktu_id'),
+#                 aicte_id=request.data.get('aicte_id'),
+#                 pan_no=request.data.get('pan_no'),
+#                 aadhar_no=request.data.get('aadhar_no'),
+#                 blood_group=request.data.get('blood_group'),
+#                 alternate_mobile=request.data.get('alternate_mobile'),
+#                 alternate_email=request.data.get('alternate_email')
+#             )
+            
+#             # Explicitly run clean to ensure religion matches caste before DB hit!
+#             try:
+#                 profile.clean()
+#             except ValidationError as e:
+#                 return Response({'success': False, 'errors': e.message_dict}, status=status.HTTP_400_BAD_REQUEST)
+                
+#             profile.save()
+
+#             serializer = EmployeeProfileSerializer(profile)
+#             return Response({
+#                 'success': True,
+#                 'message': 'Profile created successfully',
+#                 'data': serializer.data
+#             }, status=status.HTTP_201_CREATED)
+
+#     elif request.method == 'PUT':
+#         employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
+        
+#         if not employee_id:
+#              return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
+#         except EmployeeProfile.DoesNotExist:
+#             return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+#         with transaction.atomic():
+#             # 1. Update Addresses if provided
+#             present_address_data = request.data.get('present_address')
+#             if present_address_data:
+#                 if profile.present_address:
+#                     addr_serializer = EmployeeAddressSerializer(profile.present_address, data=present_address_data, partial=True)
+#                     if addr_serializer.is_valid():
+#                         addr_serializer.save()
+#                     else:
+#                         return Response({'success': False, 'message': 'Invalid present address updates', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+#                 else:
+#                     addr_serializer = EmployeeAddressSerializer(data=present_address_data)
+#                     if addr_serializer.is_valid():
+#                         profile.present_address = addr_serializer.save()
+#                     else:
+#                         return Response({'success': False, 'message': 'Invalid present address creation', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                        
+#             permanent_address_data = request.data.get('permanent_address')
+#             if permanent_address_data:
+#                 if profile.permanent_address:
+#                     addr_serializer = EmployeeAddressSerializer(profile.permanent_address, data=permanent_address_data, partial=True)
+#                     if addr_serializer.is_valid():
+#                         addr_serializer.save()
+#                     else:
+#                         return Response({'success': False, 'message': 'Invalid permanent address updates', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+#                 else:
+#                     addr_serializer = EmployeeAddressSerializer(data=permanent_address_data)
+#                     if addr_serializer.is_valid():
+#                         profile.permanent_address = addr_serializer.save()
+#                     else:
+#                         return Response({'success': False, 'message': 'Invalid permanent address creation', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+#             # 2. Update all other simple fields explicitly mapping keys
+#             update_data = request.data.copy()
+#             # Pop off addresses so our Profile Serializer doesn't accidentally try to parse them
+#             update_data.pop('present_address', None)
+#             update_data.pop('permanent_address', None)
+            
+#             if 'religion_id' in update_data: update_data['religion'] = update_data.pop('religion_id')
+#             if 'caste_id' in update_data: update_data['caste'] = update_data.pop('caste_id')
+#             if 'staff_type_id' in update_data: update_data['staff_type'] = update_data.pop('staff_type_id')
+#             if 'staff_category_id' in update_data: update_data['staff_category'] = update_data.pop('staff_category_id')
+
+#             serializer = EmployeeProfileSerializer(profile, data=update_data, partial=True)
+#             if serializer.is_valid():
+#                 serializer.save()
+#                 return Response({
+#                     'success': True,
+#                     'message': 'Profile updated successfully',
+#                     'data': serializer.data
+#                 }, status=status.HTTP_200_OK)
+                
+#             return Response({
+#                 'success': False, 
+#                 'message': 'Profile update failed',
+#                 'errors': serializer.errors
+#             }, status=status.HTTP_400_BAD_REQUEST)
+
+#     elif request.method == 'DELETE':
+#         employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
+#         if not employee_id:
+#              return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+             
+#         try:
+#             profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
+#         except EmployeeProfile.DoesNotExist:
+#             return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+#         with transaction.atomic():
+#             # Grab references to linked addresses
+#             present_addr = profile.present_address
+#             permanent_addr = profile.permanent_address
+            
+#             # Delete Profile
+#             profile.delete()
+            
+#             # Cleanup Orphan Addresses securely (avoids deleting the exact same object twice if Present == Permanent)
+#             if present_addr: 
+#                 present_addr.delete()
+#             if permanent_addr and permanent_addr.id != (present_addr.id if present_addr else None): 
+#                 permanent_addr.delete()
+                
+#         return Response({
+#             'success': True,
+#             'message': 'Profile and associated addresses deleted successfully'
+#         }, status=status.HTTP_200_OK)

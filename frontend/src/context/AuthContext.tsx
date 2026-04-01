@@ -125,7 +125,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     setCompany(companyWithDefaultMediaUrl);
+    setIsAdmin(newCompany.is_admin);
     localStorage.setItem("company", JSON.stringify(companyWithDefaultMediaUrl));
+    localStorage.setItem("isAdmin", JSON.stringify(newCompany.is_admin));
     document.cookie = `company_id=${newCompany.id}; path=/;`;
 
     try {

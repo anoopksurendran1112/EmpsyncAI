@@ -25,9 +25,9 @@ type EmailValues = z.infer<typeof emailSchema>
 type MobileValues = z.infer<typeof mobileSchema>
 
 export default function SignInPage() {
-  const { setAuthData }=useAuth()
+  const { setAuthData } = useAuth()
   const [mode, setMode] = useState<"email" | "mobile">("email")
-  const route=useRouter()
+  const route = useRouter()
 
   const loginMutation = useLogin()
   const requestOtpMutation = useRequestOtp()
@@ -39,18 +39,18 @@ export default function SignInPage() {
 
   const mobileForm = useForm<MobileValues>({
     resolver: zodResolver(mobileSchema),
-    defaultValues: { mobile : "" },
+    defaultValues: { mobile: "" },
   })
-  
-  async function fetchUserCompanies(){
-    const res=await fetch('/api/user/companies')
-    if(!res.ok){
+
+  async function fetchUserCompanies() {
+    const res = await fetch('/api/user/companies')
+    if (!res.ok) {
       throw new Error('Failed to fetch user companies')
     }
-    const data=await res.json()
+    const data = await res.json()
     return data
   }
-  
+
   const handleEmailLogin = (values: EmailValues) => {
     loginMutation.mutate(values, {
       onSuccess: async (data) => {
@@ -65,13 +65,13 @@ export default function SignInPage() {
           // fallback: use login response company if no admin company found
           const finalCompany = adminCompany || data.data.company;
 
-          setAuthData(data.data.user, finalCompany, finalCompany?.is_admin);
+          setAuthData(data.data.user, finalCompany, data.data.is_admin);
 
           route.push("/dashboard");
         } catch (err) {
           console.error("Error fetching companies:", err);
           // fallback in case fetch fails too
-          setAuthData(data.data.user, data.data.company, data.data.company?.is_admin);
+          setAuthData(data.data.user, data.data.company, data.data.is_admin);
           route.push("/dashboard");
         }
       },
@@ -153,8 +153,8 @@ export default function SignInPage() {
               />
             </CardContent>
             <CardFooter className="flex flex-col gap-2">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 disabled={requestOtpMutation.isPending}
               >

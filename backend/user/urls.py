@@ -26,5 +26,6 @@ urlpatterns = [
     path('api/user-companies',get_user_companies),
     path('api/group-members/<int:page>',get_team_members),
     path('api/manage-religion/', manageReligion, name='manage-religion'),
-    path('api/manage-caste/', manageCaste, name='manage-caste')
+    path('api/manage-caste/', manageCaste, name='manage-caste'),
+    # path('api/employee-profile/', manageEmployeeProfile, name='employee-profile')
 ]

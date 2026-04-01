@@ -93,6 +93,7 @@ export async function GET() {
       id: c.id?.toString() || c.company_id?.toString(),
       name: c.name || c.company_name || "Unnamed Company",
       logo: c.company_img || c.logo || null,
+      is_admin: c.is_admin || false,
       // mode: c.mode || "single", // ✅ Add company mode (single/multi) - defaults to "single"
     }));
 
