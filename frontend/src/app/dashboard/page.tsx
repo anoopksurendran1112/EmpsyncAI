@@ -34,7 +34,7 @@ export default function DashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
-    router.replace("/dashboard/employees")
+    router.replace("/dashboard/mypunches")
   }, [router])
 
   return null

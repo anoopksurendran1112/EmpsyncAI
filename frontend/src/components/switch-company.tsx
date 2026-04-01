@@ -8,7 +8,7 @@ import Image from "next/image";
 import { Building2 } from "lucide-react";
 
 export function SwitchCompanyButton() {
-  const [companies, setCompanies] = useState<{ id: string; name: string; logo?: string }[]>([]);
+  const [companies, setCompanies] = useState<{ id: string; name: string; logo?: string; is_admin: boolean }[]>([]);
   const [selectedCompany, setSelectedCompany] = useState("");
   const [imageError, setImageError] = useState(false);
   const { switchCompany, company } = useAuth();
@@ -35,6 +35,7 @@ export function SwitchCompanyButton() {
             id: c.id?.toString() || c.company_id?.toString(),
             name: c.name || c.company_name || "Unnamed Company",
             logo: c.company_img || c.logo || c.image_url || null,
+            is_admin: !!c.is_admin,
           }));
           
           console.log("Processed companies with logos:", companiesData);
@@ -100,7 +101,7 @@ export function SwitchCompanyButton() {
         daily_working_hours: 0,
         work_summary_interval: "",
         punch_mode: "",
-        is_admin: false,
+        is_admin: companyObj.is_admin,
       });
 
       // DECIDE REDIRECTION PATH
