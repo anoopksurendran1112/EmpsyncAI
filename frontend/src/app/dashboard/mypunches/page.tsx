@@ -5,6 +5,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Calendar,
+  History,
   Clock,
   Briefcase,
   CalendarOff,
@@ -507,7 +508,7 @@ export default function MyPunchesPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          My Punches
+          Punch Stats
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           Overview of your attendance and daily punch records
@@ -575,11 +576,12 @@ export default function MyPunchesPage() {
       </div>
 
       {/* Daily Punches List */}
-      <div className="pt-6 mt-2">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Daily Records</h2>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-1">
+          <History className="h-5 w-5 text-gray-600" />Daily Punch Records</h1>
 
         {/* Date Range Selector - with grouped buttons */}
-        <div className="flex flex-wrap items-end gap-5 mb-8">
+        <div className="flex flex-wrap items-end gap-5 mb-4">
           {/* Start Date */}
           <div className="flex flex-col">
             <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -38,7 +38,15 @@ export type Company = {
   work_summary_interval: string;
   punch_mode: string;
   is_admin: boolean;
+  enable_sms?: boolean;
+  enable_whatsapp?: boolean;
+  soft_disable?: boolean;
+  allow_individual_sms?: boolean;
+  allow_individual_whatsapp?: boolean;
+  strict_sms?: boolean;
+  strict_whatsapp?: boolean;
 };
+
 
 type AuthContextType = {
   user: User | null;

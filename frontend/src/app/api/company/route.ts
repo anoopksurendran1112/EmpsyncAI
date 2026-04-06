@@ -17,8 +17,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const apiUrl = process.env.API_URL;
-    const response = await fetch(`${apiUrl}/api/company`, {
+    const apiUrl = process.env.API_URL || "http://127.0.0.1:8000/api";
+    const cleanApiUrl = apiUrl.replace(/\/+$/, '');
+    const fullUrl = `${cleanApiUrl}/company`;
+    const response = await fetch(fullUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -126,7 +128,10 @@ export async function PUT(req: Request) {
     }
 
     // ✅ Send PUT request to backend
-    const response = await fetch(`${apiUrl}/api/company`, {
+    const cleanApiUrl = apiUrl.replace(/\/+$/, '');
+    const fullUrl = `${cleanApiUrl}/company`;
+    console.log("➡️ Fetching from:", fullUrl);
+    const response = await fetch(fullUrl, {
       method: "PUT",
       headers,
       body,

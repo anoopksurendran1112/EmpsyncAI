@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 // Import our new hooks
 import { useEmployeeCache } from "@/hooks/useEmployeeCache";
@@ -696,34 +697,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
     };
   }, [filteredEmployees, companyId]);
 
-  // Generate page numbers
-  const generatePageNumbers = () => {
-    if (totalPages <= 1) return [];
-
-    const pages = [];
-    pages.push(1);
-
-    let startPage = Math.max(2, currentPage - 1);
-    let endPage = Math.min(totalPages - 1, currentPage + 1);
-
-    if (startPage > 2) {
-      pages.push("...");
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(i);
-    }
-
-    if (endPage < totalPages - 1) {
-      pages.push("...");
-    }
-
-    if (totalPages > 1) {
-      pages.push(totalPages);
-    }
-
-    return pages;
-  };
 
   // Clear all filters
   const clearFilters = () => {
@@ -739,7 +712,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
         : `${currentCompany?.mediaBaseUrl}${emp.prof_img}`
       : null;
 
-  const pageNumbers = generatePageNumbers();
 
   if (isLoading)
     return (
@@ -1086,76 +1058,70 @@ function EmployeesList({ companyId }: { companyId: number }) {
               })}
             </ul>
 
-            {/* Enhanced Pagination like Flipkart */}
+            {/* Standardized Pagination like Leaves Dashboard */}
             {totalPages > 1 && (
-              <div className="flex justify-center items-center mt-8 space-x-2">
-                {/* Previous Button */}
-                <button
-                  onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="flex items-center justify-center h-10 w-10 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-
-                {/* Page Numbers */}
-                {pageNumbers.map((pageNum, index) => (
-                  <button
-                    key={index}
-                    onClick={() =>
-                      typeof pageNum === "number" && handlePageChange(pageNum)
-                    }
-                    disabled={pageNum === "..."}
-                    className={`flex items-center justify-center h-10 w-10 rounded-lg border transition-colors ${
-                      pageNum === currentPage
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : pageNum === "..."
-                          ? "border-transparent cursor-default"
-                          : "border-gray-300 hover:bg-gray-50 text-gray-700"
-                    }`}
+              <div className="flex items-center justify-between px-2 py-4 border-t mt-8">
+                <div className="text-xs text-gray-500 font-medium">
+                  Showing {start}-{end} of {displayTotalCount.toLocaleString()} employees
+                  {selectedGroupId !== 0 && (
+                    <span className="ml-2 text-blue-600">
+                      • Group: {allGroups.find((g: { id: number; name: string }) => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}
+                    </span>
+                  )}
+                  {searchQuery && (
+                    <span className="ml-2 text-green-600">
+                      • Searching: "{searchQuery}"
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    className="h-8 text-xs"
                   >
-                    {pageNum}
-                  </button>
-                ))}
+                    Previous
+                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      // Standard 5-page window logic from leaves dashboard
+                      let pageNum = currentPage <= 3 
+                        ? i + 1 
+                        : Math.min(currentPage - 2 + i, totalPages - 4 + i);
+                      
+                      if (pageNum <= 0) pageNum = i + 1;
+                      if (pageNum > totalPages) return null;
 
-                {/* Next Button */}
-                <button
-                  onClick={() =>
-                    handlePageChange(Math.min(currentPage + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="flex items-center justify-center h-10 w-10 rounded-lg border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`h-8 w-8 text-xs p-0 ${currentPage === pageNum ? 'bg-blue-600' : ''}`}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    className="h-8 text-xs"
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
-
-            {/* Page Info */}
-            <div className="text-center mt-4 text-sm text-gray-500">
-              Page {currentPage} of {totalPages} •
-              {displayTotalCount > 0 ? (
-                <>
-                  {" "}
-                  Showing {start}-{end} of {displayTotalCount.toLocaleString()}{" "}
-                  employees
-                </>
-              ) : (
-                <> Showing {currentPageEmployeesCount} employees</>
-              )}
-              {selectedGroupId !== 0 && (
-                <span className="ml-2 text-blue-600">
-                  • Filtered by:{" "}
-                  {allGroups.find((g: { id: number; name: string }) => g.id === selectedGroupId)?.name ||
-                    `Group ${selectedGroupId}`}
-                </span>
-              )}
-              {searchQuery && (
-                <span className="ml-2 text-green-600">
-                  • Searching: "{searchQuery}"
-                </span>
-              )}
-            </div>
           </>
         )}
       </div>
