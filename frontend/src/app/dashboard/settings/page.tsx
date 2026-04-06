@@ -11,9 +11,9 @@ import {
   Smartphone,
   Fingerprint,
   MapPin,
-  Building2,
   Tags,
   Briefcase,
+  Globe,
 } from "lucide-react"
 
 export default function SettingsPage() {
@@ -65,6 +65,12 @@ export default function SettingsPage() {
           href: "/dashboard/settings/staff-types",
         },
         {
+          title: "Religion & Caste",
+          description: "Manage religions and castes for employees",
+          icon: Globe,
+          href: "/dashboard/settings/religion-caste",
+        },
+        {
           title: "Leave Category",
           description: "Configure leave types and policies",
           icon: Calendar,
@@ -102,18 +108,6 @@ export default function SettingsPage() {
         },
       ],
     },
-    // {
-    //   title: "Company Settings",
-    //   description: "Configure company-wide preferences and policies",
-    //   cards: [
-    //     {
-    //       title: "Company Settings",
-    //       description: "Manage company profile and general settings",
-    //       icon: Building2,
-    //       href: "/dashboard/company",
-    //     },
-    //   ],
-    // },
   ]
 
   return (
