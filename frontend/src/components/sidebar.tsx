@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ChevronLeft, ChevronRight, Users, Settings, Building2, Calendar, Fingerprint } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, Settings, Building2, CalendarX, Fingerprint } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useAuth } from "@/context/AuthContext"
@@ -17,10 +17,11 @@ export function Sidebar({ className }: SidebarProps) {
   const { isAdmin } = useAuth()
 
   const menuItems = [
-    { title: "My Punches", icon: Fingerprint, href: "/dashboard/mypunches"},
+    { title: "Punch Records", icon: Fingerprint, href: "/dashboard/mypunches"},
+    ...(isAdmin ? [{ title: "Leaves & Holiday", icon: CalendarX, href: "/dashboard/leaves"}] : [{title: "Leaves", icon: CalendarX, href: "/dashboard/leaves"}]),
     ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+    { title: "Company", icon: Building2, href: "/dashboard/company" },
     { title: "Settings", icon: Settings, href: "/dashboard/settings" },
-    { title: "Company Profile", icon: Building2, href: "/dashboard/company" },
   ]
 
   return (

@@ -834,6 +834,26 @@ def get_requested_leaves(request,page):
 #         'data': serializer.data
 #     })
 
+@api_view(['GET'])
+def get_my_leaves(request):
+    user = request.user
+    company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
+
+    if not company_id:
+        return Response({'success': False, 'message': 'Company ID required'}, status=400)
+    
+    # Check if user belongs to the company
+    if not user.company.filter(id=company_id).exists():
+        return Response({'success': False, 'message': 'You do not belong to this company'}, status=403)
+
+    leaves = Leave.objects.filter(user=user, company_id=company_id).select_related('leave_type').order_by('-from_date')
+    serializer = LeaveSerializer(leaves, many=True)
+
+    return Response({
+        'success': True,
+        'data': serializer.data
+    })
+
 
 
 @api_view(['POST'])

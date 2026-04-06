@@ -24,7 +24,10 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = [
             'id', 'company_name', 'company_img', 'latitude', 'longitude',
             'perimeter', 'travel_speed_threshold', 'daily_working_hours',
-            'work_summary_interval', 'punch_mode', 'is_admin'
+            'work_summary_interval', 'punch_mode', 'is_admin',
+            'enable_sms', 'enable_whatsapp', 'soft_disable', 
+            'allow_individual_sms', 'allow_individual_whatsapp',
+            'strict_sms', 'strict_whatsapp'
         ]
 
     def get_is_admin(self, company):

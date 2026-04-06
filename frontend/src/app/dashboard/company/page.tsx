@@ -1,1860 +1,627 @@
-// "use client"
-
-// import { useState, useEffect } from "react"
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Badge } from "@/components/ui/badge"
-// import { Separator } from "@/components/ui/separator"
-// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-// import { Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings, Pencil, RefreshCw, Save, X } from "lucide-react"
-// import { useAuth, Company } from "@/context/AuthContext"
-// import { Input } from "@/components/ui/input"
-// import { Button } from "@/components/ui/button"
-// import Image from "next/image"
-// import { useRouter } from "next/navigation"
-// import { toast } from "sonner"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-// export default function CompanyProfilePage() {
-//   const { company, updateCompany } = useAuth()
-//   const router = useRouter()
-//   const [editMode, setEditMode] = useState(false)
-//   const [formData, setFormData] = useState<Company | null>(company)
-//   const [imageError, setImageError] = useState(false)
-//   const [isSaving, setIsSaving] = useState(false)
-//   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-
-//   // Update formData when company changes
-//   useEffect(() => {
-//     if (company) {
-//       setFormData(company)
-//       setImageError(false)
-//     }
-//   }, [company])
-
-//   // Get company logo URL
-//   const getLogoUrl = () => {
-//     if (formData?.company_img) {
-//       return formData.company_img.startsWith("http")
-//         ? formData.company_img
-//         : `${formData.mediaBaseUrl}${formData.company_img}`
-//     }
-//     return `${formData?.mediaBaseUrl}/media/default_company.png`
-//   }
-
-//   const showLogo = formData?.company_img && !imageError
-
-//   const handleChange = (field: keyof Company, value: any) => {
-//     if (formData) {
-//       setFormData({ ...formData, [field]: value })
-//     }
-//   }
-
-//   // Get display label for punch mode
-//   const getPunchModeLabel = (mode: string) => {
-//     switch (mode) {
-//       case "s": return "Single"
-//       case "m": return "Multiple"
-//       default: return mode
-//     }
-//   }
-
-//   // PUT API call to update company
-//   const handleSave = async () => {
-//     if (!formData || !company) {
-//       toast.error("Missing company data")
-//       return
-//     }
-
-//     setIsSaving(true)
-
-//     try {
-//       // Prepare the payload according to your backend expectations
-//       const payload = {
-//         companyId: company.id,
-//         company_name: formData.company_name,
-//         latitude: formData.latitude,
-//         longitude: formData.longitude,
-//         perimeter: formData.perimeter,
-//         daily_working_hours: formData.daily_working_hours,
-//         work_summary_interval: formData.work_summary_interval,
-//         is_admin: formData.is_admin,
-//         punch_mode: formData.punch_mode,
-//         // Note: company_img is handled separately for file upload
-//       }
-
-//       console.log("💾 Saving company data:", payload)
-
-//       let response
-
-//       if (selectedImageFile) {
-//         // Handle file upload with FormData
-//         const formDataToSend = new FormData()
-//         formDataToSend.append("company_img", selectedImageFile)
-//         formDataToSend.append("companyId", company.id.toString())
-//         formDataToSend.append("company_name", formData.company_name)
-        
-//         // Append other fields if they exist
-//         if (formData.latitude) formDataToSend.append("latitude", formData.latitude)
-//         if (formData.longitude) formDataToSend.append("longitude", formData.longitude)
-//         if (formData.perimeter) formDataToSend.append("perimeter", formData.perimeter.toString())
-//         if (formData.daily_working_hours) formDataToSend.append("daily_working_hours", formData.daily_working_hours.toString())
-//         if (formData.work_summary_interval) formDataToSend.append("work_summary_interval", formData.work_summary_interval)
-//         formDataToSend.append("is_admin", formData.is_admin.toString())
-//         formDataToSend.append("punch_mode", formData.punch_mode)
-
-//         response = await fetch("/api/company", {
-//           method: "PUT",
-//           body: formDataToSend,
-//         })
-//       } else {
-//         // Handle JSON data update
-//         response = await fetch("/api/company", {
-//           method: "PUT",
-//           headers: {
-//             "Content-Type": "application/json",
-//           },
-//           body: JSON.stringify(payload),
-//         })
-//       }
-
-//       const result = await response.json()
-//       console.log("💾 Save response:", result)
-
-//       if (result.success) {
-//         toast.success("Company profile updated successfully!")
-//         setEditMode(false)
-//         setSelectedImageFile(null)
-        
-//         // Update the company context with new data
-//         if (updateCompany && result.data) {
-//           updateCompany(result.data)
-//         }
-        
-//         // Refresh the page to get updated data
-//         setTimeout(() => {
-//           router.refresh()
-//         }, 500)
-//       } else {
-//         toast.error(result.message || "Failed to update company profile")
-//       }
-//     } catch (error) {
-//       console.error("Error updating company profile:", error)
-//       toast.error("Failed to update company profile")
-//     } finally {
-//       setIsSaving(false)
-//     }
-//   }
-
-//   const handleCancel = () => {
-//     setFormData(company)
-//     setEditMode(false)
-//     setImageError(false)
-//     setSelectedImageFile(null)
-//   }
-
-//   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     const file = e.target.files?.[0]
-//     if (file) {
-//       setSelectedImageFile(file)
-//       // Create a preview URL for the image
-//       const reader = new FileReader()
-//       reader.onload = () => {
-//         if (formData) {
-//           setFormData({ 
-//             ...formData, 
-//             company_img: reader.result as string 
-//           })
-//         }
-//         setImageError(false)
-//       }
-//       reader.readAsDataURL(file)
-//     }
-//   }
-
-//   const handleForceRefresh = () => {
-//     router.refresh()
-//   }
-
-//   if (!company || !formData) {
-//     return (
-//       <div className="flex items-center justify-center min-h-[400px]">
-//         <div className="text-center space-y-4">
-//           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
-//             <Building2 className="w-8 h-8 text-muted-foreground" />
-//           </div>
-//           <div className="space-y-2">
-//             <h3 className="text-lg font-semibold">No Company Data</h3>
-//             <p className="text-sm text-muted-foreground">
-//               Company information is not available at the moment.
-//             </p>
-//             <Button 
-//               onClick={() => router.refresh()} 
-//               variant="outline" 
-//               size="sm"
-//             >
-//               Refresh Page
-//             </Button>
-//           </div>
-//         </div>
-//       </div>
-//     )
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-background">
-//       {/* Header with Company Info and Refresh Button */}
-//       <div className="border-b bg-card">
-//         <div className="container mx-auto px-6 py-6">
-//           <div className="flex justify-between items-start mb-4">
-//             <div>
-//               <h1 className="text-2xl font-bold">Company Profile</h1>
-//               <p className="text-muted-foreground">
-//                 Managing company settings and information
-//               </p>
-//             </div>
-//             <div className="flex gap-2">
-//               {/* Refresh button to fix stale data */}
-//               <Button 
-//                 variant="outline" 
-//                 size="sm" 
-//                 onClick={handleForceRefresh}
-//               >
-//                 <RefreshCw className="w-4 h-4 mr-1" />
-//                 Refresh
-//               </Button>
-//               {editMode ? (
-//                 <>
-//                   <Button 
-//                     size="sm" 
-//                     variant="outline" 
-//                     onClick={handleCancel}
-//                     disabled={isSaving}
-//                   >
-//                     <X className="w-4 h-4 mr-1" />
-//                     Cancel
-//                   </Button>
-//                   <Button 
-//                     size="sm" 
-//                     variant="default" 
-//                     onClick={handleSave}
-//                     disabled={isSaving}
-//                   >
-//                     {isSaving ? (
-//                       <>
-//                         <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-//                         Saving...
-//                       </>
-//                     ) : (
-//                       <>
-//                         <Save className="w-4 h-4 mr-1" />
-//                         Save
-//                       </>
-//                     )}
-//                   </Button>
-//                 </>
-//               ) : (
-//                 <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
-//                   <Pencil className="w-4 h-4 mr-1" /> Edit
-//                 </Button>
-//               )}
-//             </div>
-//           </div>
-
-//           <div className="flex items-center gap-6">
-//             <div className="relative">
-//               <Avatar className="w-20 h-20 border-4 border-background shadow-lg">
-//                 {editMode ? (
-//                   <div className="flex flex-col items-center justify-center w-20 h-20 gap-1 p-1">
-//                     <div className="text-xs text-center mb-1">Company Logo</div>
-//                     <input
-//                       type="file"
-//                       accept="image/*"
-//                       onChange={handleImageChange}
-//                       className="text-xs w-full"
-//                     />
-//                     {selectedImageFile && (
-//                       <div className="text-xs text-green-600">
-//                         {selectedImageFile.name}
-//                       </div>
-//                     )}
-//                   </div>
-//                 ) : showLogo ? (
-//                   <div className="relative w-20 h-20 rounded-full overflow-hidden">
-//                     <Image
-//                       src={getLogoUrl()}
-//                       alt={formData.company_name}
-//                       fill
-//                       className="object-cover w-full h-full"
-//                       onError={() => setImageError(true)}
-//                     />
-//                   </div>
-//                 ) : (
-//                   <AvatarFallback className="text-2xl font-bold bg-blue-500 text-white">
-//                     {formData.company_name.charAt(0).toUpperCase()}
-//                   </AvatarFallback>
-//                 )}
-//               </Avatar>
-//               {formData.is_admin && (
-//                 <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-//                   <Shield className="w-3 h-3 text-white" />
-//                 </div>
-//               )}
-//             </div>
-//             <div className="flex-1 space-y-2">
-//               <div className="flex items-center gap-3">
-//                 {editMode ? (
-//                   <Input
-//                     value={formData.company_name}
-//                     onChange={(e) => handleChange("company_name", e.target.value)}
-//                     placeholder="Company Name"
-//                     className="text-3xl font-bold h-12"
-//                   />
-//                 ) : (
-//                   <h1 className="text-3xl font-bold">{formData.company_name}</h1>
-//                 )}
-//                 <Badge variant="outline" className="text-xs">
-//                   ID: {formData.id}
-//                 </Badge>
-//               </div>
-//               <div className="flex items-center gap-2">
-//                 {formData.is_admin && (
-//                   <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-//                     <Shield className="w-3 h-3 mr-1" />
-//                     Admin Access
-//                   </Badge>
-//                 )}
-//                 <Badge className="bg-yellow-100 text-yellow-800">
-//                   <Building2 className="w-3 h-3 mr-1" />
-//                   {getPunchModeLabel(formData.punch_mode)}
-//                 </Badge>
-//                 {/* Current company indicator */}
-//                 <Badge variant="outline" className="text-green-600 border-green-200">
-//                   Current Company
-//                 </Badge>
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Main Content */}
-//       <div className="container mx-auto px-6 py-8">
-//         <div className="grid gap-6 lg:grid-cols-3">
-//           {/* Location & Boundaries */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-//                   <MapPin className="w-4 h-4 text-blue-600" />
-//                 </div>
-//                 Location & Boundaries
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Latitude</span>
-//                   {editMode ? (
-//                     <Input
-//                       value={formData.latitude || ""}
-//                       onChange={(e) => handleChange("latitude", e.target.value)}
-//                       className="w-32 text-right"
-//                       placeholder="e.g., 40.7128"
-//                     />
-//                   ) : (
-//                     <code className="text-sm bg-background px-2 py-1 rounded border">
-//                       {formData.latitude || "Not set"}
-//                     </code>
-//                   )}
-//                 </div>
-
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Longitude</span>
-//                   {editMode ? (
-//                     <Input
-//                       value={formData.longitude || ""}
-//                       onChange={(e) => handleChange("longitude", e.target.value)}
-//                       className="w-32 text-right"
-//                       placeholder="e.g., -74.0060"
-//                     />
-//                   ) : (
-//                     <code className="text-sm bg-background px-2 py-1 rounded border">
-//                       {formData.longitude || "Not set"}
-//                     </code>
-//                   )}
-//                 </div>
-
-//                 <Separator />
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Perimeter</span>
-//                   {editMode ? (
-//                     <Input
-//                       type="number"
-//                       value={formData.perimeter || ""}
-//                       onChange={(e) => handleChange("perimeter", parseFloat(e.target.value) || 0)}
-//                       className="w-24 text-right"
-//                       placeholder="km"
-//                     />
-//                   ) : (
-//                     <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-//                       <Gauge className="w-3 h-3 mr-1" />
-//                       {formData.perimeter || 0} km
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-
-//           {/* Work Schedule */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
-//                   <Clock className="w-4 h-4 text-yellow-600" />
-//                 </div>
-//                 Work Schedule
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Daily Hours</span>
-//                   {editMode ? (
-//                     <Input
-//                       type="number"
-//                       value={formData.daily_working_hours || ""}
-//                       onChange={(e) => handleChange("daily_working_hours", parseFloat(e.target.value) || 0)}
-//                       className="w-24 text-right"
-//                       placeholder="hours"
-//                     />
-//                   ) : (
-//                     <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-//                       <Clock className="w-3 h-3 mr-1" />
-//                       {formData.daily_working_hours || 0}h
-//                     </Badge>
-//                   )}
-//                 </div>
-//                 <Separator />
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Summary Interval</span>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.work_summary_interval || "daily"}
-//                       onValueChange={(value) => handleChange("work_summary_interval", value)}
-//                     >
-//                       <SelectTrigger className="w-32">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="daily">Daily</SelectItem>
-//                         <SelectItem value="weekly">Weekly</SelectItem>
-//                         <SelectItem value="monthly">Monthly</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className="bg-yellow-100 text-yellow-800">
-//                       <Calendar className="w-3 h-3 mr-1" />
-//                       {formData.work_summary_interval || "daily"}
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-
-//           {/* System Settings */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-//                   <Settings className="w-4 h-4 text-blue-600" />
-//                 </div>
-//                 System Settings
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <div className="flex items-center gap-2">
-//                     <Shield className="w-4 h-4 text-muted-foreground" />
-//                     <span className="text-sm font-medium">Admin Rights</span>
-//                   </div>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.is_admin ? "true" : "false"}
-//                       onValueChange={(value) => handleChange("is_admin", value === "true")}
-//                     >
-//                       <SelectTrigger className="w-24">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="true">Enabled</SelectItem>
-//                         <SelectItem value="false">Disabled</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className={formData.is_admin ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-muted text-muted-foreground"}>
-//                       {formData.is_admin ? "Enabled" : "Disabled"}
-//                     </Badge>
-//                   )}
-//                 </div>
-
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <div className="flex items-center gap-2">
-//                     <Users className="w-4 h-4 text-muted-foreground" />
-//                     <span className="text-sm font-medium">Punch Mode</span>
-//                   </div>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.punch_mode || "s"}
-//                       onValueChange={(value) => handleChange("punch_mode", value)}
-//                     >
-//                       <SelectTrigger className="w-32">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="s">Single (s)</SelectItem>
-//                         <SelectItem value="m">Multiple (m)</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-//                       {getPunchModeLabel(formData.punch_mode)} ({formData.punch_mode})
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
-
-
-// //first updated
-// "use client"
-
-// import { useState, useEffect } from "react"
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Badge } from "@/components/ui/badge"
-// import { Separator } from "@/components/ui/separator"
-// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-// import { Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings, Pencil, RefreshCw, Save, X, MessageSquare, Phone } from "lucide-react"
-// import { useAuth, Company } from "@/context/AuthContext"
-// import { Input } from "@/components/ui/input"
-// import { Button } from "@/components/ui/button"
-// import { Switch } from "@/components/ui/switch" // Make sure you have this component
-// import { Label } from "@/components/ui/label" // Make sure you have this component
-// import Image from "next/image"
-// import { useRouter } from "next/navigation"
-// import { toast } from "sonner"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-// export default function CompanyProfilePage() {
-//   const { company, updateCompany } = useAuth()
-//   const router = useRouter()
-//   const [editMode, setEditMode] = useState(false)
-//   const [formData, setFormData] = useState<Company | null>(company)
-//   const [imageError, setImageError] = useState(false)
-//   const [isSaving, setIsSaving] = useState(false)
-//   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-
-//   // Update formData when company changes
-//   useEffect(() => {
-//     if (company) {
-//       setFormData(company)
-//       setImageError(false)
-//     }
-//   }, [company])
-
-//   // Get company logo URL
-//   const getLogoUrl = () => {
-//     if (formData?.company_img) {
-//       return formData.company_img.startsWith("http")
-//         ? formData.company_img
-//         : `${formData.mediaBaseUrl}${formData.company_img}`
-//     }
-//     return `${formData?.mediaBaseUrl}/media/default_company.png`
-//   }
-
-//   const showLogo = formData?.company_img && !imageError
-
-//   const handleChange = (field: keyof Company, value: any) => {
-//     if (formData) {
-//       setFormData({ ...formData, [field]: value })
-//     }
-//   }
-
-//   // Get display label for punch mode
-//   const getPunchModeLabel = (mode: string) => {
-//     switch (mode) {
-//       case "s": return "Single"
-//       case "m": return "Multiple"
-//       default: return mode
-//     }
-//   }
-
-//   // PUT API call to update company
-//   const handleSave = async () => {
-//     if (!formData || !company) {
-//       toast.error("Missing company data")
-//       return
-//     }
-
-//     setIsSaving(true)
-
-//     try {
-//       // Prepare the payload according to your backend expectations
-//       const payload = {
-//         companyId: company.id,
-//         company_name: formData.company_name,
-//         latitude: formData.latitude,
-//         longitude: formData.longitude,
-//         perimeter: formData.perimeter,
-//         daily_working_hours: formData.daily_working_hours,
-//         work_summary_interval: formData.work_summary_interval,
-//         is_admin: formData.is_admin,
-//         punch_mode: formData.punch_mode,
-//         force_enable_sms: formData.force_enable_sms || false,
-//         force_enable_whatsapp: formData.force_enable_whatsapp || false,
-//         // Note: company_img is handled separately for file upload
-//       }
-
-//       console.log("💾 Saving company data:", payload)
-
-//       let response
-
-//       if (selectedImageFile) {
-//         // Handle file upload with FormData
-//         const formDataToSend = new FormData()
-//         formDataToSend.append("company_img", selectedImageFile)
-//         formDataToSend.append("companyId", company.id.toString())
-//         formDataToSend.append("company_name", formData.company_name)
-        
-//         // Append other fields if they exist
-//         if (formData.latitude) formDataToSend.append("latitude", formData.latitude)
-//         if (formData.longitude) formDataToSend.append("longitude", formData.longitude)
-//         if (formData.perimeter) formDataToSend.append("perimeter", formData.perimeter.toString())
-//         if (formData.daily_working_hours) formDataToSend.append("daily_working_hours", formData.daily_working_hours.toString())
-//         if (formData.work_summary_interval) formDataToSend.append("work_summary_interval", formData.work_summary_interval)
-//         formDataToSend.append("is_admin", formData.is_admin.toString())
-//         formDataToSend.append("punch_mode", formData.punch_mode)
-//         formDataToSend.append("force_enable_sms", (formData.force_enable_sms || false).toString())
-//         formDataToSend.append("force_enable_whatsapp", (formData.force_enable_whatsapp || false).toString())
-
-//         response = await fetch("/api/company", {
-//           method: "PUT",
-//           body: formDataToSend,
-//         })
-//       } else {
-//         // Handle JSON data update
-//         response = await fetch("/api/company", {
-//           method: "PUT",
-//           headers: {
-//             "Content-Type": "application/json",
-//           },
-//           body: JSON.stringify(payload),
-//         })
-//       }
-
-//       const result = await response.json()
-//       console.log("💾 Save response:", result)
-
-//       if (result.success) {
-//         toast.success("Company profile updated successfully!")
-//         setEditMode(false)
-//         setSelectedImageFile(null)
-        
-//         // Update the company context with new data
-//         if (updateCompany && result.data) {
-//           updateCompany(result.data)
-//         }
-        
-//         // Refresh the page to get updated data
-//         setTimeout(() => {
-//           router.refresh()
-//         }, 500)
-//       } else {
-//         toast.error(result.message || "Failed to update company profile")
-//       }
-//     } catch (error) {
-//       console.error("Error updating company profile:", error)
-//       toast.error("Failed to update company profile")
-//     } finally {
-//       setIsSaving(false)
-//     }
-//   }
-
-//   const handleCancel = () => {
-//     setFormData(company)
-//     setEditMode(false)
-//     setImageError(false)
-//     setSelectedImageFile(null)
-//   }
-
-//   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     const file = e.target.files?.[0]
-//     if (file) {
-//       setSelectedImageFile(file)
-//       // Create a preview URL for the image
-//       const reader = new FileReader()
-//       reader.onload = () => {
-//         if (formData) {
-//           setFormData({ 
-//             ...formData, 
-//             company_img: reader.result as string 
-//           })
-//         }
-//         setImageError(false)
-//       }
-//       reader.readAsDataURL(file)
-//     }
-//   }
-
-//   const handleForceRefresh = () => {
-//     router.refresh()
-//   }
-
-//   if (!company || !formData) {
-//     return (
-//       <div className="flex items-center justify-center min-h-[400px]">
-//         <div className="text-center space-y-4">
-//           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
-//             <Building2 className="w-8 h-8 text-muted-foreground" />
-//           </div>
-//           <div className="space-y-2">
-//             <h3 className="text-lg font-semibold">No Company Data</h3>
-//             <p className="text-sm text-muted-foreground">
-//               Company information is not available at the moment.
-//             </p>
-//             <Button 
-//               onClick={() => router.refresh()} 
-//               variant="outline" 
-//               size="sm"
-//             >
-//               Refresh Page
-//             </Button>
-//           </div>
-//         </div>
-//       </div>
-//     )
-//   }
-
-//   return (
-//     <div className="min-h-screen bg-background">
-//       {/* Header with Company Info and Refresh Button */}
-//       <div className="border-b bg-card">
-//         <div className="container mx-auto px-6 py-6">
-//           <div className="flex justify-between items-start mb-4">
-//             <div>
-//               <h1 className="text-2xl font-bold">Company Profile</h1>
-//               <p className="text-muted-foreground">
-//                 Managing company settings and information
-//               </p>
-//             </div>
-//             <div className="flex gap-2">
-//               {/* Refresh button to fix stale data */}
-//               <Button 
-//                 variant="outline" 
-//                 size="sm" 
-//                 onClick={handleForceRefresh}
-//               >
-//                 <RefreshCw className="w-4 h-4 mr-1" />
-//                 Refresh
-//               </Button>
-//               {editMode ? (
-//                 <>
-//                   <Button 
-//                     size="sm" 
-//                     variant="outline" 
-//                     onClick={handleCancel}
-//                     disabled={isSaving}
-//                   >
-//                     <X className="w-4 h-4 mr-1" />
-//                     Cancel
-//                   </Button>
-//                   <Button 
-//                     size="sm" 
-//                     variant="default" 
-//                     onClick={handleSave}
-//                     disabled={isSaving}
-//                   >
-//                     {isSaving ? (
-//                       <>
-//                         <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-//                         Saving...
-//                       </>
-//                     ) : (
-//                       <>
-//                         <Save className="w-4 h-4 mr-1" />
-//                         Save
-//                       </>
-//                     )}
-//                   </Button>
-//                 </>
-//               ) : (
-//                 <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
-//                   <Pencil className="w-4 h-4 mr-1" /> Edit
-//                 </Button>
-//               )}
-//             </div>
-//           </div>
-
-//           <div className="flex items-center gap-6">
-//             <div className="relative">
-//               <Avatar className="w-20 h-20 border-4 border-background shadow-lg">
-//                 {editMode ? (
-//                   <div className="flex flex-col items-center justify-center w-20 h-20 gap-1 p-1">
-//                     <div className="text-xs text-center mb-1">Company Logo</div>
-//                     <input
-//                       type="file"
-//                       accept="image/*"
-//                       onChange={handleImageChange}
-//                       className="text-xs w-full"
-//                     />
-//                     {selectedImageFile && (
-//                       <div className="text-xs text-green-600">
-//                         {selectedImageFile.name}
-//                       </div>
-//                     )}
-//                   </div>
-//                 ) : showLogo ? (
-//                   <div className="relative w-20 h-20 rounded-full overflow-hidden">
-//                     <Image
-//                       src={getLogoUrl()}
-//                       alt={formData.company_name}
-//                       fill
-//                       className="object-cover w-full h-full"
-//                       onError={() => setImageError(true)}
-//                     />
-//                   </div>
-//                 ) : (
-//                   <AvatarFallback className="text-2xl font-bold bg-blue-500 text-white">
-//                     {formData.company_name.charAt(0).toUpperCase()}
-//                   </AvatarFallback>
-//                 )}
-//               </Avatar>
-//               {formData.is_admin && (
-//                 <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-//                   <Shield className="w-3 h-3 text-white" />
-//                 </div>
-//               )}
-//             </div>
-//             <div className="flex-1 space-y-2">
-//               <div className="flex items-center gap-3">
-//                 {editMode ? (
-//                   <Input
-//                     value={formData.company_name}
-//                     onChange={(e) => handleChange("company_name", e.target.value)}
-//                     placeholder="Company Name"
-//                     className="text-3xl font-bold h-12"
-//                   />
-//                 ) : (
-//                   <h1 className="text-3xl font-bold">{formData.company_name}</h1>
-//                 )}
-//                 <Badge variant="outline" className="text-xs">
-//                   ID: {formData.id}
-//                 </Badge>
-//               </div>
-//               <div className="flex items-center gap-2">
-//                 {formData.is_admin && (
-//                   <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-//                     <Shield className="w-3 h-3 mr-1" />
-//                     Admin Access
-//                   </Badge>
-//                 )}
-//                 <Badge className="bg-yellow-100 text-yellow-800">
-//                   <Building2 className="w-3 h-3 mr-1" />
-//                   {getPunchModeLabel(formData.punch_mode)}
-//                 </Badge>
-//                 {/* Current company indicator */}
-//                 <Badge variant="outline" className="text-green-600 border-green-200">
-//                   Current Company
-//                 </Badge>
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-
-//       {/* Main Content */}
-//       <div className="container mx-auto px-6 py-8">
-//         <div className="grid gap-6 lg:grid-cols-3">
-//           {/* Location & Boundaries */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-//                   <MapPin className="w-4 h-4 text-blue-600" />
-//                 </div>
-//                 Location & Boundaries
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Latitude</span>
-//                   {editMode ? (
-//                     <Input
-//                       value={formData.latitude || ""}
-//                       onChange={(e) => handleChange("latitude", e.target.value)}
-//                       className="w-32 text-right"
-//                       placeholder="e.g., 40.7128"
-//                     />
-//                   ) : (
-//                     <code className="text-sm bg-background px-2 py-1 rounded border">
-//                       {formData.latitude || "Not set"}
-//                     </code>
-//                   )}
-//                 </div>
-
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Longitude</span>
-//                   {editMode ? (
-//                     <Input
-//                       value={formData.longitude || ""}
-//                       onChange={(e) => handleChange("longitude", e.target.value)}
-//                       className="w-32 text-right"
-//                       placeholder="e.g., -74.0060"
-//                     />
-//                   ) : (
-//                     <code className="text-sm bg-background px-2 py-1 rounded border">
-//                       {formData.longitude || "Not set"}
-//                     </code>
-//                   )}
-//                 </div>
-
-//                 <Separator />
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Perimeter</span>
-//                   {editMode ? (
-//                     <Input
-//                       type="number"
-//                       value={formData.perimeter || ""}
-//                       onChange={(e) => handleChange("perimeter", parseFloat(e.target.value) || 0)}
-//                       className="w-24 text-right"
-//                       placeholder="km"
-//                     />
-//                   ) : (
-//                     <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-//                       <Gauge className="w-3 h-3 mr-1" />
-//                       {formData.perimeter || 0} km
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-
-//           {/* Work Schedule */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
-//                   <Clock className="w-4 h-4 text-yellow-600" />
-//                 </div>
-//                 Work Schedule
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Daily Hours</span>
-//                   {editMode ? (
-//                     <Input
-//                       type="number"
-//                       value={formData.daily_working_hours || ""}
-//                       onChange={(e) => handleChange("daily_working_hours", parseFloat(e.target.value) || 0)}
-//                       className="w-24 text-right"
-//                       placeholder="hours"
-//                     />
-//                   ) : (
-//                     <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-//                       <Clock className="w-3 h-3 mr-1" />
-//                       {formData.daily_working_hours || 0}h
-//                     </Badge>
-//                   )}
-//                 </div>
-//                 <Separator />
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <span className="text-sm font-medium">Summary Interval</span>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.work_summary_interval || "daily"}
-//                       onValueChange={(value) => handleChange("work_summary_interval", value)}
-//                     >
-//                       <SelectTrigger className="w-32">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="daily">Daily</SelectItem>
-//                         <SelectItem value="weekly">Weekly</SelectItem>
-//                         <SelectItem value="monthly">Monthly</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className="bg-yellow-100 text-yellow-800">
-//                       <Calendar className="w-3 h-3 mr-1" />
-//                       {formData.work_summary_interval || "daily"}
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-
-//           {/* System Settings */}
-//           <Card className="border-0 shadow-sm bg-card">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-//                   <Settings className="w-4 h-4 text-blue-600" />
-//                 </div>
-//                 System Settings
-//               </CardTitle>
-//             </CardHeader>
-//             <CardContent className="space-y-4">
-//               <div className="space-y-3">
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <div className="flex items-center gap-2">
-//                     <Shield className="w-4 h-4 text-muted-foreground" />
-//                     <span className="text-sm font-medium">Admin Rights</span>
-//                   </div>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.is_admin ? "true" : "false"}
-//                       onValueChange={(value) => handleChange("is_admin", value === "true")}
-//                     >
-//                       <SelectTrigger className="w-24">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="true">Enabled</SelectItem>
-//                         <SelectItem value="false">Disabled</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className={formData.is_admin ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-muted text-muted-foreground"}>
-//                       {formData.is_admin ? "Enabled" : "Disabled"}
-//                     </Badge>
-//                   )}
-//                 </div>
-
-//                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-//                   <div className="flex items-center gap-2">
-//                     <Users className="w-4 h-4 text-muted-foreground" />
-//                     <span className="text-sm font-medium">Punch Mode</span>
-//                   </div>
-//                   {editMode ? (
-//                     <Select
-//                       value={formData.punch_mode || "s"}
-//                       onValueChange={(value) => handleChange("punch_mode", value)}
-//                     >
-//                       <SelectTrigger className="w-32">
-//                         <SelectValue />
-//                       </SelectTrigger>
-//                       <SelectContent>
-//                         <SelectItem value="s">Single (s)</SelectItem>
-//                         <SelectItem value="m">Multiple (m)</SelectItem>
-//                       </SelectContent>
-//                     </Select>
-//                   ) : (
-//                     <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-//                       {getPunchModeLabel(formData.punch_mode)} ({formData.punch_mode})
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-//             </CardContent>
-//           </Card>
-
-//           {/* Notification Overrides */}
-//           <Card className="border-0 shadow-sm bg-card lg:col-span-3">
-//             <CardHeader className="pb-4">
-//               <CardTitle className="flex items-center gap-2 text-lg">
-//                 <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-//                   <MessageSquare className="w-4 h-4 text-green-600" />
-//                 </div>
-//                 Notification 
-//                 {/* <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-//                   Overrides Individual Settings
-//                 </Badge> */}
-//               </CardTitle>
-//               {/* <p className="text-sm text-muted-foreground mt-2">
-//                 When enabled, these settings will override individual employee preferences and force notifications for all employees.
-//               </p> */}
-//             </CardHeader>
-//             <CardContent>
-//               <div className="grid gap-6 md:grid-cols-2">
-//                 {/* SMS Override */}
-//                 <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-//                   <div className="flex items-center gap-3">
-//                     <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-//                       <Phone className="w-5 h-5 text-blue-600" />
-//                     </div>
-//                     <div>
-//                       <Label htmlFor="sms-override" className="text-base font-medium">
-//                         Force Enable SMS
-//                       </Label>
-//                       {/* <p className="text-sm text-muted-foreground mt-1">
-//                         All employees will receive SMS notifications regardless of their individual settings
-//                       </p> */}
-//                     </div>
-//                   </div>
-//                   {editMode ? (
-//                     <Switch
-//                       id="sms-override"
-//                       checked={formData.force_enable_sms || false}
-//                       onCheckedChange={(checked) => handleChange("force_enable_sms", checked)}
-//                     />
-//                   ) : (
-//                     <Badge className={formData.force_enable_sms ? "bg-green-500 hover:bg-green-600 text-white" : "bg-muted text-muted-foreground"}>
-//                       {formData.force_enable_sms ? "Enabled" : "Disabled"}
-//                     </Badge>
-//                   )}
-//                 </div>
-
-//                 {/* WhatsApp Override */}
-//                 <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-//                   <div className="flex items-center gap-3">
-//                     <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-//                       <MessageSquare className="w-5 h-5 text-green-600" />
-//                     </div>
-//                     <div>
-//                       <Label htmlFor="whatsapp-override" className="text-base font-medium">
-//                         Force Enable WhatsApp
-//                       </Label>
-//                       {/* <p className="text-sm text-muted-foreground mt-1">
-//                         All employees will receive WhatsApp notifications regardless of their individual settings
-//                       </p> */}
-//                     </div>
-//                   </div>
-//                   {editMode ? (
-//                     <Switch
-//                       id="whatsapp-override"
-//                       checked={formData.force_enable_whatsapp || false}
-//                       onCheckedChange={(checked) => handleChange("force_enable_whatsapp", checked)}
-//                     />
-//                   ) : (
-//                     <Badge className={formData.force_enable_whatsapp ? "bg-green-500 hover:bg-green-600 text-white" : "bg-muted text-muted-foreground"}>
-//                       {formData.force_enable_whatsapp ? "Enabled" : "Disabled"}
-//                     </Badge>
-//                   )}
-//                 </div>
-//               </div>
-
-//               {/* Information Box */}
-//               {editMode && (
-//                 <div className="mt-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-//                   <div className="flex items-start gap-3">
-//                     <Shield className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-//                     <div>
-//                       <h4 className="text-sm font-medium text-blue-800">Override Behavior</h4>
-//                       {/* <p className="text-sm text-blue-700 mt-1">
-//                         When enabled, these settings will take precedence over individual employee notification preferences. 
-//                         Employees will receive notifications through the enabled channels even if they have disabled them in their personal settings.
-//                       </p> */}
-//                     </div>
-//                   </div>
-//                 </div>
-//               )}
-//             </CardContent>
-//           </Card>
-//         </div>
-//       </div>
-//     </div>
-//   )
-// }
-
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings, Pencil, RefreshCw, Save, X, MessageSquare, Phone, Wrench } from "lucide-react"
-import { useAuth, Company } from "@/context/AuthContext"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import {
+  Building2,
+  MapPin,
+  Clock,
+  Gauge,
+  Shield,
+  Calendar,
+  Users,
+  Settings,
+  Edit3,
+  RefreshCw,
+  Save,
+  X,
+  MessageSquare,
+  Phone,
+  Activity,
+  Hash,
+  Globe,
+  Navigation,
+  CheckCircle,
+  XCircle,
+  Zap,
+  MoreVertical,
+} from "lucide-react"
+
+import { useAuth } from "@/context/AuthContext"
+import { useCompany } from "@/context/CompanyContext"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import FixPunch from "@/components/fix-punch"
-import { CheckCircle, XCircle } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 export default function CompanyProfilePage() {
-  const { company, updateCompany } = useAuth()
+  const { company, isAdmin } = useAuth()
   const router = useRouter()
-  const [editMode, setEditMode] = useState(false)
-  const [formData, setFormData] = useState<Company | null>(company)
-  const [imageError, setImageError] = useState(false)
+  
+  const [editingSection, setEditingSection] = useState<string | null>(null)
+  const [formData, setFormData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-  // Add this near your other useState declarations
-  const [fixPunchResult, setFixPunchResult] = useState<any>(null)
-  const [showFixResult, setShowFixResult] = useState(false)
+  const [activeEmployeeCount, setActiveEmployeeCount] = useState<number | null>(null)
 
-  // Update formData when company changes
+  // Initialize form data when company changes
   useEffect(() => {
     if (company) {
-      setFormData(company)
-      setImageError(false)
+      setFormData({ ...company })
     }
   }, [company])
 
-  // Get company logo URL
-  const getLogoUrl = () => {
-    if (formData?.company_img) {
-      return formData.company_img.startsWith("http")
-        ? formData.company_img
-        : `${formData.mediaBaseUrl}${formData.company_img}`
-    }
-    return `${formData?.mediaBaseUrl}/media/default_company.png`
-  }
-
-  const showLogo = formData?.company_img && !imageError
-
-  const handleChange = (field: keyof Company, value: any) => {
-    if (formData) {
-      setFormData({ ...formData, [field]: value })
-    }
-  }
-
-  // Get display label for punch mode
-  const getPunchModeLabel = (mode: string) => {
-    switch (mode) {
-      case "s": return "Single"
-      case "m": return "Multiple"
-      default: return mode
-    }
-  }
-
-  // PUT API call to update company
-  const handleSave = async () => {
-    if (!formData || !company) {
-      toast.error("Missing company data")
-      return
-    }
-
-    setIsSaving(true)
-
-    try {
-      // Prepare the payload according to your backend expectations
-      const payload = {
-        companyId: company.id,
-        company_name: formData.company_name,
-        latitude: formData.latitude,
-        longitude: formData.longitude,
-        perimeter: formData.perimeter,
-        daily_working_hours: formData.daily_working_hours,
-        work_summary_interval: formData.work_summary_interval,
-        is_admin: formData.is_admin,
-        punch_mode: formData.punch_mode,
-        force_enable_sms: formData.force_enable_sms || false,
-        force_enable_whatsapp: formData.force_enable_whatsapp || false,
-      }
-
-      console.log("💾 Saving company data:", payload)
-
-      let response
-
-      if (selectedImageFile) {
-        // Handle file upload with FormData
-        const formDataToSend = new FormData()
-        formDataToSend.append("company_img", selectedImageFile)
-        formDataToSend.append("companyId", company.id.toString())
-        formDataToSend.append("company_name", formData.company_name)
-        
-        // Append other fields if they exist
-        if (formData.latitude) formDataToSend.append("latitude", formData.latitude)
-        if (formData.longitude) formDataToSend.append("longitude", formData.longitude)
-        if (formData.perimeter) formDataToSend.append("perimeter", formData.perimeter.toString())
-        if (formData.daily_working_hours) formDataToSend.append("daily_working_hours", formData.daily_working_hours.toString())
-        if (formData.work_summary_interval) formDataToSend.append("work_summary_interval", formData.work_summary_interval)
-        formDataToSend.append("is_admin", formData.is_admin.toString())
-        formDataToSend.append("punch_mode", formData.punch_mode)
-        formDataToSend.append("force_enable_sms", (formData.force_enable_sms || false).toString())
-        formDataToSend.append("force_enable_whatsapp", (formData.force_enable_whatsapp || false).toString())
-
-        response = await fetch("/api/company", {
-          method: "PUT",
-          body: formDataToSend,
+  // Fetch total active employees
+  useEffect(() => {
+    const fetchEmployeeCount = async () => {
+      if (!company) return
+      try {
+        const response = await fetch("/api/get-all-employees/1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company_id: company.id, is_active: true })
         })
-      } else {
-        // Handle JSON data update
-        response = await fetch("/api/company", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        })
-      }
-
-      const result = await response.json()
-      console.log("💾 Save response:", result)
-
-      if (result.success) {
-        toast.success("Company profile updated successfully!")
-        setEditMode(false)
-        setSelectedImageFile(null)
-        
-        // Update the company context with new data
-        if (updateCompany && result.data) {
-          updateCompany(result.data)
+        const result = await response.json()
+        if (result.success) {
+          setActiveEmployeeCount(result.total)
         }
-        
-        // Refresh the page to get updated data
-        setTimeout(() => {
-          router.refresh()
-        }, 500)
-      } else {
-        toast.error(result.message || "Failed to update company profile")
+      } catch (err) {
+        console.error("Failed to fetch employee count:", err)
       }
-    } catch (error) {
-      console.error("Error updating company profile:", error)
-      toast.error("Failed to update company profile")
-    } finally {
-      setIsSaving(false)
     }
+    fetchEmployeeCount()
+  }, [company])
+
+  if (!company || !formData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  const getLogoUrl = () => {
+    if (formData.company_img && !imageError) {
+      return formData.company_img.startsWith("data:") 
+        ? formData.company_img 
+        : formData.company_img.startsWith("http")
+          ? formData.company_img
+          : `${company.mediaBaseUrl}${formData.company_img}`
+    }
+    return null
+  }
+
+  const handleEdit = (section: string) => {
+    setFormData({ ...company })
+    setEditingSection(section)
   }
 
   const handleCancel = () => {
-    setFormData(company)
-    setEditMode(false)
-    setImageError(false)
+    setFormData({ ...company })
+    setEditingSection(null)
     setSelectedImageFile(null)
+  }
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [field]: value }))
   }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setSelectedImageFile(file)
-      // Create a preview URL for the image
       const reader = new FileReader()
       reader.onload = () => {
-        if (formData) {
-          setFormData({ 
-            ...formData, 
-            company_img: reader.result as string 
-          })
-        }
+        setFormData((prev: any) => ({ ...prev, company_img: reader.result as string }))
         setImageError(false)
       }
       reader.readAsDataURL(file)
     }
   }
 
-  const handleForceRefresh = () => {
-    router.refresh()
+  const handleSave = async () => {
+    setIsSaving(true)
+    try {
+      let response
+      if (selectedImageFile) {
+        const data = new FormData()
+        data.append("company_img", selectedImageFile)
+        data.append("companyId", company.id.toString())
+        data.append("company_name", formData.company_name)
+        data.append("latitude", formData.latitude.toString())
+        data.append("longitude", formData.longitude.toString())
+        data.append("perimeter", formData.perimeter.toString())
+        data.append("daily_working_hours", formData.daily_working_hours.toString())
+        data.append("work_summary_interval", formData.work_summary_interval)
+        data.append("punch_mode", formData.punch_mode)
+        data.append("travel_speed_threshold", formData.travel_speed_threshold?.toString() || "10")
+        
+        // Add boolean fields
+        data.append("enable_sms", (formData.enable_sms || false).toString())
+        data.append("enable_whatsapp", (formData.enable_whatsapp || false).toString())
+        data.append("soft_disable", (formData.soft_disable || false).toString())
+        data.append("strict_sms", (formData.strict_sms || false).toString())
+        data.append("strict_whatsapp", (formData.strict_whatsapp || false).toString())
+
+        response = await fetch("/api/company", {
+          method: "PUT",
+          body: data
+        })
+      } else {
+        response = await fetch("/api/company", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...formData,
+            companyId: company.id
+          })
+        })
+      }
+
+      const result = await response.json()
+      if (result.success) {
+        toast.success("Company settings updated!")
+        setEditingSection(null)
+        setTimeout(() => window.location.reload(), 500)
+      } else {
+        toast.error(result.message || "Failed to update company")
+      }
+    } catch (err) {
+      toast.error("Internal Server Error")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  if (!company || !formData) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
-            <Building2 className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">No Company Data</h3>
-            <p className="text-sm text-muted-foreground">
-              Company information is not available at the moment.
-            </p>
-            <Button 
-              onClick={() => router.refresh()} 
-              variant="outline" 
-              size="sm"
-            >
-              Refresh Page
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const logoUrl = getLogoUrl()
+  const initial = company.company_name?.charAt(0).toUpperCase() || "C"
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header with Company Info and Refresh Button */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex justify-between items-start mb-4">
+    <div className="max-w-6xl mx-auto pb-12">
+      {/* Header Area */}
+      <div className="mb-6 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Company Profile</h1>
+          {isAdmin && (
+            <p className="text-sm text-gray-500 mt-1">
+              Manage organization-wide settings, geofencing, and communication policies
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Hero Card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+          {/* Logo Section */}
+          <div className="relative group">
+            <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
+              {logoUrl ? (
+                <Image
+                  src={logoUrl}
+                  alt={company.company_name}
+                  width={128}
+                  height={128}
+                  className="object-cover h-full w-full"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-blue-700">
+                  <Building2 className="h-10 w-10 mb-1" />
+                  <span className="text-2xl font-bold">{initial}</span>
+                </div>
+              )}
+            </div>
+            {isAdmin && (
+               <label className="absolute -bottom-2 -right-2 h-10 w-10 bg-white rounded-full border-2 border-blue-100 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
+                <Edit3 className="h-4 w-4 text-gray-600" />
+                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+              </label>
+            )}
+          </div>
+
+          <div className="flex-1 text-center md:text-left">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-1">
+                  {company.company_name}
+                </h2>
+                <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500 font-medium">
+                  <Hash className="h-4 w-4" />
+                  <span>Company ID: {company.id}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-none px-3 py-1">
+                  <Shield className="h-3 w-3 mr-1.5" />
+                  {isAdmin ? "Admin View" : "Employee View"}
+                </Badge>
+                <Badge className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 px-3 py-1">
+                  <Activity className="h-3 w-3 mr-1.5" />
+                  Active Status
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
+              {/* <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                  <Users className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Total Employees</p>
+                  <p className="text-sm font-semibold text-gray-700">{activeEmployeeCount || "--"}</p>
+                </div>
+              </div> */}
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Punch Mode</p>
+                  <p className="text-sm font-semibold text-gray-700">{company.punch_mode === "S" ? "Single Punch" : "Multi Punch"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">Active Staff</h3>
+            <p className="text-3xl font-bold text-blue-600">{activeEmployeeCount || "0"}</p>
+          </div>
+          <div className="p-3 bg-blue-50 rounded-full">
+             <Users className="h-6 w-6 text-blue-600" />
+          </div>
+        </div>
+
+        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">Standard Hours</h3>
+            <p className="text-3xl font-bold text-green-600">{company.daily_working_hours}h</p>
+          </div>
+          <div className="p-3 bg-green-50 rounded-full">
+            <Clock className="h-6 w-6 text-green-600" />
+          </div>
+        </div>
+
+        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">Geofence Radius</h3>
+            <p className="text-3xl font-bold text-purple-600">{company.perimeter}km</p>
+          </div>
+          <div className="p-3 bg-purple-50 rounded-full">
+            <Navigation className="h-6 w-6 text-purple-600" />
+          </div>
+        </div>
+
+        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">Travel Threshold</h3>
+            <p className="text-3xl font-bold text-amber-600">{company.travel_speed_threshold || "10"}km</p>
+          </div>
+          <div className="p-3 bg-amber-50 rounded-full">
+            <Gauge className="h-6 w-6 text-amber-600" />
+          </div>
+        </div>
+      </div>
+
+      {/* Details Sections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Geographic & Location Settings */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Geographic Settings</h3>
+            </div>
+            {isAdmin && (
+              <Button 
+                variant="outline" size="sm" 
+                className="text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
+                onClick={() => handleEdit("location")}
+              >
+                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+              </Button>
+            )}
+          </div>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Latitude</p>
+                <p className="text-base font-semibold text-gray-800">{company.latitude || "0.0000"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Longitude</p>
+                <p className="text-base font-semibold text-gray-800">{company.longitude || "0.0000"}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Perimeter (Radius)</p>
+                <p className="text-base font-semibold text-gray-800">{company.perimeter} km</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Travel Threshold</p>
+                <p className="text-base font-semibold text-gray-800">{company.travel_speed_threshold || "10"} km/h</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* System Configurations */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+                <Settings className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">System Preferences</h3>
+            </div>
+            {isAdmin && (
+              <Button 
+                variant="outline" size="sm" 
+                className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100"
+                onClick={() => handleEdit("system")}
+              >
+                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+              </Button>
+            )}
+          </div>
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Daily Working Hours</p>
+                <p className="text-base font-semibold text-gray-800">{company.daily_working_hours} Hours</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Punching Mode</p>
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-100">
+                  {company.punch_mode === "S" ? "Single Entry" : "Multiple Entries"}
+                </Badge>
+              </div>
+            </div>
             <div>
-              <h1 className="text-2xl font-bold">Company Profile</h1>
-              <p className="text-muted-foreground">
-                Managing company settings and information
+              <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Summary Calculation</p>
+              <p className="text-base font-semibold text-gray-800">
+                {company.work_summary_interval === "W" ? "Weekly Basis" : "Monthly Basis"}
               </p>
             </div>
-            <div className="flex gap-2">
-              {/* Refresh button to fix stale data */}
+          </div>
+        </div>
+
+        {/* Global Communication Policy (Admin Only) */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
+                <Globe className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Company-wide Communication Policy</h3>
+            </div>
+            {isAdmin && (
               <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleForceRefresh}
+                variant="outline" size="sm" 
+                className="text-purple-600 border-purple-100 bg-purple-50 hover:bg-purple-100"
+                onClick={() => handleEdit("policy")}
               >
-                <RefreshCw className="w-4 h-4 mr-1" />
-                Refresh
+                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit Policy
               </Button>
-              
-              {editMode ? (
-                <>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={handleCancel}
-                    disabled={isSaving}
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="default" 
-                    onClick={handleSave}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4 mr-1" />
-                        Save
-                      </>
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => setEditMode(true)}>
-                  <Pencil className="w-4 h-4 mr-1" /> Edit
-                </Button>
-              )}
-            </div>
+            )}
           </div>
-
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <Avatar className="w-20 h-20 border-4 border-background shadow-lg">
-                {editMode ? (
-                  <div className="flex flex-col items-center justify-center w-20 h-20 gap-1 p-1">
-                    <div className="text-xs text-center mb-1">Company Logo</div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageChange}
-                      className="text-xs w-full"
-                    />
-                    {selectedImageFile && (
-                      <div className="text-xs text-green-600">
-                        {selectedImageFile.name}
-                      </div>
-                    )}
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className={`h-4 w-4 ${company.enable_sms ? "text-green-500" : "text-gray-400"}`} />
+                    <span className="text-sm font-medium text-gray-700">SMS Alerts Service</span>
                   </div>
-                ) : showLogo ? (
-                  <div className="relative w-20 h-20 rounded-full overflow-hidden">
-                    <Image
-                      src={getLogoUrl()}
-                      alt={formData.company_name}
-                      fill
-                      className="object-cover w-full h-full"
-                      onError={() => setImageError(true)}
-                    />
-                  </div>
-                ) : (
-                  <AvatarFallback className="text-2xl font-bold bg-blue-500 text-white">
-                    {formData.company_name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              {formData.is_admin && (
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                  <Shield className="w-3 h-3 text-white" />
-                </div>
-              )}
-            </div>
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-3">
-                {editMode ? (
-                  <Input
-                    value={formData.company_name}
-                    onChange={(e) => handleChange("company_name", e.target.value)}
-                    placeholder="Company Name"
-                    className="text-3xl font-bold h-12"
-                  />
-                ) : (
-                  <h1 className="text-3xl font-bold">{formData.company_name}</h1>
-                )}
-                <Badge variant="outline" className="text-xs">
-                  ID: {formData.id}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                {formData.is_admin && (
-                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-                    <Shield className="w-3 h-3 mr-1" />
-                    Admin Access
+                  <Badge variant={company.enable_sms ? "default" : "secondary"}>
+                    {company.enable_sms ? "Online" : "Offline"}
                   </Badge>
-                )}
-                <Badge className="bg-yellow-100 text-yellow-800">
-                  <Building2 className="w-3 h-3 mr-1" />
-                  {getPunchModeLabel(formData.punch_mode)}
-                </Badge>
-                {/* Current company indicator */}
-                <Badge variant="outline" className="text-green-600 border-green-200">
-                  Current Company
-                </Badge>
+                </div>
+                 <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className={`h-4 w-4 ${company.enable_whatsapp ? "text-green-500" : "text-gray-400"}`} />
+                    <span className="text-sm font-medium text-gray-700">WhatsApp Alerts Service</span>
+                  </div>
+                  <Badge variant={company.enable_whatsapp ? "default" : "secondary"}>
+                    {company.enable_whatsapp ? "Online" : "Offline"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-red-50/50">
+                  <div className="flex items-center gap-3">
+                    <XCircle className={`h-4 w-4 ${company.soft_disable ? "text-red-500" : "text-gray-400"}`} />
+                    <span className="text-sm font-medium text-red-800">Master Kill Switch (Silent Mode)</span>
+                  </div>
+                  <Badge variant="destructive" className={company.soft_disable ? "opacity-100" : "opacity-30"}>
+                    {company.soft_disable ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
+                   <div className="flex items-center gap-3">
+                    <Shield className={`h-4 w-4 ${(company.strict_sms || company.strict_whatsapp) ? "text-blue-500" : "text-gray-400"}`} />
+                    <span className="text-sm font-medium text-blue-800">Strict Enforcement Policy</span>
+                  </div>
+                  <Badge variant="outline" className="border-blue-200 text-blue-700">
+                    { (company.strict_sms || company.strict_whatsapp) ? "Enforced" : "Standard"}
+                  </Badge>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Location & Boundaries */}
-          <Card className="border-0 shadow-sm bg-card">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <MapPin className="w-4 h-4 text-blue-600" />
-                </div>
-                Location & Boundaries
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Latitude</span>
-                  {editMode ? (
-                    <Input
-                      value={formData.latitude || ""}
-                      onChange={(e) => handleChange("latitude", e.target.value)}
-                      className="w-32 text-right"
-                      placeholder="e.g., 40.7128"
-                    />
-                  ) : (
-                    <code className="text-sm bg-background px-2 py-1 rounded border">
-                      {formData.latitude || "Not set"}
-                    </code>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Longitude</span>
-                  {editMode ? (
-                    <Input
-                      value={formData.longitude || ""}
-                      onChange={(e) => handleChange("longitude", e.target.value)}
-                      className="w-32 text-right"
-                      placeholder="e.g., -74.0060"
-                    />
-                  ) : (
-                    <code className="text-sm bg-background px-2 py-1 rounded border">
-                      {formData.longitude || "Not set"}
-                    </code>
-                  )}
-                </div>
-
-                <Separator />
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Perimeter</span>
-                  {editMode ? (
-                    <Input
-                      type="number"
-                      value={formData.perimeter || ""}
-                      onChange={(e) => handleChange("perimeter", parseFloat(e.target.value) || 0)}
-                      className="w-24 text-right"
-                      placeholder="km"
-                    />
-                  ) : (
-                    <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
-                      <Gauge className="w-3 h-3 mr-1" />
-                      {formData.perimeter || 0} km
-                    </Badge>
-                  )}
-                </div>
+      {/* Edit Dialogs */}
+      
+      {/* 1. Location Settings Dialog */}
+      <Dialog open={editingSection === "location"} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Location Settings</DialogTitle>
+            <DialogDescription>Update the central coordinate and geofence radius</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Latitude</Label>
+                <Input value={formData.latitude} onChange={(e) => handleInputChange("latitude", e.target.value)} />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Work Schedule */}
-          <Card className="border-0 shadow-sm bg-card">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="w-8 h-8 rounded-lg bg-yellow-100 flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-yellow-600" />
-                </div>
-                Work Schedule
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Daily Hours</span>
-                  {editMode ? (
-                    <Input
-                      type="number"
-                      value={formData.daily_working_hours || ""}
-                      onChange={(e) => handleChange("daily_working_hours", parseFloat(e.target.value) || 0)}
-                      className="w-24 text-right"
-                      placeholder="hours"
-                    />
-                  ) : (
-                    <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-                      <Clock className="w-3 h-3 mr-1" />
-                      {formData.daily_working_hours || 0}h
-                    </Badge>
-                  )}
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm font-medium">Summary Interval</span>
-                  {editMode ? (
-                    <Select
-                      value={formData.work_summary_interval || "daily"}
-                      onValueChange={(value) => handleChange("work_summary_interval", value)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className="bg-yellow-100 text-yellow-800">
-                      <Calendar className="w-3 h-3 mr-1" />
-                      {formData.work_summary_interval || "daily"}
-                    </Badge>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label>Longitude</Label>
+                <Input value={formData.longitude} onChange={(e) => handleInputChange("longitude", e.target.value)} />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* System Settings */}
-          <Card className="border-0 shadow-sm bg-card">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                  <Settings className="w-4 h-4 text-purple-600" />
-                </div>
-                System Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Admin Rights</span>
-                  </div>
-                  {editMode ? (
-                    <Select
-                      value={formData.is_admin ? "true" : "false"}
-                      onValueChange={(value) => handleChange("is_admin", value === "true")}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="true">Enabled</SelectItem>
-                        <SelectItem value="false">Disabled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={formData.is_admin ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-muted text-muted-foreground"}>
-                      {formData.is_admin ? "Enabled" : "Disabled"}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Punch Mode</span>
-                  </div>
-                  {editMode ? (
-                    <Select
-                      value={formData.punch_mode || "s"}
-                      onValueChange={(value) => handleChange("punch_mode", value)}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="s">Single (s)</SelectItem>
-                        <SelectItem value="m">Multiple (m)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-                      {getPunchModeLabel(formData.punch_mode)} ({formData.punch_mode})
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Fix Punches Button Section - Now using the separate component */}
-                <Separator />
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-muted-foreground" />
-                    <div>
-                      <span className="text-sm font-medium">Fix Punch Issues</span>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Automatically detect and fix inconsistent punches
-                      </p>
-                    </div>
-                  </div>
-                  <FixPunch 
-                    companyId={company.id} 
-                    disabled={editMode}
-                    onComplete={(result) => {
-                      setFixPunchResult(result)
-                      setShowFixResult(true)
-                      
-                      // Auto-hide after 5 seconds
-                      setTimeout(() => {
-                        setShowFixResult(false)
-                      }, 5000)
-                    }}
-                  />
-                      {/* Show result indicator */}
-                  {showFixResult && fixPunchResult && (
-                    <div className={`text-xs px-2 py-1 rounded ${
-                      fixPunchResult.success 
-                        ? 'bg-green-100 text-green-800 border border-green-200' 
-                        : 'bg-red-100 text-red-800 border border-red-200'
-                    }`}>
-                      {fixPunchResult.success ? (
-                        <span>✓ Fixed {fixPunchResult.fixed || 0} punches</span>
-                      ) : (
-                        <span>✗ Failed: {fixPunchResult.message}</span>
-                      )}
-                    </div>
-                  )}
-            
-                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label>Radius (km)</Label>
+                <Input type="number" value={formData.perimeter} onChange={(e) => handleInputChange("perimeter", e.target.value)} />
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Notification Overrides */}
-          <Card className="border-0 shadow-sm bg-card lg:col-span-3">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-green-600" />
-                </div>
-                Notification 
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* SMS Override */}
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <Label htmlFor="sms-override" className="text-base font-medium">
-                        Force Enable SMS
-                      </Label>
-                    </div>
-                  </div>
-                  {editMode ? (
-                    <Switch
-                      id="sms-override"
-                      checked={formData.force_enable_sms || false}
-                      onCheckedChange={(checked) => handleChange("force_enable_sms", checked)}
-                    />
-                  ) : (
-                    <Badge className={formData.force_enable_sms ? "bg-green-500 hover:bg-green-600 text-white" : "bg-muted text-muted-foreground"}>
-                      {formData.force_enable_sms ? "Enabled" : "Disabled"}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* WhatsApp Override */}
-                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                      <MessageSquare className="w-5 h-5 text-green-600" />
-                    </div>
-                    <div>
-                      <Label htmlFor="whatsapp-override" className="text-base font-medium">
-                        Force Enable WhatsApp
-                      </Label>
-                    </div>
-                  </div>
-                  {editMode ? (
-                    <Switch
-                      id="whatsapp-override"
-                      checked={formData.force_enable_whatsapp || false}
-                      onCheckedChange={(checked) => handleChange("force_enable_whatsapp", checked)}
-                    />
-                  ) : (
-                    <Badge className={formData.force_enable_whatsapp ? "bg-green-500 hover:bg-green-600 text-white" : "bg-muted text-muted-foreground"}>
-                      {formData.force_enable_whatsapp ? "Enabled" : "Disabled"}
-                    </Badge>
-                  )}
-                </div>
+              <div className="space-y-2">
+                <Label>Travel Threshold (km/h)</Label>
+                <Input type="number" value={formData.travel_speed_threshold} onChange={(e) => handleInputChange("travel_speed_threshold", e.target.value)} />
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. System Styles Dialog */}
+      <Dialog open={editingSection === "system"} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">System Preferences</DialogTitle>
+            <DialogDescription>Configure working hours and summary intervals</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 py-4">
+            <div className="space-y-2">
+              <Label>Company Display Name</Label>
+              <Input value={formData.company_name} onChange={(e) => handleInputChange("company_name", e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div className="space-y-2">
+                <Label>Daily Working Hours</Label>
+                <Input type="number" value={formData.daily_working_hours} onChange={(e) => handleInputChange("daily_working_hours", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Summary Interval</Label>
+                <Select value={formData.work_summary_interval} onValueChange={(val) => handleInputChange("work_summary_interval", val)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="W">Weekly</SelectItem>
+                    <SelectItem value="M">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Punching Mode</Label>
+              <Select value={formData.punch_mode} onValueChange={(val) => handleInputChange("punch_mode", val)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="S">Single Entry (Fastest)</SelectItem>
+                  <SelectItem value="M">Multiple Entries (Detailed)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>Save Preferences</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Communication Policy Dialog */}
+      <Dialog open={editingSection === "policy"} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Communication Policy</DialogTitle>
+            <DialogDescription>Enforce organization-wide messaging rules</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+               <div>
+                 <Label>SMS Service</Label>
+                 <p className="text-[10px] text-gray-500">Enable overall SMS capabilities</p>
+               </div>
+               <Switch checked={formData.enable_sms} onCheckedChange={(val) => handleInputChange("enable_sms", val)} />
+             </div>
+             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+               <div>
+                 <Label>WhatsApp Service</Label>
+                 <p className="text-[10px] text-gray-500">Enable overall WhatsApp messaging</p>
+               </div>
+               <Switch checked={formData.enable_whatsapp} onCheckedChange={(val) => handleInputChange("enable_whatsapp", val)} />
+             </div>
              
-        {/* Fix Punch Results Notification - ADD THIS HERE */}
-        {showFixResult && fixPunchResult && (
-          <div className={`mt-6 p-4 rounded-lg border ${
-            fixPunchResult.success 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {fixPunchResult.success ? (
-                  <CheckCircle className="w-5 h-5 text-green-600" />
-                ) : (
-                  <XCircle className="w-5 h-5 text-red-600" />
-                )}
-                <div>
-                  <h4 className="font-medium">
-                    {fixPunchResult.success ? 'Punch Fix Completed' : 'Punch Fix Failed'}
-                  </h4>
-                  <p className="text-sm text-muted-foreground">
-                    {fixPunchResult.success 
-                      ? `Successfully fixed ${fixPunchResult.fixed || 0} punch records`
-                      : fixPunchResult.message || 'Unknown error occurred'
-                    }
-                  </p>
+             <Separator />
+
+             <div className="space-y-3">
+               <h4 className="text-xs font-bold uppercase text-gray-400 tracking-wider">Strict Enforcement</h4>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
+                  <div className="space-y-0.5">
+                    <Label className="text-blue-900">Force Strict SMS</Label>
+                    <p className="text-[10px] text-blue-600">Override user individual preferences</p>
+                  </div>
+                  <Switch checked={formData.strict_sms} onCheckedChange={(val) => handleInputChange("strict_sms", val)} />
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFixResult(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
+                  <div className="space-y-0.5">
+                    <Label className="text-blue-900">Force Strict WhatsApp</Label>
+                    <p className="text-[10px] text-blue-600">Always send WhatsApp alerts</p>
+                  </div>
+                  <Switch checked={formData.strict_whatsapp} onCheckedChange={(val) => handleInputChange("strict_whatsapp", val)} />
+                </div>
+             </div>
+
+             <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
+               <div className="space-y-0.5">
+                 <Label className="text-red-900">Service Master Kill-Switch</Label>
+                 <p className="text-[10px] text-red-600">Instantly stop all outgoing communications</p>
+               </div>
+               <Switch checked={formData.soft_disable} onCheckedChange={(val) => handleInputChange("soft_disable", val)} />
+             </div>
           </div>
-        )}
-      </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>Update Policy</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

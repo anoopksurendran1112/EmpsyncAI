@@ -76,28 +76,131 @@ def create_all_view(request):
 
 
 @extend_schema(request=CompanySerializer,responses=CompanySerializer(many=True))
-@api_view(['GET','PUT'])
-@permission_classes([AllowAny])
-def getCompany(request=CompanySerializer):
-    data = request.data.copy()
-    if request.method == 'PUT':
-        admin_status = request.user.admin
-        companId = request.data.get('companyId')
-        company = Company.objects.get(id=companId)
-        data = request.data.copy()
-        serializer = CompanySerializer(company,data=data,partial=True)
-        if 'prof_img' in request.FILES:
-            data['company_img'] = request.FILES['company_img']
+@api_view(['POST'])
+def addCompany(request=CompanySerializer):
+    if request.method == 'POST':
+        admin_status = getattr(request.user, 'is_superuser', False)
+        print(request.user)
+        print(admin_status)
+        
+        if not admin_status:
+            return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'message': 'You are not a super user'
+            })
 
-        if admin_status:
-            if serializer.is_valid():
-                serializer.save()
-                return Response({
-                    'success':True,
-                    'message':'Updated successfully',
-                    'status':status.HTTP_200_OK,
-                    'data':serializer.data
-                })
+        data = request.data.copy()
+        company_name = data.get('company_name', '').strip()
+
+        # Custom validation
+        if not company_name:
+            return Response({
+                'success': False,
+                'message': 'Company name is required',
+                'status': status.HTTP_400_BAD_REQUEST
+            })
+            
+        if Company.objects.filter(company_name__iexact=company_name).exists():
+            return Response({
+                'success': False,
+                'message': 'A company with this name already exists',
+                'status': status.HTTP_400_BAD_REQUEST
+            })
+        
+        # Fixing file mapping bug
+        if 'prof_img' in request.FILES:
+            data['company_img'] = request.FILES['prof_img']
+        elif 'company_img' in request.FILES:
+            data['company_img'] = request.FILES['company_img']
+            
+        serializer = CompanySerializer(data=data, context={'user': request.user})
+
+        if serializer.is_valid():
+            company = serializer.save()
+            
+            # Make the user a CompanyUser with admin rights for the newly created company
+            CompanyUser.objects.create(user=request.user, company=company, is_admin=True)
+            
+            # If CustomUser has a direct company M2M field
+            if hasattr(request.user, 'company'):
+                request.user.company.add(company)
+                
+            return Response({
+                'success': True,
+                'message': 'Company added successfully',
+                'status': status.HTTP_200_OK,
+                'data': serializer.data
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'status': status.HTTP_400_BAD_REQUEST,
+                'errors': serializer.errors
+            })
+    
+
+@extend_schema(request=CompanySerializer, responses=CompanySerializer(many=True))
+@api_view(['GET', 'PUT'])
+@permission_classes([AllowAny])
+def getCompany(request):
+    if request.method == 'PUT':
+        company_id = request.data.get('companyId')
+        if not company_id:
+            return Response({
+                'success': False,
+                'message': 'companyId is required',
+                'status': status.HTTP_400_BAD_REQUEST
+            })
+
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Company not found',
+                'status': status.HTTP_404_NOT_FOUND
+            })
+
+        # Check if user is an admin of THIS company or is a superuser
+        is_admin = False
+        is_superuser = False
+        if request.user and request.user.is_authenticated:
+            is_admin = CompanyUser.objects.filter(user=request.user, company=company, is_admin=True).exists()
+            is_superuser = getattr(request.user, 'is_superuser', False)
+
+        if not (is_admin or is_superuser):
+            return Response({
+                'success': False,
+                'message': 'Unauthorized. Admin privileges required for this company.',
+                'status': status.HTTP_403_FORBIDDEN
+            })
+
+        data = request.data.copy()
+        
+        # Fixing file mapping bug: frontend sends 'company_img'
+        if 'company_img' in request.FILES:
+            data['company_img'] = request.FILES['company_img']
+        elif 'prof_img' in request.FILES: # Fallback if someone uses 'prof_img'
+            data['company_img'] = request.FILES['prof_img']
+
+        serializer = CompanySerializer(company, data=data, partial=True, context={'user': request.user})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Updated successfully',
+                'status': status.HTTP_200_OK,
+                'data': serializer.data
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'status': status.HTTP_400_BAD_REQUEST,
+                'errors': serializer.errors
+            })
 
     elif request.method == 'GET':
         companies = Company.objects.all()
@@ -204,48 +307,6 @@ def device(request):
             })
 
 
-@extend_schema(request=CompanySerializer,responses=CompanySerializer(many=True))
-@api_view(['POST'])
-def addCompany(request=CompanySerializer):
-    data = request.data.copy()
-   
-    serializer = CompanySerializer(data = request.data)
-    if request.method == 'POST':
-        admin_status = request.user.super_user
-        if 'prof_img' in request.FILES:
-            data['company_img'] = request.FILES['company_img']
-
-        if admin_status:
-            if serializer.is_valid():
-                serializer.save()
-                return Response({
-                    'success':True,
-                    'message':'company added successfully',
-                    'status':status.HTTP_200_OK,
-                    'data':serializer.data
-                })
-    if request.method == 'GET':
-
-        companies = Company.objects.all()
-        serializer = CompanySerializer(companies,many=True)
-
-      
-
-
-        return Response({
-            'status': status.HTTP_200_OK,
-            'success': True,
-            'data': serializer.data
-            
-        })
-
-        
-    else:
-        return Response({
-            'status': status.HTTP_403_FORBIDDEN,
-            'message': 'Your are not a super user'
-        },)
-    
 
 @api_view(['GET','DELETE','PUT'])
 @permission_classes([AllowAny])

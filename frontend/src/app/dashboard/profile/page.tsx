@@ -128,6 +128,7 @@ export default function ProfilePage() {
         gender: editedUser.gender,
         group: editedUser.group,
         is_whatsapp: editedUser.is_whatsapp,
+        is_sms: editedUser.is_sms,
         is_wfh: editedUser.is_wfh,
         is_active: editedUser.is_active,
         role_id: editedUser.role_id,
@@ -272,7 +273,7 @@ export default function ProfilePage() {
             </div>
             
             <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
-               <div className="flex items-center gap-2">
+               {/* <div className="flex items-center gap-2">
                  <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                    <Activity className="h-4 w-4" />
                  </div>
@@ -281,7 +282,7 @@ export default function ProfilePage() {
                    <p className="text-sm font-semibold text-gray-700">Today, 09:45 AM</p>
                  </div>
                </div>
-               <div className="flex items-center gap-2">
+               {/* <div className="flex items-center gap-2">
                  <div className="h-8 w-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
                    <Clock className="h-4 w-4" />
                  </div>
@@ -289,7 +290,7 @@ export default function ProfilePage() {
                    <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Member Since</p>
                    <p className="text-sm font-semibold text-gray-700">Jan 2024</p>
                  </div>
-               </div>
+               </div> */}
             </div>
           </div>
         </div>
