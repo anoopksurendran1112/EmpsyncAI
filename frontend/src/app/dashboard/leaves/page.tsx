@@ -107,7 +107,7 @@ interface ActiveEmployee {
 }
 
 export default function LeavesPage() {
-  const { company } = useAuth();
+  const { company, isAdmin } = useAuth();
   const companyId = company?.id;
 
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
@@ -786,7 +786,11 @@ export default function LeavesPage() {
       <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Leaves Taken</h3>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+              {viewMode === "user" 
+              ? "Leaves Taken" 
+              : "Leaves Approved"}
+            </h3>
             <p className="text-3xl font-bold text-blue-600">{leaveStats.leavesTaken}</p>
           </div>
           <div className="p-3 bg-blue-100 rounded-full">
@@ -816,7 +820,11 @@ export default function LeavesPage() {
 
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Pending</h3>
+            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+              {viewMode === "user" 
+              ? "Pending" 
+              : "Pending Approvals"}
+            </h3>
             <p className="text-3xl font-bold text-amber-600">{leaveStats.pendingRequests}</p>
           </div>
           <div className="p-3 bg-amber-100 rounded-full">
@@ -834,6 +842,7 @@ export default function LeavesPage() {
               Recent Leave History
             </h1>
             <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
+              {isAdmin && (
               <Button 
                 variant="outline" 
                 className="border-gray-200 hover:bg-gray-50 bg-white shadow-sm"
@@ -851,6 +860,7 @@ export default function LeavesPage() {
                   </>
                 )}
               </Button>
+              )}
             </div>
           </div>
 
