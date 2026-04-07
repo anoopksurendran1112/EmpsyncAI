@@ -1,56 +1,50 @@
-from django.shortcuts import render
-from django.db import connections
-from rest_framework.decorators import api_view,permission_classes
-from rest_framework import status
-from rest_framework.response import Response
-from django.utils import timezone
-from rest_framework.permissions import AllowAny
-from .serializer import UserSerializer,LoginSerializer,GetUserSerializer,OTPResetSerializer
-from company.serializer import CompanySerializer
-from company import models as c
-from drf_spectacular.utils import extend_schema,extend_schema_field
-from .models import CustomUser
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.core.exceptions import ObjectDoesNotExist
-from django.core.paginator import Paginator
-from datetime import date,timedelta
-from company.models import CompanyGroup, CompanyUser, Device,Company
-from punch.models import PunchRecords
-import random
-from django.core.validators import validate_email
-from django.core.exceptions import ValidationError
-import requests
-from django.http import HttpResponse
-from notification.models import FcmToken
-from django.contrib.auth import logout as django_logout
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.core.mail import send_mail
-from django.core.cache import cache  # You can also use a model if you prefer
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.contrib.auth import get_user_model
-from collections import defaultdict
-from django.db.models import Q, F, Value
-from django.db.models.functions import Coalesce
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.exceptions import AuthenticationFailed
-from datetime import datetime, timedelta
-from django.conf import settings
+# 1. Standard Library Imports
 import jwt
-from punch.utils.deduplication import deduplicate_punches
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from django.conf import settings
+import random
 import logging
-from .models import Religion, Caste
-from .serializer import ReligionSerializer, CasteSerializer
+import requests
+from collections import defaultdict
+from datetime import date, datetime, timedelta
+
+# 2. Django Core Imports
+from django.conf import settings
+from django.utils import timezone
+from django.shortcuts import render
+from django.core.cache import cache
+from django.contrib import messages
+from django.http import HttpResponse
+from django.core.mail import send_mail
+from django.db.models import Q, F, Value
+from django.core.paginator import Paginator
+from django.db import connections, transaction
+from django.db.models.functions import Coalesce
+from django.core.validators import validate_email
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.contrib.auth import get_user_model, logout as django_logout
+
+# 3. Third-Party Framework Imports (REST Framework & JWT)
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.decorators import api_view, permission_classes
+from drf_spectacular.utils import extend_schema, extend_schema_field
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+
+# 4. Local App & Model Imports
+from company import models as c
+from punch.models import PunchRecords
+from notification.models import FcmToken
+from company.serializer import CompanySerializer
+from punch.utils.deduplication import deduplicate_punches
+from company.models import CompanyGroup, CompanyUser, Device, Company
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress
+from .serializer import (
+    UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
+    ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -2641,208 +2635,159 @@ def manageCaste(request):
                 'message': 'Caste not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
-# @api_view(['GET', 'POST', 'PUT', 'DELETE'])
-# def manageEmployeeProfile(request):
-#     from django.db import transaction
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manageEmployeeProfile(request):
     
-#     if request.method == 'GET':
-#         employee_id = request.query_params.get('employee_id')
+    if request.method == 'GET':
+        employee_id = request.query_params.get('employee_id')
         
-#         if not employee_id:
-#             return Response({
-#                 'success': False,
-#                 'message': 'employee_id is required'
-#             }, status=status.HTTP_400_BAD_REQUEST)
-#         try:
-#             # Optimize GET with select_related for linked addresses
-#             employee = EmployeeProfile.objects.select_related('present_address', 'permanent_address', 'religion', 'caste').get(user__id=employee_id)
-#         except EmployeeProfile.DoesNotExist:
-#             return Response({
-#                 'success': False,
-#                 'message': 'Employee not found'
-#             }, status=status.HTTP_404_NOT_FOUND)
-#         serializer = EmployeeProfileSerializer(employee)
-#         return Response({
-#             'success': True,
-#             'data': serializer.data
-#         }, status=status.HTTP_200_OK)
+        if not employee_id:
+            return Response({
+                'success': False,
+                'message': 'employee_id is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            employee = EmployeeProfile.objects.select_related('user','present_address', 'permanent_address', 'religion', 'caste').get(user__id=employee_id)
+        except EmployeeProfile.DoesNotExist:
+            return Response({ 'success': False, 'message': 'Employee not found' }, status=status.HTTP_404_NOT_FOUND)
 
-#     elif request.method == 'POST':
-#         employee_id = request.data.get('employee_id')
+        serializer = EmployeeProfileSerializer(employee)
         
-#         if not employee_id:
-#             return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({ 'success': True, 'data': serializer.data }, status=status.HTTP_200_OK)
 
-#         # Check if they already have a profile
-#         if EmployeeProfile.objects.filter(user__id=employee_id).exists():
-#              return Response({'success': False, 'message': 'Profile already exists for this employee. Use PUT to update.'}, status=status.HTTP_400_BAD_REQUEST)
 
-#         try:
-#             user_obj = CustomUser.objects.get(id=employee_id)
-#         except CustomUser.DoesNotExist:
-#             return Response({'success': False, 'message': 'Employee user not found'}, status=status.HTTP_404_NOT_FOUND)
+    elif request.method == 'POST':
+        try:
 
-#         dob = request.data.get('dob')
-#         if not dob:
-#              return Response({'success': False, 'message': 'dob is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-#         with transaction.atomic():
-#             # 1. Create Addresses First
-#             present_address_data = request.data.get('present_address')
-#             permanent_address_data = request.data.get('permanent_address')
+            employee_id = request.data.get('employee_id')
             
-#             present_addr_obj = None
-#             if present_address_data:
-#                 addr_serializer = EmployeeAddressSerializer(data=present_address_data)
-#                 if addr_serializer.is_valid():
-#                     present_addr_obj = addr_serializer.save()
-#                 else:
-#                     return Response({'success': False, 'message': 'Invalid present address', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            if not employee_id:
+                return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             permanent_addr_obj = None
-#             if permanent_address_data:
-#                 addr_serializer = EmployeeAddressSerializer(data=permanent_address_data)
-#                 if addr_serializer.is_valid():
-#                     permanent_addr_obj = addr_serializer.save()
-#                 else:
-#                     return Response({'success': False, 'message': 'Invalid permanent address', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            if EmployeeProfile.objects.filter(user__id=employee_id).exists():
+                return Response({'success': False, 'message': 'Profile already exists for this employee. Use PUT to update.'}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # 2. Extract foreign keys mapping properly
-#             religion_id = request.data.get('religion_id') or request.data.get('religion')
-#             caste_id = request.data.get('caste_id') or request.data.get('caste')
-#             staff_type_id = request.data.get('staff_type_id') or request.data.get('staff_type')
-#             staff_category_id = request.data.get('staff_category_id') or request.data.get('staff_category')
+            try:
+                user_obj = CustomUser.objects.get(id=employee_id)
+            except CustomUser.DoesNotExist:
+                return Response({'success': False, 'message': 'Employee user not found'}, status=status.HTTP_404_NOT_FOUND)
 
-#             # 3. Create the EmployeeProfile attached to the user and new addresses
-#             profile = EmployeeProfile(
-#                 user=user_obj,
-#                 dob=dob,
-#                 guardian_name=request.data.get('guardian_name'),
-#                 guardian_phone=request.data.get('guardian_phone'),
-#                 religion_id=religion_id,
-#                 caste_id=caste_id,
-#                 staff_type_id=staff_type_id,
-#                 staff_category_id=staff_category_id,
-#                 present_address=present_addr_obj,
-#                 permanent_address=permanent_addr_obj,
-#                 ktu_id=request.data.get('ktu_id'),
-#                 aicte_id=request.data.get('aicte_id'),
-#                 pan_no=request.data.get('pan_no'),
-#                 aadhar_no=request.data.get('aadhar_no'),
-#                 blood_group=request.data.get('blood_group'),
-#                 alternate_mobile=request.data.get('alternate_mobile'),
-#                 alternate_email=request.data.get('alternate_email')
-#             )
-            
-#             # Explicitly run clean to ensure religion matches caste before DB hit!
-#             try:
-#                 profile.clean()
-#             except ValidationError as e:
-#                 return Response({'success': False, 'errors': e.message_dict}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                # 1. Handle Addresses using serializers
+                def save_address(address_data, label):
+                    if not address_data:
+                        return None
+                    serializer = EmployeeAddressSerializer(data=address_data)
+                    if serializer.is_valid():
+                        return serializer.save()
+                    raise ValueError(f"Invalid {label}: {serializer.errors}")
+
+                try:
+                    present_addr_obj = save_address(request.data.get('present_address'), "present address")
+                    permanent_addr_obj = save_address(request.data.get('permanent_address'), "permanent address")
+                except ValueError as e:
+                    return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
                 
-#             profile.save()
+                # 2. Extract foreign keys mapping properly
+                profile_data = request.data.copy()
+                profile_data['user'] = user_obj.id
+                profile_data['present_address'] = present_addr_obj.id if present_addr_obj else None
+                profile_data['permanent_address'] = permanent_addr_obj.id if permanent_addr_obj else None
 
-#             serializer = EmployeeProfileSerializer(profile)
-#             return Response({
-#                 'success': True,
-#                 'message': 'Profile created successfully',
-#                 'data': serializer.data
-#             }, status=status.HTTP_201_CREATED)
+                profile_data['religion'] = request.data.get('religion_id')
+                profile_data['caste'] = request.data.get('caste_id')
+                profile_data['staff_type'] = request.data.get('staff_type_id')
+                profile_data['staff_category'] = request.data.get('staff_category_id')
 
-#     elif request.method == 'PUT':
-#         employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
+                serializer = EmployeeProfileSerializer(data=profile_data)
+
+                if serializer.is_valid():
+                    profile = serializer.save()
+                    return Response({ 'success': True, 'message': 'Profile created successfully', 'data': serializer.data }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({ 'success': False, 'message': 'Profile validation failed', 'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'Internal Server Error',
+                'debug_error': str(e)  # This will tell you EXACTLY what failed
+            }, status=500)
+    
+    elif request.method == 'PUT':
+        employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
         
-#         if not employee_id:
-#              return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not employee_id:
+             return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-#         try:
-#             profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
-#         except EmployeeProfile.DoesNotExist:
-#             return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
+        except EmployeeProfile.DoesNotExist:
+            return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
-#         with transaction.atomic():
-#             # 1. Update Addresses if provided
-#             present_address_data = request.data.get('present_address')
-#             if present_address_data:
-#                 if profile.present_address:
-#                     addr_serializer = EmployeeAddressSerializer(profile.present_address, data=present_address_data, partial=True)
-#                     if addr_serializer.is_valid():
-#                         addr_serializer.save()
-#                     else:
-#                         return Response({'success': False, 'message': 'Invalid present address updates', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-#                 else:
-#                     addr_serializer = EmployeeAddressSerializer(data=present_address_data)
-#                     if addr_serializer.is_valid():
-#                         profile.present_address = addr_serializer.save()
-#                     else:
-#                         return Response({'success': False, 'message': 'Invalid present address creation', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-                        
-#             permanent_address_data = request.data.get('permanent_address')
-#             if permanent_address_data:
-#                 if profile.permanent_address:
-#                     addr_serializer = EmployeeAddressSerializer(profile.permanent_address, data=permanent_address_data, partial=True)
-#                     if addr_serializer.is_valid():
-#                         addr_serializer.save()
-#                     else:
-#                         return Response({'success': False, 'message': 'Invalid permanent address updates', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-#                 else:
-#                     addr_serializer = EmployeeAddressSerializer(data=permanent_address_data)
-#                     if addr_serializer.is_valid():
-#                         profile.permanent_address = addr_serializer.save()
-#                     else:
-#                         return Response({'success': False, 'message': 'Invalid permanent address creation', 'errors': addr_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-
-#             # 2. Update all other simple fields explicitly mapping keys
-#             update_data = request.data.copy()
-#             # Pop off addresses so our Profile Serializer doesn't accidentally try to parse them
-#             update_data.pop('present_address', None)
-#             update_data.pop('permanent_address', None)
-            
-#             if 'religion_id' in update_data: update_data['religion'] = update_data.pop('religion_id')
-#             if 'caste_id' in update_data: update_data['caste'] = update_data.pop('caste_id')
-#             if 'staff_type_id' in update_data: update_data['staff_type'] = update_data.pop('staff_type_id')
-#             if 'staff_category_id' in update_data: update_data['staff_category'] = update_data.pop('staff_category_id')
-
-#             serializer = EmployeeProfileSerializer(profile, data=update_data, partial=True)
-#             if serializer.is_valid():
-#                 serializer.save()
-#                 return Response({
-#                     'success': True,
-#                     'message': 'Profile updated successfully',
-#                     'data': serializer.data
-#                 }, status=status.HTTP_200_OK)
+        with transaction.atomic():
+            def process_address(field_name, address_data):
+                existing_addr = getattr(profile, field_name)
+                if existing_addr:
+                    addr_serializer = EmployeeAddressSerializer(existing_addr, data=address_data, partial=True)
+                else:
+                    addr_serializer = EmployeeAddressSerializer(data=address_data)
                 
-#             return Response({
-#                 'success': False, 
-#                 'message': 'Profile update failed',
-#                 'errors': serializer.errors
-#             }, status=status.HTTP_400_BAD_REQUEST)
+                if addr_serializer.is_valid():
+                    obj = addr_serializer.save()
+                    if not existing_addr:
+                        setattr(profile, field_name, obj)
+                else:
+                    raise ValueError(f"Invalid {field_name.replace('_', ' ')}: {addr_serializer.errors}")
 
-#     elif request.method == 'DELETE':
-#         employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
-#         if not employee_id:
-#              return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                if request.data.get('present_address'):
+                    process_address('present_address', request.data.get('present_address'))
+                if request.data.get('permanent_address'):
+                    process_address('permanent_address', request.data.get('permanent_address'))
+            except ValueError as e:
+                return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+            update_data = request.data.copy()
+            update_data.pop('present_address', None)
+            update_data.pop('permanent_address', None)
+            
+            id_maps = {
+                'religion_id': 'religion',
+                'caste_id': 'caste',
+                'staff_type_id': 'staff_type',
+                'staff_category_id': 'staff_category'
+            }
+            for old_key, new_key in id_maps.items():
+                if old_key in update_data:
+                    update_data[new_key] = update_data.pop(old_key)
+
+            serializer = EmployeeProfileSerializer(profile, data=update_data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({ 'success': True, 'message': 'Profile updated successfully', 'data': serializer.data }, status=status.HTTP_200_OK)
+            
+            return Response({ 'success': False, 'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+
+    
+    elif request.method == 'DELETE':
+        employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
+        
+        if not employee_id:
+            return Response({'success': False, 'message': 'employee_id is required'}, status=status.HTTP_400_BAD_REQUEST)
              
-#         try:
-#             profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
-#         except EmployeeProfile.DoesNotExist:
-#             return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            profile = EmployeeProfile.objects.select_related('present_address', 'permanent_address').get(user__id=employee_id)
+        except EmployeeProfile.DoesNotExist:
+            return Response({'success': False, 'message': 'Employee Profile not found'}, status=status.HTTP_404_NOT_FOUND)
             
-#         with transaction.atomic():
-#             # Grab references to linked addresses
-#             present_addr = profile.present_address
-#             permanent_addr = profile.permanent_address
-            
-#             # Delete Profile
-#             profile.delete()
-            
-#             # Cleanup Orphan Addresses securely (avoids deleting the exact same object twice if Present == Permanent)
-#             if present_addr: 
-#                 present_addr.delete()
-#             if permanent_addr and permanent_addr.id != (present_addr.id if present_addr else None): 
-#                 permanent_addr.delete()
+        with transaction.atomic():
+            addrs_to_delete = filter(None, [profile.present_address, profile.permanent_address])
+            unique_addr_ids = {addr.id for addr in addrs_to_delete}
+            profile.delete()
+            EmployeeAddress.objects.filter(id__in=unique_addr_ids).delete()
                 
-#         return Response({
-#             'success': True,
-#             'message': 'Profile and associated addresses deleted successfully'
-#         }, status=status.HTTP_200_OK)
+        return Response({ 'success': True, 'message': 'Profile and unique associated addresses deleted successfully' }, status=status.HTTP_200_OK)
+
