@@ -1,3 +1,5 @@
+//frontend/src/app/dashboard/settings/add_employees/page.tsx
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -6,10 +8,39 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch"; // Add Switch component if not available
-import { Label } from "@/components/ui/label"; // Add Label component if not available
-import { UserPlus, Save, Upload, X, Camera, User, UserMinus } from "lucide-react"; // Changed UserOff to UserMinus
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { UserPlus, Save, Upload, X, Camera, User, UserMinus } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+
+// Type definitions for dropdowns
+interface Role {
+  id: number;
+  role: string;
+  name?: string;
+}
+
+interface Religion {
+  id: number;
+  name: string;
+}
+
+interface Caste {
+  id: number;
+  name: string;
+}
+
+interface StaffType {
+  id: number;
+  type_name?: string;
+  name?: string;
+}
+
+interface StaffCategory {
+  id: number;
+  category_name?: string;
+  name?: string;
+}
 
 export default function AddEmployeePage() {
   const { company } = useAuth();
@@ -17,7 +48,14 @@ export default function AddEmployeePage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
+  // Dropdown states
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [religions, setReligions] = useState<Religion[]>([]);
+  const [castes, setCastes] = useState<Caste[]>([]);
+  const [staffTypes, setStaffTypes] = useState<StaffType[]>([]);
+  const [staffCategories, setStaffCategories] = useState<StaffCategory[]>([]);
+
+  // Basic employee fields
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -31,7 +69,43 @@ export default function AddEmployeePage() {
     is_whatsapp: true,
     is_sms: true,
     is_wfh: true,
-    is_active: true, // Add active status field - default to true
+    is_active: true,
+  });
+
+  // Extended profile fields
+  const [profileData, setProfileData] = useState({
+    dob: "",
+    guardian_name: "",
+    guardian_phone: "",
+    religion_id: "",
+    caste_id: "",
+    staff_type_id: "",
+    staff_category_id: "",
+    ktu_id: "",
+    aicte_id: "",
+    pan_no: "",
+    aadhar_no: "",
+    blood_group: "",
+    alternate_mobile: "",
+    alternate_email: "",
+    present_address: {
+      address_line_1: "",
+      address_line_2: "",
+      city: "",
+      district: "",
+      state: "",
+      country: "",
+      pincode: "",
+    },
+    permanent_address: {
+      address_line_1: "",
+      address_line_2: "",
+      city: "",
+      district: "",
+      state: "",
+      country: "",
+      pincode: "",
+    },
   });
 
   const [profileImage, setProfileImage] = useState<File | null>(null);
@@ -40,48 +114,81 @@ export default function AddEmployeePage() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // 🔄 Fetch roles whenever companyId changes
+  // ---------- Generic fetch function that handles various response shapes ----------
+  const fetchData = async (url: string, setter: (data: any[]) => void, label: string) => {
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      console.log(`${label} raw response:`, text);
+      let json;
+      try { json = JSON.parse(text); } catch { json = []; }
+      
+      let arr: any[] = [];
+      if (Array.isArray(json)) {
+        arr = json;
+      } else if (json && typeof json === 'object') {
+        // Common wrapper keys
+        const possibleKeys = ['data', 'results', 'items', 'staff_types', 'categories', 'types', 'list'];
+        for (const key of possibleKeys) {
+          if (json[key] && Array.isArray(json[key])) {
+            arr = json[key];
+            break;
+          }
+        }
+        // If still empty, take the first array property found
+        if (arr.length === 0) {
+          for (const key in json) {
+            if (Array.isArray(json[key])) {
+              arr = json[key];
+              console.log(`${label} found array under key: ${key}`);
+              break;
+            }
+          }
+        }
+      }
+      console.log(`${label} extracted array:`, arr);
+      setter(arr);
+    } catch (err) {
+      console.error(`${label} error:`, err);
+      setter([]);
+    }
+  };
+
+  // ---------- Fetch roles ----------
   useEffect(() => {
     if (!companyId) return;
-
-    const fetchRoles = async () => {
-      try {
-        const res = await fetch(`/api/settings/roles/${companyId}`);
-        if (!res.ok) throw new Error("Failed to fetch roles");
-        const responseData = await res.json();
-        
-        let rolesArray = [];
-        
-        if (Array.isArray(responseData)) {
-          rolesArray = responseData;
-        } else if (responseData.success && Array.isArray(responseData.data)) {
-          rolesArray = responseData.data;
-        } else if (Array.isArray(responseData.data)) {
-          rolesArray = responseData.data;
-        } else if (responseData.roles) {
-          rolesArray = responseData.roles;
-        }
-        
-        setRoles(rolesArray);
-      } catch (err) {
-        console.error("Error fetching roles:", err);
-        setRoles([]);
-      }
-    };
-
-    fetchRoles();
+    fetchData(`/api/settings/roles/${companyId}`, setRoles, "Roles");
   }, [companyId]);
 
-  // 🔄 Update company_id whenever company changes
+  // ---------- Fetch staff types & categories ----------
+  useEffect(() => {
+    if (!companyId) return;
+    fetchData(`/api/settings/staff_type/${companyId}`, setStaffTypes, "StaffTypes");
+    fetchData(`/api/settings/staff_category/${companyId}`, setStaffCategories, "StaffCategories");
+  }, [companyId]);
+
+  // ---------- Fetch religions ----------
+  useEffect(() => {
+    fetchData(`/api/settings/manage-religion/`, setReligions, "Religions");
+  }, []);
+
+  // ---------- Fetch castes when religion changes ----------
+  useEffect(() => {
+    if (!profileData.religion_id) {
+      setCastes([]);
+      return;
+    }
+    fetchData(`/api/settings/manage-caste/?religion_id=${profileData.religion_id}`, setCastes, "Castes");
+  }, [profileData.religion_id]);
+
+  // Sync company_id when it changes
   useEffect(() => {
     if (companyId) {
-      setFormData(prev => ({
-        ...prev,
-        company_id: companyId
-      }));
+      setFormData(prev => ({ ...prev, company_id: companyId }));
     }
   }, [companyId]);
 
+  // ---------- Validation ----------
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
@@ -92,26 +199,28 @@ export default function AddEmployeePage() {
     if (!formData.gender) newErrors.gender = "Gender is required";
     if (!formData.role_id) newErrors.role_id = "Role is required";
     if (!formData.biometric_id.trim()) newErrors.biometric_id = "Biometric ID is required";
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // ---------- Input handlers ----------
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    
-    const processedValue = (name === 'role_id' || name === 'company_id') ? 
-      (value === '' ? '' : Number(value)) : value;
-    
+    const { name, value } = e.target;
+    const processedValue = (name === 'role_id' || name === 'company_id') ? (value === '' ? '' : Number(value)) : value;
     setFormData({ ...formData, [name]: processedValue });
-    
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+    if (errors[name]) setErrors(prev => { const newErrors = { ...prev }; delete newErrors[name]; return newErrors; });
+  };
+
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setProfileData({ ...profileData, [name]: value });
+  };
+
+  const handleAddressChange = (type: "present_address" | "permanent_address", field: string, value: string) => {
+    setProfileData({
+      ...profileData,
+      [type]: { ...profileData[type], [field]: value },
+    });
   };
 
   const handleSwitchChange = (name: string, checked: boolean) => {
@@ -121,42 +230,30 @@ export default function AddEmployeePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       setMessage("Please select a valid image file (JPEG, PNG, GIF, WebP)");
       return;
     }
-
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       setMessage("Image size should be less than 5MB");
       return;
     }
-
     setProfileImage(file);
-    
-    // Create preview
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
+    reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
   };
 
   const removeImage = () => {
     setProfileImage(null);
     setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
-  };
+  const triggerFileInput = () => fileInputRef.current?.click();
 
+  // ---------- Main submit: employee creation + profile creation ----------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
@@ -168,55 +265,99 @@ export default function AddEmployeePage() {
     setMessage("");
 
     try {
-      // Create FormData for file upload
-      const formDataToSend = new FormData();
-      
-      // Append all form fields
-      Object.entries(formData).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          formDataToSend.append(key, value.toString());
-        }
-      });
-      
-      // Append profile image if exists
-      if (profileImage) {
-        formDataToSend.append('prof_img', profileImage);
+      // Step 1: Create employee (FormData with image)
+      const fd = new FormData();
+      Object.entries(formData).forEach(([key, value]) => fd.append(key, value.toString()));
+      if (profileImage) fd.append('prof_img', profileImage);
+
+      const empRes = await fetch("/api/employees/add_employees", { method: "POST", body: fd });
+      const empData = await empRes.json();
+
+      if (!empRes.ok) {
+        let errorMsg = empData.message || empData.details || "Failed to add employee";
+        if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg);
+        throw new Error(errorMsg);
       }
 
-      console.log("Sending FormData:", Object.fromEntries(formDataToSend.entries()));
+      // Step 2: Extract employee ID (Django signup returns { data: { user: { id } } })
+      let employeeId = empData?.data?.user?.id || empData?.data?.id || empData?.user?.id || empData?.id;
+      if (!employeeId) {
+        console.error("No employee ID in response:", empData);
+        throw new Error("Employee created but ID not returned. Cannot create profile.");
+      }
 
-      const res = await fetch("/api/employees/add_employees", {
+      console.log("Employee created with ID:", employeeId);
+
+      // Step 3: Prepare profile payload (convert IDs to numbers, ensure strings)
+      const profilePayload = {
+        employee_id: Number(employeeId),
+        dob: profileData.dob || null,
+        guardian_name: profileData.guardian_name || "",
+        guardian_phone: profileData.guardian_phone || "",
+        religion_id: profileData.religion_id ? Number(profileData.religion_id) : null,
+        caste_id: profileData.caste_id ? Number(profileData.caste_id) : null,
+        staff_type_id: profileData.staff_type_id ? Number(profileData.staff_type_id) : null,
+        staff_category_id: profileData.staff_category_id ? Number(profileData.staff_category_id) : null,
+        ktu_id: profileData.ktu_id || "",
+        aicte_id: profileData.aicte_id || "",
+        pan_no: profileData.pan_no || "",
+        aadhar_no: profileData.aadhar_no || "",
+        blood_group: profileData.blood_group || "",
+        alternate_mobile: profileData.alternate_mobile || "",
+        alternate_email: profileData.alternate_email || "",
+        present_address: {
+          address_line_1: profileData.present_address.address_line_1 || "",
+          address_line_2: profileData.present_address.address_line_2 || "",
+          city: profileData.present_address.city || "",
+          district: profileData.present_address.district || "",
+          state: profileData.present_address.state || "",
+          country: profileData.present_address.country || "",
+          pincode: profileData.present_address.pincode || "",
+        },
+        permanent_address: {
+          address_line_1: profileData.permanent_address.address_line_1 || "",
+          address_line_2: profileData.permanent_address.address_line_2 || "",
+          city: profileData.permanent_address.city || "",
+          district: profileData.permanent_address.district || "",
+          state: profileData.permanent_address.state || "",
+          country: profileData.permanent_address.country || "",
+          pincode: profileData.permanent_address.pincode || "",
+        },
+      };
+
+      console.log("Sending profile payload:", profilePayload);
+
+      // Step 4: Create employee profile
+      const profileRes = await fetch("/api/employee-profile/", {
         method: "POST",
-        // Don't set Content-Type header for FormData, browser will set it automatically
-        body: formDataToSend,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profilePayload),
       });
 
-      const responseData = await res.json();
-      console.log("Backend response:", responseData);
-
-      if (!res.ok) {
-        if (responseData.message && typeof responseData.message === 'object') {
-          const errorMessages = Object.entries(responseData.message)
-            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
-            .join('; ');
-          throw new Error(errorMessages);
-        } else if (responseData.message) {
-          throw new Error(responseData.message);
-        } else if (responseData.details) {
-          throw new Error(responseData.details);
-        } else {
-          throw new Error(`Failed to add employee: ${res.status}`);
-        }
+      const profileResponseText = await profileRes.text();
+      let profileDataResponse;
+      try {
+        profileDataResponse = JSON.parse(profileResponseText);
+      } catch {
+        profileDataResponse = { raw: profileResponseText };
       }
 
-      // Success case
-      setMessage(responseData.message || "Employee added successfully!");
-      
-      // Invalidate queries
+      if (!profileRes.ok) {
+        console.error("Profile creation failed:", profileDataResponse);
+        let errorDetail = "Failed to create employee profile: ";
+        if (profileDataResponse.message) errorDetail += profileDataResponse.message;
+        else if (profileDataResponse.error) errorDetail += profileDataResponse.error;
+        else if (profileDataResponse.details) errorDetail += JSON.stringify(profileDataResponse.details);
+        else if (profileDataResponse.errors) errorDetail += JSON.stringify(profileDataResponse.errors);
+        else errorDetail += profileResponseText;
+        throw new Error(errorDetail);
+      }
+
+      setMessage("Employee and profile created successfully!");
       queryClient.invalidateQueries({ queryKey: ["employees", companyId] });
       queryClient.invalidateQueries({ queryKey: ["roles", companyId] });
 
-      // Reset form
+      // Reset forms
       setFormData({
         first_name: "",
         last_name: "",
@@ -230,18 +371,55 @@ export default function AddEmployeePage() {
         is_whatsapp: true,
         is_sms: true,
         is_wfh: true,
-        is_active: true, // Reset to active
+        is_active: true,
+      });
+      setProfileData({
+        dob: "",
+        guardian_name: "",
+        guardian_phone: "",
+        religion_id: "",
+        caste_id: "",
+        staff_type_id: "",
+        staff_category_id: "",
+        ktu_id: "",
+        aicte_id: "",
+        pan_no: "",
+        aadhar_no: "",
+        blood_group: "",
+        alternate_mobile: "",
+        alternate_email: "",
+        present_address: {
+          address_line_1: "",
+          address_line_2: "",
+          city: "",
+          district: "",
+          state: "",
+          country: "",
+          pincode: "",
+        },
+        permanent_address: {
+          address_line_1: "",
+          address_line_2: "",
+          city: "",
+          district: "",
+          state: "",
+          country: "",
+          pincode: "",
+        },
       });
       removeImage();
       setErrors({});
-
     } catch (error: any) {
-      console.error("Error adding employee:", error);
+      console.error("Error:", error);
       setMessage(error.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
     }
   };
+
+  // Helper to get display name for staff type (prefer type_name, fallback to name)
+  const getStaffTypeName = (item: StaffType) => item.type_name || item.name || "";
+  const getStaffCategoryName = (item: StaffCategory) => item.category_name || item.name || "";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/5">
@@ -257,33 +435,23 @@ export default function AddEmployeePage() {
           <Card>
             <CardHeader>
               {message && (
-                <div
-                  className={`p-3 rounded-md ${
-                    message.includes("successfully") || message.includes("Signup success") 
-                      ? "bg-green-100 text-green-700" 
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
+                <div className={`p-3 rounded-md ${message.includes("successfully") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
                   {message}
                 </div>
               )}
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Profile Image Upload Section */}
+              {/* Profile Image Upload */}
               <div className="flex flex-col items-center space-y-4">
                 <div className="relative">
-                  <div 
+                  <div
                     className="w-32 h-32 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 overflow-hidden bg-gray-50 dark:bg-gray-800"
                     onClick={triggerFileInput}
                   >
                     {imagePreview ? (
                       <div className="relative w-full h-full group">
-                        <img 
-                          src={imagePreview} 
-                          alt="Profile preview" 
-                          className="w-full h-full rounded-full object-cover"
-                        />
+                        <img src={imagePreview} alt="Profile preview" className="w-full h-full rounded-full object-cover" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-full flex items-center justify-center">
                           <Camera className="h-6 w-6 text-white" />
                         </div>
@@ -309,72 +477,36 @@ export default function AddEmployeePage() {
                     )}
                   </div>
                 </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageChange}
-                  accept="image/*"
-                  className="hidden"
-                />
+                <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
                 <div className="text-center">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Supported: JPG, PNG, GIF, WebP
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    Max size: 5MB
-                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Supported: JPG, PNG, GIF, WebP</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Max size: 5MB</p>
                 </div>
               </div>
 
               <Separator />
 
-              {/* Personal Info */}
+              {/* Basic Info */}
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Input 
-                      name="first_name" 
-                      value={formData.first_name} 
-                      onChange={handleChange} 
-                      placeholder="First Name *" 
-                    />
+                    <Input name="first_name" value={formData.first_name} onChange={handleChange} placeholder="First Name *" />
                     {errors.first_name && <p className="text-red-500 text-xs mt-1">{errors.first_name}</p>}
                   </div>
                   <div>
-                    <Input 
-                      name="last_name" 
-                      value={formData.last_name} 
-                      onChange={handleChange} 
-                      placeholder="Last Name *" 
-                    />
+                    <Input name="last_name" value={formData.last_name} onChange={handleChange} placeholder="Last Name *" />
                     {errors.last_name && <p className="text-red-500 text-xs mt-1">{errors.last_name}</p>}
                   </div>
                   <div>
-                    <Input 
-                      type="email" 
-                      name="email" 
-                      value={formData.email} 
-                      onChange={handleChange} 
-                      placeholder="Email *" 
-                    />
+                    <Input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email *" />
                     {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                   </div>
                   <div>
-                    <Input 
-                      name="mobile" 
-                      value={formData.mobile} 
-                      onChange={handleChange} 
-                      placeholder="Mobile *" 
-                    />
+                    <Input name="mobile" value={formData.mobile} onChange={handleChange} placeholder="Mobile *" />
                     {errors.mobile && <p className="text-red-500 text-xs mt-1">{errors.mobile}</p>}
                   </div>
                   <div>
-                    <select 
-                      name="gender" 
-                      value={formData.gender} 
-                      onChange={handleChange} 
-                      className="w-full p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
+                    <select name="gender" value={formData.gender} onChange={handleChange} className="w-full p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary">
                       <option value="">Select Gender *</option>
                       <option value="M">Male</option>
                       <option value="F">Female</option>
@@ -383,12 +515,7 @@ export default function AddEmployeePage() {
                     {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
                   </div>
                   <div>
-                    <Input 
-                      name="biometric_id" 
-                      value={formData.biometric_id} 
-                      onChange={handleChange} 
-                      placeholder="Biometric ID *" 
-                    />
+                    <Input name="biometric_id" value={formData.biometric_id} onChange={handleChange} placeholder="Biometric ID *" />
                     {errors.biometric_id && <p className="text-red-500 text-xs mt-1">{errors.biometric_id}</p>}
                   </div>
                 </div>
@@ -398,116 +525,112 @@ export default function AddEmployeePage() {
                 {/* Role Dropdown */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Role *</label>
-                  <select
-                    name="role_id"
-                    value={formData.role_id}
-                    onChange={handleChange}
-                    className="w-full p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
+                  <select name="role_id" value={formData.role_id} onChange={handleChange} className="w-full p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary">
                     <option value="">Select Role</option>
-                    {roles.length > 0 ? (
-                      roles.map((role: any) => (
-                        <option key={role.id} value={role.id}>
-                          {role.role || role.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>
-                        {companyId ? "Loading roles..." : "Select a company first"}
-                      </option>
-                    )}
+                    {roles.map(role => (
+                      <option key={role.id} value={role.id}>{role.role || role.name}</option>
+                    ))}
                   </select>
                   {errors.role_id && <p className="text-red-500 text-xs mt-1">{errors.role_id}</p>}
+                </div>
+
+                <Separator />
+
+                {/* Extended Profile Fields */}
+                <div>
+                  <h3 className="font-semibold text-lg mb-4">Additional Profile Information (Optional)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input type="date" name="dob" value={profileData.dob} onChange={handleProfileChange} placeholder="Date of Birth" />
+                    <Input name="guardian_name" value={profileData.guardian_name} onChange={handleProfileChange} placeholder="Guardian Name" />
+                    <Input name="guardian_phone" value={profileData.guardian_phone} onChange={handleProfileChange} placeholder="Guardian Phone" />
+                    <Input name="blood_group" value={profileData.blood_group} onChange={handleProfileChange} placeholder="Blood Group" />
+                    <Input name="alternate_mobile" value={profileData.alternate_mobile} onChange={handleProfileChange} placeholder="Alternate Mobile" />
+                    <Input name="alternate_email" value={profileData.alternate_email} onChange={handleProfileChange} placeholder="Alternate Email" />
+                    <Input name="pan_no" value={profileData.pan_no} onChange={handleProfileChange} placeholder="PAN Number" />
+                    <Input name="aadhar_no" value={profileData.aadhar_no} onChange={handleProfileChange} placeholder="Aadhar Number" />
+                    <Input name="ktu_id" value={profileData.ktu_id} onChange={handleProfileChange} placeholder="KTU ID" />
+                    <Input name="aicte_id" value={profileData.aicte_id} onChange={handleProfileChange} placeholder="AICTE ID" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <select name="religion_id" value={profileData.religion_id} onChange={handleProfileChange} className="w-full p-2.5 border rounded-md">
+                      <option value="">Religion</option>
+                      {religions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <select name="caste_id" value={profileData.caste_id} onChange={handleProfileChange} className="w-full p-2.5 border rounded-md" disabled={!profileData.religion_id}>
+                      <option value="">Caste</option>
+                      {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <select name="staff_type_id" value={profileData.staff_type_id} onChange={handleProfileChange} className="w-full p-2.5 border rounded-md">
+                      <option value="">Staff Type</option>
+                      {staffTypes.map(st => <option key={st.id} value={st.id}>{getStaffTypeName(st)}</option>)}
+                    </select>
+                    <select name="staff_category_id" value={profileData.staff_category_id} onChange={handleProfileChange} className="w-full p-2.5 border rounded-md">
+                      <option value="">Staff Category</option>
+                      {staffCategories.map(sc => <option key={sc.id} value={sc.id}>{getStaffCategoryName(sc)}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Present Address */}
+                <div>
+                  <h4 className="font-medium mb-2">Present Address</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input placeholder="Address Line 1" value={profileData.present_address.address_line_1} onChange={e => handleAddressChange("present_address", "address_line_1", e.target.value)} />
+                    <Input placeholder="Address Line 2" value={profileData.present_address.address_line_2} onChange={e => handleAddressChange("present_address", "address_line_2", e.target.value)} />
+                    <Input placeholder="City" value={profileData.present_address.city} onChange={e => handleAddressChange("present_address", "city", e.target.value)} />
+                    <Input placeholder="District" value={profileData.present_address.district} onChange={e => handleAddressChange("present_address", "district", e.target.value)} />
+                    <Input placeholder="State" value={profileData.present_address.state} onChange={e => handleAddressChange("present_address", "state", e.target.value)} />
+                    <Input placeholder="Country" value={profileData.present_address.country} onChange={e => handleAddressChange("present_address", "country", e.target.value)} />
+                    <Input placeholder="Pincode" value={profileData.present_address.pincode} onChange={e => handleAddressChange("present_address", "pincode", e.target.value)} />
+                  </div>
+                </div>
+
+                {/* Permanent Address */}
+                <div>
+                  <h4 className="font-medium mb-2">Permanent Address</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input placeholder="Address Line 1" value={profileData.permanent_address.address_line_1} onChange={e => handleAddressChange("permanent_address", "address_line_1", e.target.value)} />
+                    <Input placeholder="Address Line 2" value={profileData.permanent_address.address_line_2} onChange={e => handleAddressChange("permanent_address", "address_line_2", e.target.value)} />
+                    <Input placeholder="City" value={profileData.permanent_address.city} onChange={e => handleAddressChange("permanent_address", "city", e.target.value)} />
+                    <Input placeholder="District" value={profileData.permanent_address.district} onChange={e => handleAddressChange("permanent_address", "district", e.target.value)} />
+                    <Input placeholder="State" value={profileData.permanent_address.state} onChange={e => handleAddressChange("permanent_address", "state", e.target.value)} />
+                    <Input placeholder="Country" value={profileData.permanent_address.country} onChange={e => handleAddressChange("permanent_address", "country", e.target.value)} />
+                    <Input placeholder="Pincode" value={profileData.permanent_address.pincode} onChange={e => handleAddressChange("permanent_address", "pincode", e.target.value)} />
+                  </div>
                 </div>
 
                 {/* Status Toggle */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-full ${formData.is_active ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'}`}>
-                      {formData.is_active ? (
-                        <User className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <UserMinus className="h-5 w-5 text-red-600 dark:text-red-400" />
-                      )}
+                      {formData.is_active ? <User className="h-5 w-5 text-green-600 dark:text-green-400" /> : <UserMinus className="h-5 w-5 text-red-600 dark:text-red-400" />}
                     </div>
                     <div>
-                      <Label htmlFor="is_active" className="text-sm font-medium">
-                        Employee Status
-                      </Label>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {formData.is_active 
-                          ? "Active employees can log in and use the system" 
-                          : "Inactive employees cannot log in"}
-                      </p>
+                      <Label htmlFor="is_active" className="text-sm font-medium">Employee Status</Label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{formData.is_active ? "Active employees can log in and use the system" : "Inactive employees cannot log in"}</p>
                     </div>
                   </div>
-                  <Switch
-                    id="is_active"
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => handleSwitchChange('is_active', checked)}
-                    className={`${formData.is_active ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
-                  />
+                  <Switch id="is_active" checked={formData.is_active} onCheckedChange={(checked) => handleSwitchChange('is_active', checked)} className={`${formData.is_active ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`} />
                 </div>
 
                 {/* Notification Preferences */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                   <div className="flex items-center space-x-2 p-2 rounded border">
-                    <input
-                      type="checkbox"
-                      id="is_whatsapp"
-                      name="is_whatsapp"
-                      checked={formData.is_whatsapp}
-                      onChange={(e) => setFormData({...formData, is_whatsapp: e.target.checked})}
-                      className="h-4 w-4 text-primary rounded"
-                    />
+                    <input type="checkbox" id="is_whatsapp" checked={formData.is_whatsapp} onChange={(e) => setFormData({...formData, is_whatsapp: e.target.checked})} className="h-4 w-4 text-primary rounded" />
                     <label htmlFor="is_whatsapp" className="text-sm">WhatsApp Notifications</label>
                   </div>
                   <div className="flex items-center space-x-2 p-2 rounded border">
-                    <input
-                      type="checkbox"
-                      id="is_sms"
-                      name="is_sms"
-                      checked={formData.is_sms}
-                      onChange={(e) => setFormData({...formData, is_sms: e.target.checked})}
-                      className="h-4 w-4 text-primary rounded"
-                    />
+                    <input type="checkbox" id="is_sms" checked={formData.is_sms} onChange={(e) => setFormData({...formData, is_sms: e.target.checked})} className="h-4 w-4 text-primary rounded" />
                     <label htmlFor="is_sms" className="text-sm">SMS Notifications</label>
                   </div>
                   <div className="flex items-center space-x-2 p-2 rounded border">
-                    <input
-                      type="checkbox"
-                      id="is_wfh"
-                      name="is_wfh"
-                      checked={formData.is_wfh}
-                      onChange={(e) => setFormData({...formData, is_wfh: e.target.checked})}
-                      className="h-4 w-4 text-primary rounded"
-                    />
+                    <input type="checkbox" id="is_wfh" checked={formData.is_wfh} onChange={(e) => setFormData({...formData, is_wfh: e.target.checked})} className="h-4 w-4 text-primary rounded" />
                     <label htmlFor="is_wfh" className="text-sm">Work From Home</label>
                   </div>
                 </div>
 
-                {/* Default Password Info
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    <strong>Default Password:</strong> {formData.password}
-                  </p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Employee will use this password for first login
-                  </p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Status: <span className={`font-medium ${formData.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                      {formData.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </p>
-                </div> */}
-
                 <div className="flex justify-end pt-4">
-                  <Button 
-                    onClick={handleSubmit} 
-                    disabled={loading || !companyId}
-                    className="gap-2 min-w-[180px]"
-                    size="lg"
-                  >
+                  <Button onClick={handleSubmit} disabled={loading || !companyId} className="gap-2 min-w-[180px]" size="lg">
                     {loading ? (
                       <>
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>

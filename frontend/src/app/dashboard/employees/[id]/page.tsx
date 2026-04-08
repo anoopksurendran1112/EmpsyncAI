@@ -507,12 +507,11 @@
 // }
 
 // src/app/dashboard/employees/[id]/page.tsx
-
 "use client";
 
-import { useParams } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { useParams } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
 import {
   Loader,
@@ -529,18 +528,24 @@ import {
   RefreshCw,
   Camera,
   X,
-  Upload
-} from "lucide-react"
-import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
-import { useAuth, User } from "@/context/AuthContext"
-import EmployeeBanner from "../EmployeeBanner"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
-import { useEmployee } from "@/hooks/employees/useGetEmployee"
-import { toast } from "sonner"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+  Upload,
+} from "lucide-react";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { useAuth, User } from "@/context/AuthContext";
+import EmployeeBanner from "../EmployeeBanner";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import { useEmployee } from "@/hooks/employees/useGetEmployee";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -548,7 +553,46 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
+
+// ============================================
+// TYPES – matches the actual API response
+// ============================================
+interface EmployeeFullProfile {
+  employee_id: number;
+  dob?: string | null;
+  guardian_name?: string | null;
+  guardian_phone?: string | null;
+  religion_id?: number | null;
+  caste_id?: number | null;
+  staff_type_id?: number | null;
+  staff_category_id?: number | null;
+  ktu_id?: string | null;
+  aicte_id?: string | null;
+  pan_no?: string | null;
+  aadhar_no?: string | null;
+  blood_group?: string | null;
+  alternate_mobile?: string | null;
+  alternate_email?: string | null;
+  present_address?: {
+    address_line_1?: string | null;
+    address_line_2?: string | null;
+    city?: string | null;
+    district?: string | null;
+    state?: string | null;
+    country?: string | null;
+    pincode?: string | null;
+  };
+  permanent_address?: {
+    address_line_1?: string | null;
+    address_line_2?: string | null;
+    city?: string | null;
+    district?: string | null;
+    state?: string | null;
+    country?: string | null;
+    pincode?: string | null;
+  };
+}
 
 interface Group {
   id: number;
@@ -559,14 +603,24 @@ interface Group {
 }
 
 export default function EmployeeDetailsPage() {
-  const params = useParams()
-  const employeeId = params.id as string
-  const { company, loading: authLoading } = useAuth()
-  const companyId = company?.id
+  const params = useParams();
+  const employeeId = params.id as string;
+  const { company, loading: authLoading } = useAuth();
+  const companyId = company?.id;
 
-  const { data: employee, isLoading, isError, error, refetch } = useEmployee(companyId, employeeId)
+  const {
+    data: employee,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useEmployee(companyId, employeeId);
 
+  // Basic employee data (used for editing)
   const [formData, setFormData] = useState<User | null>(null);
+  // Extended profile data (read‑only for display)
+  const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -575,26 +629,56 @@ export default function EmployeeDetailsPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Mobile validation state
-  const [mobileError, setMobileError] = useState('');
+  const [mobileError, setMobileError] = useState("");
 
   // Update formData when employee data loads
   useEffect(() => {
     if (employee) {
-      console.log("📥 Employee data loaded:", {
-        id: employee.id,
-        role: employee.role,
-        role_id: employee.role_id,
-        group: employee.group,
-        group_id: employee.group_id
-      });
       setFormData(employee);
       setRetryCount(0);
-      // Reset mobile error when employee loads
-      setMobileError('');
+      setMobileError("");
     }
   }, [employee]);
+
+  // Fetch extended profile data from /api/employee-profile
+  useEffect(() => {
+    if (!employeeId) return;
+
+    const fetchProfile = async () => {
+      setProfileLoading(true);
+      try {
+        const res = await fetch(`/api/employee-profile?employee_id=${employeeId}`, {
+          cache: "no-store",
+        });
+        const result = await res.json();
+        console.log("📦 Full profile API response:", result);
+
+        if (res.ok && result) {
+          // The API might return { success: true, data: {...} } or the raw object.
+          // Adapt based on your actual backend.
+          if (result.success && result.data) {
+            setFullProfile(result.data);
+          } else if (result.employee_id) {
+            setFullProfile(result);
+          } else {
+            setFullProfile(null);
+          }
+        } else {
+          console.warn("Profile fetch failed:", result);
+          setFullProfile(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+        setFullProfile(null);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [employeeId]);
 
   // Fetch groups and roles when modal opens
   useEffect(() => {
@@ -611,35 +695,17 @@ export default function EmployeeDetailsPage() {
       const response = await fetch(`/api/settings/groups/${companyId}`);
       if (!response.ok) throw new Error("Failed to fetch groups");
       const result = await response.json();
-      console.log("📊 Groups API response:", result);
-
       let groupsArray: Group[] = [];
-      if (Array.isArray(result)) {
-        groupsArray = result;
-      } else if (result.success && Array.isArray(result.data)) {
-        groupsArray = result.data;
-      } else if (Array.isArray(result.data)) {
-        groupsArray = result.data;
-      } else if (result.groups) {
-        groupsArray = result.groups;
-      }
+      if (Array.isArray(result)) groupsArray = result;
+      else if (result.success && Array.isArray(result.data)) groupsArray = result.data;
+      else if (Array.isArray(result.data)) groupsArray = result.data;
+      else if (result.groups) groupsArray = result.groups;
 
-      console.log("🔍 Groups array structure:", groupsArray.map(g => ({
-        id: g.id,
-        group: g.group,
-        name: g.name,
-        group_name: g.group_name,
-        short_name: g.short_name,
-        allKeys: Object.keys(g)
-      })));
-
-      const validGroups = groupsArray.filter(group => {
+      const validGroups = groupsArray.filter((group) => {
         const groupId = group.id?.toString()?.trim();
         const groupName = (group.group || group.name || group.group_name || "").trim();
         return groupId && groupId !== "" && groupName !== "";
       });
-
-      console.log("✅ Valid groups after filtering:", validGroups);
       setGroups(validGroups);
     } catch (err) {
       console.error("Error fetching groups:", err);
@@ -656,20 +722,11 @@ export default function EmployeeDetailsPage() {
       const response = await fetch(`/api/settings/roles/${companyId}`);
       if (!response.ok) throw new Error("Failed to fetch roles");
       const result = await response.json();
-      console.log("📊 Roles API response:", result);
-
       let rolesArray: any[] = [];
-      if (Array.isArray(result)) {
-        rolesArray = result;
-      } else if (result.success && Array.isArray(result.data)) {
-        rolesArray = result.data;
-      } else if (Array.isArray(result.data)) {
-        rolesArray = result.data;
-      } else if (result.roles) {
-        rolesArray = result.roles;
-      }
-
-      console.log("🔍 Roles array:", rolesArray);
+      if (Array.isArray(result)) rolesArray = result;
+      else if (result.success && Array.isArray(result.data)) rolesArray = result.data;
+      else if (Array.isArray(result.data)) rolesArray = result.data;
+      else if (result.roles) rolesArray = result.roles;
       setRoles(rolesArray);
     } catch (err) {
       console.error("Error fetching roles:", err);
@@ -679,40 +736,35 @@ export default function EmployeeDetailsPage() {
     }
   };
 
-  // Auto-retry if employee might be inactive
+  // Auto‑retry on error
   useEffect(() => {
     if (isError && retryCount < 2) {
       const timer = setTimeout(() => {
-        console.log(`🔄 Retrying employee fetch (attempt ${retryCount + 1})`);
         refetch();
-        setRetryCount(prev => prev + 1);
+        setRetryCount((prev) => prev + 1);
       }, 1000);
       return () => clearTimeout(timer);
     }
   }, [isError, retryCount, refetch]);
 
-  // Validate mobile number
   const validateMobile = (mobile: string): boolean => {
     if (!mobile) {
-      setMobileError('Mobile number is required');
+      setMobileError("Mobile number is required");
       return false;
     }
     const mobileRegex = /^\d{10}$/;
     if (!mobileRegex.test(mobile)) {
-      setMobileError('Mobile number must be exactly 10 digits');
+      setMobileError("Mobile number must be exactly 10 digits");
       return false;
     }
-    setMobileError('');
+    setMobileError("");
     return true;
   };
 
   const handleChange = (field: keyof User, value: any) => {
-    setFormData(prev => {
+    setFormData((prev) => {
       if (!prev) return null;
-      console.log("🔄 Field changed:", { field, value });
-      if (field === 'mobile') {
-        validateMobile(value);
-      }
+      if (field === "mobile") validateMobile(value);
       return { ...prev, [field]: value };
     });
   };
@@ -720,25 +772,13 @@ export default function EmployeeDetailsPage() {
   const handleGroupChange = (groupId: string) => {
     if (formData) {
       if (groupId === "none") {
-        console.log("Clearing group selection");
-        setFormData({
-          ...formData,
-          group_id: undefined,
-          group: ""
-        });
+        setFormData({ ...formData, group_id: undefined, group: "" });
       } else {
-        const selectedGroup = groups.find(group => group.id.toString() === groupId);
+        const selectedGroup = groups.find((group) => group.id.toString() === groupId);
         if (selectedGroup) {
-          const groupName = selectedGroup.group || selectedGroup.name || selectedGroup.group_name || "";
-          console.log("🎯 Group selected:", {
-            group_id: Number(groupId),
-            group: groupName
-          });
-          setFormData({
-            ...formData,
-            group_id: Number(groupId),
-            group: groupName
-          });
+          const groupName =
+            selectedGroup.group || selectedGroup.name || selectedGroup.group_name || "";
+          setFormData({ ...formData, group_id: Number(groupId), group: groupName });
         }
       }
     }
@@ -750,10 +790,9 @@ export default function EmployeeDetailsPage() {
         handleChange("role_id", undefined);
         handleChange("role", "");
       } else {
-        const selected = roles.find(r => r.id.toString() === roleId);
+        const selected = roles.find((r) => r.id.toString() === roleId);
         if (selected) {
           handleChange("role_id", Number(roleId));
-          // Use the correct field name – adjust if your API uses something else (e.g., selected.name)
           handleChange("role", selected.role || selected.name || "");
         }
       }
@@ -770,15 +809,12 @@ export default function EmployeeDetailsPage() {
       return;
     }
 
-    // Validate mobile before saving
-    const isMobileValid = validateMobile(formData.mobile);
-    if (!isMobileValid) {
+    if (!validateMobile(formData.mobile)) {
       toast.error(mobileError || "Please enter a valid 10-digit mobile number");
       return;
     }
 
     setIsSaving(true);
-
     try {
       const payload = {
         first_name: formData.first_name,
@@ -797,8 +833,6 @@ export default function EmployeeDetailsPage() {
         ...(formData.prof_img && { prof_img: formData.prof_img }),
       };
 
-      console.log("💾 Saving employee with payload:", payload);
-
       const response = await fetch(`/api/profile/${formData.id}?_t=${Date.now()}`, {
         method: "PUT",
         headers: {
@@ -810,68 +844,25 @@ export default function EmployeeDetailsPage() {
       });
 
       const result = await response.json();
-      console.log("💾 Save response:", result);
-
       if (result.success) {
         toast.success("Employee updated successfully!");
         setIsEditModalOpen(false);
-
         if (result.data) {
-          console.log("🚨 UPDATING FORM DATA FROM RESPONSE:", result.data);
           const updatedEmployee = {
             ...formData,
-            first_name: result.data.first_name || formData.first_name,
-            last_name: result.data.last_name || formData.last_name,
-            email: result.data.email || formData.email,
-            mobile: result.data.mobile || formData.mobile,
-            role: result.data.role || formData.role,
-            gender: result.data.gender || formData.gender,
-            group: result.data.group || formData.group,
-            is_wfh: result.data.is_wfh !== undefined ? result.data.is_wfh : formData.is_wfh,
-            is_active: result.data.is_active !== undefined ? result.data.is_active : formData.is_active,
-            role_id: result.data.role_id || formData.role_id,
-            group_id: result.data.group_id || formData.group_id,
-            is_whatsapp: result.data.is_whatsapp !== undefined ? result.data.is_whatsapp : formData.is_whatsapp,
-            is_sms: result.data.is_sms !== undefined ? result.data.is_sms : formData.is_sms,
-            prof_img: result.data.prof_img || formData.prof_img,
-            gender_display: result.data.gender === 'M' ? 'Male' :
-              result.data.gender === 'F' ? 'Female' : 'Other'
+            ...result.data,
+            gender_display:
+              result.data.gender === "M"
+                ? "Male"
+                : result.data.gender === "F"
+                ? "Female"
+                : "Other",
           };
-          console.log("✅ UPDATED EMPLOYEE DATA:", updatedEmployee);
           setFormData(updatedEmployee);
         }
-
-        // Force a hard refresh of employee data with cache busting
-        setTimeout(() => {
-          console.log("🔄 Forcing hard refresh...");
-          fetch(`/api/profile/${formData.id}?_t=${Date.now()}&force=true`, {
-            headers: { "x-company-id": company.id.toString() },
-            cache: 'no-store'
-          })
-            .then(res => res.json())
-            .then(freshData => {
-              console.log("🔄 Fresh data from hard refresh:", freshData);
-              if (freshData.success && freshData.data) {
-                setFormData(prev => ({
-                  ...prev!,
-                  ...freshData.data,
-                  role: freshData.data.role || prev!.role,
-                  role_id: freshData.data.role_id !== undefined ? freshData.data.role_id : prev!.role_id,
-                  prof_img: freshData.data.prof_img || prev!.prof_img,
-                  gender_display: freshData.data.gender === 'M' ? 'Male' :
-                    freshData.data.gender === 'F' ? 'Female' : 'Other'
-                }));
-              }
-            })
-            .catch(err => console.error("Error in hard refresh:", err));
-          refetch();
-        }, 1000);
+        setTimeout(() => refetch(), 1000);
       } else {
-        if (result.backendMessage?.includes('Messaging services')) {
-          toast.error("Cannot update while messaging services are disabled. Please contact your administrator.");
-        } else {
-          toast.error(result.message || "Failed to update employee profile");
-        }
+        toast.error(result.message || "Failed to update employee profile");
       }
     } catch (error) {
       console.error("Error updating employee profile:", error);
@@ -886,7 +877,7 @@ export default function EmployeeDetailsPage() {
     refetch();
   };
 
-  // Show loading state
+  // Combined loading state
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -895,10 +886,10 @@ export default function EmployeeDetailsPage() {
           <p className="text-lg text-foreground">Loading employee details...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  // Show error state
+  // Error state
   if (isError && !formData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -911,9 +902,7 @@ export default function EmployeeDetailsPage() {
             Unable to load employee ID: {employeeId}
           </p>
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-yellow-800 text-sm">
-              This might be because:
-            </p>
+            <p className="text-yellow-800 text-sm">This might be because:</p>
             <ul className="text-yellow-800 text-sm list-disc list-inside mt-2 text-left">
               <li>The employee is inactive</li>
               <li>There's a temporary connection issue</li>
@@ -934,10 +923,9 @@ export default function EmployeeDetailsPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  // If no employee data
   if (!formData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -951,13 +939,16 @@ export default function EmployeeDetailsPage() {
           </Link>
         </div>
       </div>
-    )
+    );
   }
 
+  // ============================================
+  // RENDER MAIN PAGE WITH ALL SECTIONS
+  // ============================================
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-6">
-        {/* Inactive Employee Warning */}
+        {/* Inactive Warning */}
         {!formData.is_active && (
           <Alert className="mb-6 bg-yellow-50 border-yellow-200">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
@@ -968,7 +959,7 @@ export default function EmployeeDetailsPage() {
           </Alert>
         )}
 
-        {/* Header with navigation and edit button */}
+        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <Link href="/dashboard/employees">
             <Button variant="outline" size="sm">
@@ -976,33 +967,23 @@ export default function EmployeeDetailsPage() {
               Back to Employees
             </Button>
           </Link>
-
           <div className="flex items-center gap-2">
             {!formData.is_active && (
               <Badge variant="secondary" className="bg-gray-100 text-gray-700">
                 Inactive
               </Badge>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditModalOpen(true)}
-              disabled={isSaving}
-            >
+            <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)} disabled={isSaving}>
               <Pen className="h-4 w-4 mr-1" />
               Edit
             </Button>
           </div>
         </div>
 
-        {/* Employee Banner (always read‑only now) */}
-        <EmployeeBanner
-          employee={formData}
-          editMode={false}
-          onChange={() => {}}
-        />
+        {/* Employee Banner */}
+        <EmployeeBanner employee={formData} editMode={false} onChange={() => {}} />
 
-        {/* Other Cards - all read‑only now */}
+        {/* Three basic cards: Contact, Personal, Preferences */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
           {/* Contact Card */}
           <Card className="border-l-4 border-l-yellow-500">
@@ -1024,7 +1005,7 @@ export default function EmployeeDetailsPage() {
             </CardContent>
           </Card>
 
-          {/* Personal Card */}
+          {/* Personal (basic) Card */}
           <Card className="border-l-4 border-l-blue-500">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-foreground text-lg">
@@ -1036,10 +1017,10 @@ export default function EmployeeDetailsPage() {
               <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                 <UserIcon className="h-4 w-4 text-yellow-600" />
                 <p className="text-sm font-medium text-foreground">
-                  {formData.gender_display || (formData.gender === 'M' ? 'Male' : formData.gender === 'F' ? 'Female' : 'Other')}
+                  {formData.gender_display ||
+                    (formData.gender === "M" ? "Male" : formData.gender === "F" ? "Female" : "Other")}
                 </p>
               </div>
-
               <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
                 <MapPin className="h-4 w-4 text-yellow-600" />
                 <p className="text-sm font-medium text-foreground">
@@ -1068,7 +1049,6 @@ export default function EmployeeDetailsPage() {
                   {formData.is_whatsapp ? "On" : "Off"}
                 </Badge>
               </div>
-
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-blue-600" />
@@ -1078,7 +1058,6 @@ export default function EmployeeDetailsPage() {
                   {formData.is_sms ? "On" : "Off"}
                 </Badge>
               </div>
-
               <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Home className="h-4 w-4 text-yellow-600" />
@@ -1092,7 +1071,163 @@ export default function EmployeeDetailsPage() {
           </Card>
         </div>
 
-        {/* Edit Modal */}
+        {/* ============================================ */}
+        {/* EXTENDED PROFILE SECTION (from /api/employee-profile) */}
+        {/* ============================================ */}
+        {profileLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <Loader className="animate-spin h-6 w-6 text-blue-500" />
+            <span className="ml-2 text-muted-foreground">Loading profile details...</span>
+          </div>
+        ) : (
+          <>
+            {/* Personal Details + Emergency & IDs */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              {/* Personal Details Card */}
+              <Card className="border-l-4 border-l-green-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-foreground text-lg">
+                    <UserIcon className="h-4 w-4 text-green-600" />
+                    Personal Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Date of Birth</p>
+                      <p className="text-sm font-medium">{fullProfile?.dob || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Guardian Name</p>
+                      <p className="text-sm font-medium">{fullProfile?.guardian_name || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Guardian Phone</p>
+                      <p className="text-sm font-medium">{fullProfile?.guardian_phone || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Blood Group</p>
+                      <p className="text-sm font-medium">{fullProfile?.blood_group || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Religion ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.religion_id ?? "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Caste ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.caste_id ?? "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Staff Type ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.staff_type_id ?? "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Staff Category ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.staff_category_id ?? "—"}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Other Details Card */}
+              <Card className="border-l-4 border-l-purple-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-foreground text-lg">
+                    <Phone className="h-4 w-4 text-purple-600" />
+                   Other Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Alternate Mobile</p>
+                      <p className="text-sm font-medium">{fullProfile?.alternate_mobile || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Alternate Email</p>
+                      <p className="text-sm font-medium">{fullProfile?.alternate_email || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">PAN</p>
+                      <p className="text-sm font-medium">{fullProfile?.pan_no || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">Aadhaar</p>
+                      <p className="text-sm font-medium">{fullProfile?.aadhar_no || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">KTU ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.ktu_id || "—"}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-muted/50">
+                      <p className="text-xs text-muted-foreground">AICTE ID</p>
+                      <p className="text-sm font-medium">{fullProfile?.aicte_id || "—"}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Addresses Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              {/* Present Address */}
+              <Card className="border-l-4 border-l-blue-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-foreground text-lg">
+                    <Home className="h-4 w-4 text-blue-600" />
+                    Present Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {fullProfile?.present_address ? (
+                    <div className="space-y-1 text-sm">
+                      <p>{fullProfile.present_address.address_line_1}</p>
+                      {fullProfile.present_address.address_line_2 && <p>{fullProfile.present_address.address_line_2}</p>}
+                      <p>
+                        {fullProfile.present_address.city}, {fullProfile.present_address.district}
+                      </p>
+                      <p>
+                        {fullProfile.present_address.state}, {fullProfile.present_address.country}
+                      </p>
+                      <p>Pincode: {fullProfile.present_address.pincode}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not provided</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Permanent Address */}
+              <Card className="border-l-4 border-l-blue-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-foreground text-lg">
+                    <MapPin className="h-4 w-4 text-blue-600" />
+                    Permanent Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {fullProfile?.permanent_address ? (
+                    <div className="space-y-1 text-sm">
+                      <p>{fullProfile.permanent_address.address_line_1}</p>
+                      {fullProfile.permanent_address.address_line_2 && <p>{fullProfile.permanent_address.address_line_2}</p>}
+                      <p>
+                        {fullProfile.permanent_address.city}, {fullProfile.permanent_address.district}
+                      </p>
+                      <p>
+                        {fullProfile.permanent_address.state}, {fullProfile.permanent_address.country}
+                      </p>
+                      <p>Pincode: {fullProfile.permanent_address.pincode}</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not provided</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
+        
         <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <DialogHeader>
@@ -1106,18 +1241,24 @@ export default function EmployeeDetailsPage() {
               <div className="space-y-5 py-2">
                 {/* Profile Image & Personal Info */}
                 <div className="space-y-4">
-                  {/* Circular Image Upload */}
                   <div className="flex flex-col items-center">
                     <div className="relative">
-                      <div title="Change Photo"
+                      <div
+                        title="Change Photo"
                         className="w-24 h-24 rounded-full border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center cursor-pointer hover:border-primary hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 overflow-hidden bg-gray-50 dark:bg-gray-800"
                         onClick={() => fileInputRef.current?.click()}
                       >
                         {formData.prof_img ? (
                           <div className="relative w-full h-full group">
-                            <img 
-                              src={(formData.prof_img.startsWith("http") || formData.prof_img.startsWith("data:")) ? formData.prof_img : (company?.mediaBaseUrl ? `${company.mediaBaseUrl}${formData.prof_img}` : formData.prof_img)} 
-                              alt="Profile preview" 
+                            <img
+                              src={
+                                formData.prof_img.startsWith("http") || formData.prof_img.startsWith("data:")
+                                  ? formData.prof_img
+                                  : company?.mediaBaseUrl
+                                  ? `${company.mediaBaseUrl}${formData.prof_img}`
+                                  : formData.prof_img
+                              }
+                              alt="Profile preview"
                               className="w-full h-full rounded-full object-cover"
                             />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-full flex items-center justify-center">
@@ -1133,10 +1274,10 @@ export default function EmployeeDetailsPage() {
                           </div>
                         )}
                       </div>
-                      
                       {formData.prof_img && (
                         <button
-                          type="button" title="Remove Photo"
+                          type="button"
+                          title="Remove Photo"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleChange("prof_img", "");
@@ -1166,7 +1307,6 @@ export default function EmployeeDetailsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    {/* Input fields */}
                     <div className="md:col-span-3">
                       <Input
                         value={formData.first_name || ""}
@@ -1201,7 +1341,6 @@ export default function EmployeeDetailsPage() {
                       {mobileError && <p className="text-red-500 text-xs mt-1">{mobileError}</p>}
                     </div>
 
-                    {/* Select fields */}
                     <div className="md:col-span-2">
                       <Select
                         value={formData.gender || ""}
@@ -1262,12 +1401,14 @@ export default function EmployeeDetailsPage() {
 
                 <div className="h-px bg-border w-full" />
 
-                {/* Status & Notifications */}
                 <div className="space-y-4">
-                  {/* Status Toggle */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-gray-50 dark:bg-gray-800 rounded-lg border gap-3">
                     <div className="flex items-center space-x-3">
-                      <div className={`p-1.5 rounded-full flex-shrink-0 ${formData.is_active ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'}`}>
+                      <div
+                        className={`p-1.5 rounded-full flex-shrink-0 ${
+                          formData.is_active ? "bg-green-100 dark:bg-green-900" : "bg-red-100 dark:bg-red-900"
+                        }`}
+                      >
                         {formData.is_active ? (
                           <UserIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                         ) : (
@@ -1277,8 +1418,8 @@ export default function EmployeeDetailsPage() {
                       <div>
                         <label className="text-sm font-medium leading-none">Employee Status</label>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          {formData.is_active 
-                            ? "Active employees can log in and use the system" 
+                          {formData.is_active
+                            ? "Active employees can log in and use the system"
                             : "Inactive employees cannot log in"}
                         </p>
                       </div>
@@ -1286,55 +1427,72 @@ export default function EmployeeDetailsPage() {
                     <Switch
                       checked={formData.is_active || false}
                       onCheckedChange={(val) => handleChange("is_active", val)}
-                      className={formData.is_active ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                      className={
+                        formData.is_active
+                          ? "data-[state=checked]:bg-black"
+                          : "data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600"
+                      }
                     />
                   </div>
 
-                  {/* Notification Preferences */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
-                      <label htmlFor="is_whatsapp" className="text-[13px] font-medium cursor-pointer select-none">WhatsApp</label>
+                      <label htmlFor="is_whatsapp" className="text-[13px] font-medium cursor-pointer select-none">
+                        WhatsApp
+                      </label>
                       <Switch
                         id="is_whatsapp"
                         checked={formData.is_whatsapp || false}
                         onCheckedChange={(val) => handleChange("is_whatsapp", val)}
-                        className={formData.is_whatsapp ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                        className={
+                          formData.is_whatsapp
+                            ? "data-[state=checked]:bg-black"
+                            : "data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600"
+                        }
                       />
                     </div>
                     <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
-                      <label htmlFor="is_sms" className="text-[13px] font-medium cursor-pointer select-none">SMS</label>
+                      <label htmlFor="is_sms" className="text-[13px] font-medium cursor-pointer select-none">
+                        SMS
+                      </label>
                       <Switch
                         id="is_sms"
                         checked={formData.is_sms || false}
                         onCheckedChange={(val) => handleChange("is_sms", val)}
-                        className={formData.is_sms ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                        className={
+                          formData.is_sms
+                            ? "data-[state=checked]:bg-black"
+                            : "data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600"
+                        }
                       />
                     </div>
                     <div className="flex items-center justify-between p-3 rounded border bg-white dark:bg-gray-800">
-                      <label htmlFor="is_wfh" className="text-[13px] font-medium cursor-pointer select-none">WFH</label>
+                      <label htmlFor="is_wfh" className="text-[13px] font-medium cursor-pointer select-none">
+                        WFH
+                      </label>
                       <Switch
                         id="is_wfh"
                         checked={formData.is_wfh || false}
                         onCheckedChange={(val) => handleChange("is_wfh", val)}
-                        className={formData.is_wfh ? 'data-[state=checked]:bg-black' : 'data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600'}
+                        className={
+                          formData.is_wfh
+                            ? "data-[state=checked]:bg-black"
+                            : "data-[state=unchecked]:bg-gray-300 dark:data-[state=unchecked]:bg-gray-600"
+                        }
                       />
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            
+
             <div className="h-px bg-border w-full mt-1" />
 
             <DialogFooter className="pt-1">
               <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleSaveAllChanges}
-                disabled={isSaving}
-                className="text-white min-w-[140px]"
-              >
+              <Button onClick={handleSaveAllChanges} disabled={isSaving} className="text-white min-w-[140px]">
                 {isSaving ? (
                   <>
                     <Loader className="mr-2 h-4 w-4 animate-spin" />
@@ -1352,5 +1510,5 @@ export default function EmployeeDetailsPage() {
         </Dialog>
       </div>
     </div>
-  )
+  );
 }
