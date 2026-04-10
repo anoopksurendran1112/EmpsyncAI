@@ -508,7 +508,7 @@ export default function MyPunchesPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          Punch Stats
+          Punch Statistics
         </h1>
         <p className="text-sm text-gray-500 mt-1">
           Overview of your attendance and daily punch records

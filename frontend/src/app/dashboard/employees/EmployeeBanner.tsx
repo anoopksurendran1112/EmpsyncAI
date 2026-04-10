@@ -109,6 +109,9 @@ export default function EmployeeBanner({
 
   const getProfileImageUrl = () => {
     if (employee.prof_img) {
+      if (typeof employee.prof_img === 'string' && employee.prof_img.startsWith("data:")) {
+        return employee.prof_img;
+      }
       return employee.prof_img.startsWith("http")
         ? employee.prof_img
         : `${currentCompany?.mediaBaseUrl}${employee.prof_img}`;
