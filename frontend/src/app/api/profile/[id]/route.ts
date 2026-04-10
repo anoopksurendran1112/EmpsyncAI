@@ -259,6 +259,16 @@ export async function PUT(
     });
 
     let finalPayload: Record<string, any> = { ...bodyWithoutProfImg };
+    let hasImageChange = false;
+    let isDeletingImage = false;
+    
+    // Check if the profile image is being updated or removed
+    if (prof_img === "") {
+      isDeletingImage = true;
+      hasImageChange = true;
+    } else if (prof_img && (prof_img.startsWith("data:") || (!prof_img.startsWith("/") && !prof_img.startsWith("http")))) {
+      hasImageChange = true;
+    }
     
     if (getResponse.ok) {
       const currentData = await getResponse.json();
@@ -281,7 +291,7 @@ export async function PUT(
       
       console.log("🔄 Fields that actually changed:", changedFields);
       
-      if (Object.keys(changedFields).length > 0) {
+      if (Object.keys(changedFields).length > 0 || hasImageChange) {
         finalPayload = changedFields;
       } else {
         console.log("⚠️ No actual changes detected");
@@ -305,10 +315,8 @@ export async function PUT(
     let requestBody: any;
     let contentTypeHeader: Record<string, string> = {};
 
-    if (prof_img && prof_img.trim() !== "") {
-      console.log("📸 Profile image detected, using FormData");
-      
-      // If prof_img is a base64 string or data URL, convert it
+    if (hasImageChange && !isDeletingImage) {
+      console.log("📸 New profile image detected, using FormData");
       const formData = new FormData();
 
       // Add all text fields to FormData
@@ -321,7 +329,6 @@ export async function PUT(
 
       // Handle prof_img - convert base64/data URL to File
       if (prof_img.startsWith("data:")) {
-        // Data URL format: data:image/jpeg;base64,/9j/4AAQSkZJ...
         const [header, data] = prof_img.split(",");
         const mimeType = header.match(/:(.*?);/)?.[1] || "image/jpeg";
         const binaryString = atob(data);
@@ -333,11 +340,7 @@ export async function PUT(
         
         const blob = new Blob([bytes], { type: mimeType });
         formData.append("prof_img", blob, `profile_${Date.now()}.jpg`);
-      } else if (prof_img.startsWith("/") || prof_img.includes(".")) {
-        // It's a URL string - don't send it as a file
-        console.log("Profile image is a URL, skipping file upload");
       } else {
-        // Assume it's base64
         const binaryString = atob(prof_img);
         const bytes = new Uint8Array(binaryString.length);
         
@@ -350,9 +353,11 @@ export async function PUT(
       }
 
       requestBody = formData;
-      // Don't set Content-Type for FormData - browser will set it with boundary
     } else {
-      console.log("📝 No profile image, using JSON");
+      console.log("📝 No new profile image, using JSON");
+      if (isDeletingImage) {
+        finalPayload.prof_img = null;
+      }
       requestBody = JSON.stringify(finalPayload);
       contentTypeHeader = { "Content-Type": "application/json" };
     }

@@ -443,6 +443,11 @@ def signUp(request):
     if role_id and c.CompanyRole.objects.filter(id=role_id).exists():
         role = c.CompanyRole.objects.get(id=role_id)
 
+    group_id = data.get('group_id')
+    group_obj = None
+    if group_id and c.CompanyGroup.objects.filter(id=group_id).exists():
+        group_obj = c.CompanyGroup.objects.get(id=group_id)
+
     if 'prof_img' in request.FILES:
         data['prof_img'] = request.FILES['prof_img']
 
@@ -462,6 +467,8 @@ def signUp(request):
         user.set_password(data['password'])
         user.company.set([company])
         user.role = role
+        if group_obj:
+            user.group = group_obj
 
        
         user.save()

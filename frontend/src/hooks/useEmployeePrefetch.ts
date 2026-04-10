@@ -5,11 +5,16 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useEmployeeCache } from './useEmployeeCache';
 
 export function useEmployeePrefetch(companyId: number) {
-  const { setEmployee } = useEmployeeCache();
+  const { getEmployee, setEmployee } = useEmployeeCache();
   const timeoutRefs = useRef<Map<string, any>>(new Map());
 
   const prefetchEmployee = useCallback(async (employeeId: string) => {
     try {
+      // ⚡ CHECK CACHE FIRST: If we already prefetched this user recently, skip the network call!
+      if (getEmployee(employeeId, companyId)) {
+        return;
+      }
+
       const response = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
