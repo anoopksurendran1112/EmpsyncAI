@@ -1,3 +1,5 @@
+//frontend/src/app/api/settings/manage-religion/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 

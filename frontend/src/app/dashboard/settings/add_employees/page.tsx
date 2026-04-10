@@ -265,7 +265,7 @@ export default function AddEmployeePage() {
     setMessage("");
 
     try {
-      // Step 1: Create employee (FormData with image)
+      //  Create employee (FormData with image)
       const fd = new FormData();
       Object.entries(formData).forEach(([key, value]) => fd.append(key, value.toString()));
       if (profileImage) fd.append('prof_img', profileImage);
@@ -279,7 +279,7 @@ export default function AddEmployeePage() {
         throw new Error(errorMsg);
       }
 
-      // Step 2: Extract employee ID (Django signup returns { data: { user: { id } } })
+      // Extract employee ID (Django signup returns { data: { user: { id } } })
       let employeeId = empData?.data?.user?.id || empData?.data?.id || empData?.user?.id || empData?.id;
       if (!employeeId) {
         console.error("No employee ID in response:", empData);
@@ -288,7 +288,7 @@ export default function AddEmployeePage() {
 
       console.log("Employee created with ID:", employeeId);
 
-      // Step 3: Prepare profile payload (convert IDs to numbers, ensure strings)
+      //  Prepare profile payload (convert IDs to numbers, ensure strings)
       const profilePayload = {
         employee_id: Number(employeeId),
         dob: profileData.dob || null,
@@ -327,7 +327,7 @@ export default function AddEmployeePage() {
 
       console.log("Sending profile payload:", profilePayload);
 
-      // Step 4: Create employee profile
+      // Create employee profile
       const profileRes = await fetch("/api/employee-profile/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -543,7 +543,22 @@ export default function AddEmployeePage() {
                     <Input type="date" name="dob" value={profileData.dob} onChange={handleProfileChange} placeholder="Date of Birth" />
                     <Input name="guardian_name" value={profileData.guardian_name} onChange={handleProfileChange} placeholder="Guardian Name" />
                     <Input name="guardian_phone" value={profileData.guardian_phone} onChange={handleProfileChange} placeholder="Guardian Phone" />
-                    <Input name="blood_group" value={profileData.blood_group} onChange={handleProfileChange} placeholder="Blood Group" />
+                    <select
+                          name="blood_group"
+                          value={profileData.blood_group}
+                          onChange={handleProfileChange}
+                          className="w-full p-2.5 border rounded-md bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary"
+>
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          </select>
                     <Input name="alternate_mobile" value={profileData.alternate_mobile} onChange={handleProfileChange} placeholder="Alternate Mobile" />
                     <Input name="alternate_email" value={profileData.alternate_email} onChange={handleProfileChange} placeholder="Alternate Email" />
                     <Input name="pan_no" value={profileData.pan_no} onChange={handleProfileChange} placeholder="PAN Number" />
