@@ -25,6 +25,7 @@ from user.models import CustomUser
 import requests
 from .utils.deduplication import deduplicate_punches
 from .utils.process_day import process_single_day
+from .utils.report_utils import process_punch_logic
 
 
 @api_view(['POST'])
@@ -822,43 +823,18 @@ def punch_report_by_date(request):
             }
 
             total_hours = 0
-
             for punch_date, records in daily_records.items():
-                check_ins = [p for p in records if p.status == "Check-In"]
-                check_outs = [p for p in records if p.status == "Check-Out"]
-                work_duration = 0
-
-                if punch_mode == 'M':
-                    check_ins.sort(key=lambda x: x.punch_time)
-                    check_outs.sort(key=lambda x: x.punch_time)
-
-                    in_index = 0
-                    check_outs_copy = list(check_outs)
-                    while in_index < len(check_ins):
-                        in_time = check_ins[in_index].punch_time
-                        out = next((o for o in check_outs_copy if o.punch_time > in_time), None)
-                        if out:
-                            duration = (out.punch_time - in_time).total_seconds() / 3600
-                            work_duration += duration
-                            check_outs_copy.remove(out)
-                        in_index += 1
-                else:
-                    # Single punch mode
-                    if check_ins and check_outs:
-                        duration = (
-                            max(check_outs, key=lambda x: x.punch_time).punch_time -
-                            min(check_ins, key=lambda x: x.punch_time).punch_time
-                        ).total_seconds() / 3600
-                        work_duration = duration
+                punch_results = process_punch_logic(records, punch_mode)
 
                 user_result["daily_logs"].append({
                     "date": punch_date.strftime("%Y-%m-%d"),
-                    "check_ins": [p.punch_time.isoformat() for p in check_ins],
-                    "check_outs": [p.punch_time.isoformat() for p in check_outs],
-                    "working_hours": round(work_duration, 2)
+                    "check_ins": [p.punch_time.isoformat() for p in punch_results["check_ins"]],
+                    "check_outs": [p.punch_time.isoformat() for p in punch_results["check_outs"]],
+                    "working_hours": round(punch_results["work_duration"], 2)
                 })
 
-                total_hours += work_duration
+                total_hours += punch_results["work_duration"]
+
 
             user_result["total_working_hours"] = round(total_hours, 2)
             final_result.append(user_result)
