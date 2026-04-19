@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from collections import defaultdict
 
 from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser
 from punch.models import PunchRecords
@@ -10,6 +11,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.http import JsonResponse
 from user.models import CustomUser
+from user import serializer as s
+from django.utils.timezone import make_aware
+from punch.utils.report_utils import process_punch_logic
 from django.db.models import ProtectedError
 from django.core.paginator import Paginator
 from django.utils import timezone
@@ -1097,3 +1101,111 @@ def staff_type_view(request, type_id=None):
             return Response({'status':status.HTTP_200_OK,'message': 'Deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
 
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def employee_report(request):
+    try:
+        company_id = request.data.get("company_id")
+        report_type = request.data.get("report_type")
+        employee_val = request.data.get("employee")
+
+        if not all([company_id, report_type, employee_val]):
+            return Response({"error": "Missing required fields."}, status=400)
+
+        if report_type == "employee":
+            users = CustomUser.objects.filter(company__id=company_id)
+            if str(employee_val).lower() != "all":
+                users = users.filter(id=employee_val)
+
+            result = []
+            for user in users:
+                user_serializer = s.UserSerializer(user, context={"company_id": company_id})
+                user_data = user_serializer.data
+
+                try:
+                    profile = user.profile
+                    profile_serializer = s.EmployeeProfileSerializer(profile)
+                    user_data["profile"] = profile_serializer.data
+                except Exception:
+                    user_data["profile"] = None
+
+                result.append(user_data)
+
+            return Response(result)
+
+        elif report_type == "punch":
+            from_date_str = request.data.get("start_date")
+            to_date_str = request.data.get("end_date")
+
+            if not from_date_str or not to_date_str:
+                return Response({"error": "start_date and end_date are required for punch reports."}, status=400)
+
+            from_date = make_aware(datetime.strptime(from_date_str, "%Y-%m-%d"))
+            to_date = make_aware(datetime.strptime(to_date_str, "%Y-%m-%d") + timedelta(days=1))
+
+            company = Company.objects.get(id=company_id)
+            company_devices = list(Device.objects.filter(company_id=company_id).values_list("device_id", flat=True))
+            punch_mode = company.punch_mode
+
+            users = CustomUser.objects.filter(company__id=company_id).exclude(biometric_id__isnull=True).exclude(biometric_id="")
+            if str(employee_val).lower() != "all":
+                users = users.filter(id=employee_val)
+
+            user_map = {str(u.biometric_id).strip(): u for u in users}
+
+            punches = PunchRecords.objects.using("secondary").filter(
+                user_id__in=user_map.keys(),
+                device_id__in=company_devices,
+                punch_time__range=(from_date, to_date)
+            ).order_by("user_id", "punch_time")
+
+            user_daily_data = defaultdict(lambda: defaultdict(list))
+            for punch in punches:
+                biometric_id = str(punch.user_id).strip()
+                punch_date = punch.punch_time.date()
+                user_daily_data[biometric_id][punch_date].append(punch)
+
+            final_result = []
+            for biometric_id, daily_records in user_daily_data.items():
+                user = user_map.get(biometric_id)
+                if not user: continue
+
+                user_result = {
+                    "user_id": biometric_id,
+                    "django_id": user.id,
+                    "name": user.get_full_name(),
+                    "role": user.role.role if user.role else "",
+                    "group": user.group.short_name if user.group else "",
+                    "daily_logs": []
+                }
+
+                total_hours = 0
+                for punch_date, records in daily_records.items():
+                    punch_results = process_punch_logic(records, punch_mode)
+                    
+                    user_result["daily_logs"].append({
+                        "date": punch_date.strftime("%Y-%m-%d"),
+                        "check_ins": [p.punch_time.isoformat() for p in punch_results["check_ins"]],
+                        "check_outs": [p.punch_time.isoformat() for p in punch_results["check_outs"]],
+                        "working_hours": round(punch_results["work_duration"], 2)
+                    })
+                    total_hours += punch_results["work_duration"]
+
+                user_result["total_working_hours"] = round(total_hours, 2)
+                final_result.append(user_result)
+
+            return Response({
+                "company_id": company_id,
+                "report_type": report_type,
+                "records": final_result
+            })
+
+        return Response({"error": "Invalid report_type."}, status=400)
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({"error": str(e)}, status=500)
