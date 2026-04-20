@@ -27,6 +27,8 @@ import {
   XCircle,
   Zap,
   MoreVertical,
+  Mail,
+  Home,
 } from "lucide-react"
 
 import { useAuth } from "@/context/AuthContext"
@@ -152,6 +154,11 @@ export default function CompanyProfilePage() {
         data.append("punch_mode", formData.punch_mode)
         data.append("travel_speed_threshold", formData.travel_speed_threshold?.toString() || "10")
         
+        // Address, phone, email are NOT sent to API (commented out)
+        // data.append("address", formData.address || "")
+        // data.append("phone", formData.phone || "")
+        // data.append("email", formData.email || "")
+        
         // Add boolean fields
         data.append("enable_sms", (formData.enable_sms || false).toString())
         data.append("enable_whatsapp", (formData.enable_whatsapp || false).toString())
@@ -164,12 +171,14 @@ export default function CompanyProfilePage() {
           body: data
         })
       } else {
+        // Omit address, phone, email from JSON payload
         response = await fetch("/api/company", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...formData,
             companyId: company.id
+            // address, phone, email are excluded
           })
         })
       }
@@ -259,15 +268,6 @@ export default function CompanyProfilePage() {
             </div>
 
             <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
-              {/* <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                  <Users className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Total Employees</p>
-                  <p className="text-sm font-semibold text-gray-700">{activeEmployeeCount || "--"}</p>
-                </div>
-              </div> */}
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
                   <Zap className="h-4 w-4" />
@@ -328,6 +328,52 @@ export default function CompanyProfilePage() {
       {/* Details Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
+        {/* Contact Information Section - FULLY COMMENTED OUT (address, phone, email) */}
+        {/* 
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
+                <Home className="h-5 w-5" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Contact Information</h3>
+            </div>
+            {isAdmin && (
+              <Button 
+                variant="outline" size="sm" 
+                className="text-teal-600 border-teal-100 bg-teal-50 hover:bg-teal-100"
+                onClick={() => handleEdit("contact")}
+              >
+                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+              </Button>
+            )}
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <Home className="h-4 w-4 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Address</p>
+                <p className="text-sm text-gray-800">{company.address || "Not provided"}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Phone Number</p>
+                <p className="text-sm text-gray-800">{company.phone || "Not provided"}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Mail className="h-4 w-4 text-gray-400 mt-0.5" />
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Email Address</p>
+                <p className="text-sm text-gray-800">{company.email || "Not provided"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        */}
+
         {/* Geographic & Location Settings */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
@@ -481,7 +527,52 @@ export default function CompanyProfilePage() {
 
       {/* Edit Dialogs */}
       
-      {/* 1. Location Settings Dialog */}
+      {/* Contact Information Dialog - FULLY COMMENTED OUT */}
+      {/* 
+      <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Contact Information</DialogTitle>
+            <DialogDescription>Update company address, phone number, and email</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 py-4">
+            <div className="space-y-2">
+              <Label>Full Address</Label>
+              <Input 
+                value={formData.address || ""} 
+                onChange={(e) => handleInputChange("address", e.target.value)} 
+                placeholder="Street, city, state, postal code"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input 
+                value={formData.phone || ""} 
+                onChange={(e) => handleInputChange("phone", e.target.value)} 
+                placeholder="+91 XXXXXXXXXX"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email Address</Label>
+              <Input 
+                type="email"
+                value={formData.email || ""} 
+                onChange={(e) => handleInputChange("email", e.target.value)} 
+                placeholder="contact@company.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      */}
+
+      {/* Location Settings Dialog */}
       <Dialog open={editingSection === "location"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -519,7 +610,7 @@ export default function CompanyProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. System Styles Dialog */}
+      {/* System Styles Dialog */}
       <Dialog open={editingSection === "system"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -565,7 +656,7 @@ export default function CompanyProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* 3. Communication Policy Dialog */}
+      {/* Communication Policy Dialog */}
       <Dialog open={editingSection === "policy"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
