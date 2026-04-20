@@ -1,22 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+  FileText,
+  Clock,
+  User as UserIcon,
+  Download,
+  Search,
+  Calendar,
+  Filter,
+  Users,
+  Activity,
+  ShieldCheck,
+  MapPin,
+  Mail,
+  Phone,
+  Briefcase,
+  Loader2,
+  ChevronRight,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader, UserIcon, Phone, Home, MapPin, AlertTriangle, Eye } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 
 interface DailyLog {
   date: string;
@@ -68,44 +89,46 @@ interface EmployeeFullProfile {
 
 export default function ReportPage() {
   const { company } = useAuth();
-  const [data, setData] = useState<UserRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  
+  // State Management
+  const [reportType, setReportType] = useState<"punch" | "profile">("punch");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
-  const [filters, setFilters] = useState<{ start_date: string; end_date: string }>({
-    start_date: "",
-    end_date: "",
+  const [dateRange, setDateRange] = useState({
+    start: format(startOfMonth(new Date()), "yyyy-MM-dd"),
+    end: format(new Date(), "yyyy-MM-dd")
   });
+  
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchingEmployees, setFetchingEmployees] = useState(false);
 
-  const [profileData, setProfileData] = useState<EmployeeFullProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-
+  // Helper: Format Dates for Display
   const formatDisplayDate = (date: string) => {
+    if (!date) return "--";
     try {
-      return format(new Date(date), "dd-MMM-yyyy");
+      return format(new Date(date), "dd MMM yyyy");
     } catch {
       return date;
     }
   };
 
+  // Helper: Format Time for Display
   const formatTime = (datetime: string) => {
-    if (!datetime) return "-";
+    if (!datetime) return "--";
     try {
       const d = new Date(datetime);
-      const hours = d.getUTCHours();
-      const minutes = d.getUTCMinutes();
-      const period = hours >= 12 ? "PM" : "AM";
-      const hour12 = hours % 12 || 12;
-      return `${hour12.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")} ${period}`;
+      if (isNaN(d.getTime())) return datetime;
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     } catch {
-      return datetime.split("T")[1]?.slice(0, 5) || datetime;
+      return datetime;
     }
   };
 
-  // Fetch ALL employees using the employee-report endpoint (no pagination)
+  // Fetch Employees List
   const fetchEmployees = async () => {
     if (!company) return;
+    setFetchingEmployees(true);
     try {
       const res = await fetch("/api/employee-report", {
         method: "POST",
@@ -118,41 +141,43 @@ export default function ReportPage() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to fetch employees");
-      const data = await res.json(); // data is an array of all employees
-
-      const employeeList = data.map((emp: any) => ({
-        id: emp.id,
-        name: `${emp.first_name} ${emp.last_name}`.trim(),
-      }));
-
-      setEmployees(employeeList);
+      if (!res.ok) throw new Error("Failed to fetch staff");
+      const list = await res.json();
+      setEmployees(list.map((emp: any) => ({
+        id: String(emp.id),
+        name: `${emp.first_name} ${emp.last_name}`,
+        email: emp.email,
+        role: emp.role
+      })));
     } catch (err) {
-      console.error("Error fetching employees:", err);
-      setEmployees([]);
+      console.error(err);
+      toast.error("Could not load employee list");
+    } finally {
+      setFetchingEmployees(false);
     }
   };
 
-  // Fetch punch report (backend filters by employee)
+  // Main Data Fetcher
   const fetchReport = async () => {
-    if (!filters.start_date || !filters.end_date) {
-      toast.error("Please select From Date and To Date");
-      return;
-    }
-    if (!company) {
-      toast.error("No company selected");
+    if (!company) return;
+    if (reportType === "punch" && (!dateRange.start || !dateRange.end)) {
+      toast.error("Please select a valid date range");
       return;
     }
 
     setLoading(true);
+    setData([]);
     try {
-      const payload = {
+      const payload: any = {
         company_id: company.id,
-        report_type: "punch",
-        start_date: filters.start_date,
-        end_date: filters.end_date,
-        employee: selectedEmployee === "all" ? "all" : Number(selectedEmployee),
+        report_type: reportType,
+        employee: selectedEmployee
       };
+
+      if (reportType === "punch") {
+        payload.start_date = dateRange.start;
+        payload.end_date = dateRange.end;
+      }
 
       const res = await fetch("/api/employee-report", {
         method: "POST",
@@ -161,114 +186,126 @@ export default function ReportPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Failed to fetch report");
+      if (!res.ok) throw new Error("Failed to fetch report data");
       const result = await res.json();
-
-      // Expected response: { records: [...] }
-      const records = result.records || [];
-      const normalizedRecords: UserRecord[] = records.map((emp: any) => ({
-        name: emp.name,
-        daily_logs: (emp.daily_logs || []).map((log: any) => ({
-          date: log.date,
-          check_ins: log.check_ins || [],
-          check_outs: log.check_outs || [],
-          working_hours: log.working_hours || 0,
-        })),
-      }));
-
-      setData(normalizedRecords);
-      if (normalizedRecords.length === 0 && selectedEmployee !== "all") {
-        toast.info("No punch records for this employee in the selected date range.");
+      
+      if (reportType === "punch") {
+        setData(result.records || []);
+      } else {
+        setData(result || []); // Array of profiles
       }
+      
+      toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report fetched`);
     } catch (err) {
       console.error(err);
-      toast.error("Could not load report");
-      setData([]);
+      toast.error("Error generating report");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch employee profile
-  const fetchEmployeeProfile = async () => {
-    if (!company || selectedEmployee === "all") return;
-    setProfileLoading(true);
-    try {
-      const res = await fetch(
-        `/api/employee-profile?employee_id=${selectedEmployee}&company_id=${company.id}`,
-        { credentials: "include", cache: "no-store" }
-      );
-      if (res.status === 404) {
-        toast.info("No detailed profile found for this employee.");
-        setProfileData(null);
-        setShowProfileModal(true);
-        return;
-      }
-      if (!res.ok) throw new Error("Failed to fetch profile");
-      const result = await res.json();
-      if (result.success && result.data) {
-        setProfileData(result.data);
-        setShowProfileModal(true);
-      } else {
-        throw new Error("Invalid profile data");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Could not load employee profile.");
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (company) fetchEmployees();
-    else setEmployees([]);
+    fetchEmployees();
   }, [company]);
 
-  useEffect(() => {
-    if (company && filters.start_date && filters.end_date) fetchReport();
-  }, [company, filters.start_date, filters.end_date, selectedEmployee]);
-
-  useEffect(() => {
-    if (company && (!filters.start_date || !filters.end_date)) setData([]);
-  }, [company, filters.start_date, filters.end_date]);
-
+  // PDF Generation Logic
   const downloadPDF = () => {
     if (!data.length) {
-      toast.error("No data to download");
+      toast.error("No data available for export");
       return;
     }
 
     const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Punch Report", 14, 15);
-    doc.setFontSize(12);
-    doc.text(
-      `From: ${formatDisplayDate(filters.start_date)}  To: ${formatDisplayDate(filters.end_date)}`,
-      14,
-      25
-    );
-    if (selectedEmployee !== "all") {
-      const empName = employees.find((e) => String(e.id) === selectedEmployee)?.name || selectedEmployee;
-      doc.text(`Employee: ${empName}`, 14, 33);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const timestamp = format(new Date(), "dd MMM yyyy, hh:mm a");
+
+    // Header Helper
+    const drawHeader = (title: string) => {
+      doc.setFontSize(20);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text(title, 14, 22);
+      
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139); // slate-500
+      doc.text(`Company: ${company?.name || "EmpSync Platform"}`, 14, 28);
+      doc.text(`Generated: ${timestamp}`, 14, 33);
+      
+      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.line(14, 38, pageWidth - 14, 38);
+    };
+
+    if (reportType === "punch") {
+      drawHeader("Punch & Attendance Report");
+      doc.setFontSize(10);
+      doc.text(`Range: ${formatDisplayDate(dateRange.start)} - ${formatDisplayDate(dateRange.end)}`, 14, 45);
+
+      const tableData = data.flatMap((user) =>
+        (user.daily_logs || []).map((log: any) => [
+          user.name || "N/A",
+          formatDisplayDate(log.date),
+          (log.check_ins || []).map(formatTime).join("\n"),
+          (log.check_outs || []).map(formatTime).join("\n"),
+          log.working_hours || "0.0"
+        ])
+      );
+
+      autoTable(doc, {
+        startY: 50,
+        head: [["Employee", "Date", "Check-Ins", "Check-Outs", "Hours"]],
+        body: tableData,
+        headStyles: { fillGray: 245, textColor: 50, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 3 },
+        alternateRowStyles: { fillGray: 250 },
+      });
+    } else {
+      // Profile Report
+      if (selectedEmployee !== "all") {
+        // Single Employee Detailed PDF
+        const emp = data[0];
+        drawHeader(`Employee Profile: ${emp?.first_name} ${emp?.last_name}`);
+        
+        const profile = emp?.profile || {};
+        const pAddress = profile?.present_address_details || {};
+        const permAddress = profile?.permanent_address_details || {};
+
+        autoTable(doc, {
+          startY: 45,
+          head: [["Section", "Details"]],
+          body: [
+            ["ID / Code", `#${emp.id} | Biometric: ${emp.biometric_id || "N/A"}`],
+            ["Full Name", `${emp.first_name} ${emp.last_name} (${emp.gender || "N/A"})`],
+            ["Professional", `Role: ${emp.role || "N/A"}\nGroup: ${emp.group || "N/A"}\nStaff Type: ${profile.staff_type || "N/A"}`],
+            ["Contact", `Email: ${emp.email}\nPhone: ${emp.mobile || "N/A"}\nAlt: ${profile.alternate_mobile || "N/A"}`],
+            ["Personal", `DOB: ${profile.dob || "N/A"}\nBlood: ${profile.blood_group || "N/A"}\nGuardian: ${profile.guardian_name || "N/A"}`],
+            ["Legal / IDs", `Aadhaar: ${profile.aadhar_no || "N/A"}\nPAN: ${profile.pan_no || "N/A"}\nKTU ID: ${profile.ktu_id || "N/A"}`],
+            ["Address", `Present: ${pAddress.address_line_1 || "-"}, ${pAddress.city || "-"}\nPermanent: ${permAddress.address_line_1 || "-"}, ${permAddress.city || "-"}`]
+          ],
+          columnStyles: { 0: { fontStyle: 'bold', width: 40 } },
+          styles: { cellPadding: 5, fontSize: 10 }
+        });
+      } else {
+        // Bulk Profile Summary Table
+        drawHeader("Staff Profile Summary");
+        const tableBody = data.map(emp => [
+          emp.id,
+          `${emp.first_name} ${emp.last_name}`,
+          emp.role || "N/A",
+          emp.group || "N/A",
+          emp.mobile || "N/A",
+          emp.profile?.aadhar_no || "N/A"
+        ]);
+
+        autoTable(doc, {
+          startY: 45,
+          head: [["ID", "Name", "Role", "Group", "Mobile", "Aadhaar"]],
+          body: tableBody,
+          styles: { fontSize: 8 },
+          headStyles: { fillGray: 245, textColor: 50 }
+        });
+      }
     }
 
-    autoTable(doc, {
-      startY: selectedEmployee !== "all" ? 40 : 35,
-      head: [["User", "Date", "Check-Ins", "Check-Outs", "Working Hours"]],
-      body: data.flatMap((user) =>
-        (user.daily_logs || []).map((log) => [
-          user.name || "N/A",
-          formatDisplayDate(log.date) || "-",
-          (log.check_ins || []).map(formatTime).join(", "),
-          (log.check_outs || []).map(formatTime).join(", "),
-          log.working_hours || "-",
-        ])
-      ),
-    });
-
-    const companyName = (company as any)?.company_name || (company as any)?.name || "unknown";
-    doc.save(`punch_report_${companyName}.pdf`);
+    doc.save(`${reportType}_report_${company?.name || "export"}.pdf`);
   };
 
   const selectedEmployeeName = selectedEmployee !== "all"
@@ -276,284 +313,265 @@ export default function ReportPage() {
     : null;
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Punch Report</h1>
-
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <select
-          value={selectedEmployee}
-          onChange={(e) => setSelectedEmployee(e.target.value)}
-          className="border p-2 rounded bg-white text-black"
-        >
-          <option value="all">All Employees</option>
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {emp.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={filters.start_date}
-          onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <input
-          type="date"
-          value={filters.end_date}
-          onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
-          className="border p-2 rounded"
-        />
-        <button
-          onClick={fetchReport}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-          disabled={loading}
-        >
-          {loading ? "Fetching..." : "Fetch Report"}
-        </button>
-        <button
-          onClick={downloadPDF}
-          className="bg-green-500 text-white px-4 py-2 rounded"
-          disabled={data.length === 0}
-        >
-          Download PDF
-        </button>
-
-        {selectedEmployee !== "all" && (
-          <button
-            onClick={fetchEmployeeProfile}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition flex items-center gap-2"
-            disabled={profileLoading}
+    <div className="p-8 max-w-7xl mx-auto space-y-8 min-h-screen bg-slate-50/30">
+      
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Employee Reports</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button 
+            onClick={downloadPDF}
+            className="rounded-xl font-bold bg-green-500 hover:bg-green-600 text-white shadow-lg"
+            disabled={data.length === 0}
           >
-            {profileLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-            {profileLoading ? "Loading..." : "View Profile"}
-          </button>
-        )}
+            <Download className="h-4 w-4 mr-2" /> Export PDF
+          </Button>
+        </div>
       </div>
 
-      {!loading && data.length === 0 && filters.start_date && filters.end_date && (
-        <p className="text-gray-500">No records found for the selected period and employee</p>
-      )}
+      <Separator className="bg-slate-200" />
 
-      {(!filters.start_date || !filters.end_date) && (
-        <p className="text-gray-500">Please select both From Date and To Date</p>
-      )}
+      {/* Main Layout: Vertical Stack */}
+      <div className="space-y-8">
+        {/* Compact Configuration Card */}
+        <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
+          <CardHeader className="border-b border-slate-200">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <Filter className="h-4 w-4 text-blue-600" /> Filter Dataset
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+              
+              {/* Step 1: Employee (Span 3) */}
+              <div className="md:col-span-2 space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+                  <Users className="h-3 w-3" /> Staff
+                </Label>
+                <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                  <SelectTrigger className="rounded-xl border-slate-200 h-10">
+                    <SelectValue placeholder="Identify Staff" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="all" className="font-bold">All Active Staff</SelectItem>
+                    {employees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-      {data.length > 0 && (
-        <div className="overflow-auto max-h-[60vh] border">
-          <table className="border-collapse border border-gray-400 w-full min-w-[700px]">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-2 w-1/4">User</th>
-                <th className="border p-2">Punch Records</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((user, idx) => (
-                <tr key={idx} className="align-top">
-                  <td className="border p-2 font-semibold">{user.name}</td>
-                  <td className="border p-0">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 text-sm">
-                          <th className="border-b border-r p-2 text-left">Date</th>
-                          <th className="border-b border-r p-2 text-left">Check-Ins</th>
-                          <th className="border-b border-r p-2 text-left">Check-Outs</th>
-                          <th className="border-b p-2 text-left">Hours</th>
+              {/* Step 2: Report Category (Span 4) */}
+              <div className="md:col-span-4 space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+                  <Activity className="h-3 w-3" /> Report Type
+                </Label>
+                <RadioGroup value={reportType} onValueChange={(v: any) => setReportType(v)} className="flex gap-2">
+                  <div className={`flex-1 p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-2 ${reportType === "punch" ? "border-blue-200 bg-blue-50/30" : "border-slate-100 bg-white"}`}>
+                     <RadioGroupItem value="punch" id="rp-punch" className="h-4 w-4" />
+                     <Label htmlFor="rp-punch" className="font-bold text-xs cursor-pointer">Punch Data</Label>
+                  </div>
+                  <div className={`flex-1 p-2 rounded-xl border transition-all cursor-pointer flex items-center gap-2 ${reportType === "profile" ? "border-purple-200 bg-purple-50/30" : "border-slate-100 bg-white"}`}>
+                     <RadioGroupItem value="profile" id="rp-profile" className="h-4 w-4" />
+                     <Label htmlFor="rp-profile" className="font-bold text-xs cursor-pointer">Profile</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Step 3: Date Filtering (Span 3 or hidden) */}
+              <div className={`md:col-span-4 space-y-2 transition-opacity duration-300 ${reportType === "punch" ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+                <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
+                  <Calendar className="h-3 w-3" /> Date Range
+                </Label>
+                <div className="flex gap-2">
+                   <Input 
+                      type="date" 
+                      value={dateRange.start}
+                      onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
+                      className="rounded-xl border-slate-200 h-10 text-xs"
+                    />
+                   <Input 
+                      type="date" 
+                      value={dateRange.end}
+                      onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
+                      className="rounded-xl border-slate-200 h-10 text-xs"
+                    />
+                </div>
+              </div>
+
+              {/* Action: Fetch (Span 2) */}
+              <div className="md:col-span-2">
+                <Button 
+                  className="w-full h-10 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md transition-all" 
+                  onClick={fetchReport}
+                  disabled={loading}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
+                  Generate
+                </Button>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Full-Width Result Card */}
+        <Card className="w-full border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white min-h-[500px]">
+          <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg font-bold">Result</CardTitle>
+            </div>
+            {data.length > 0 && <Badge className="bg-green-50 text-green-700 border border-green-100">{data.length} Records</Badge>}
+          </CardHeader>
+          <CardContent className="p-0">
+            
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-32 space-y-4">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full border-4 border-blue-50 border-t-blue-600 animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Activity className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <p className="text-slate-500 font-bold animate-pulse">Processing temporal datasets...</p>
+              </div>
+            ) : data.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-32 text-center px-8">
+                <div className="h-20 w-20 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                   <FileText className="h-10 w-10 text-slate-300" />
+                </div>
+                <h3 className="text-slate-800 font-bold text-lg">No Results Prepared</h3>
+                <p className="text-slate-500 max-w-xs mt-2 text-sm font-medium">Configure your matrix settings and click "Fetch Report" to generate the workforce dataset.</p>
+              </div>
+            ) : (
+              <div className="overflow-auto max-h-[70vh]">
+                {reportType === "punch" ? (
+                  /* Punch Data Table */
+                  <table className="w-full border-collapse">
+                    <thead className="sticky top-0 bg-slate-50 z-10">
+                      <tr>
+                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Employee</th>
+                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Audit Logs</th>
+                        <th className="p-4 text-center text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Total Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.map((user, idx) => (
+                        <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4 border-b border-slate-200 align-top">
+                             <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs border border-blue-100">
+                                  {user.name?.charAt(0)}
+                                </div>
+                                <span className="font-bold text-slate-800 text-sm">{user.name}</span>
+                             </div>
+                          </td>
+                          <td className="p-0 border-b border-slate-200">
+                             <table className="w-full border-collapse">
+                                <tbody>
+                                  {user.daily_logs.map((log: any, logIdx: number) => (
+                                    <tr key={`${idx}-${logIdx}`} className="">
+                                      <td className="p-3 text-[11px] font-bold text-slate-600 w-32 border-b border-r border-l border-slate-200 last:border-b-0 hover:bg-blue-50/20">{formatDisplayDate(log.date)}</td>
+                                      <td className="p-3 border-b border-r border-l border-slate-200 last:border-b-0 hover:bg-blue-50/20">
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {(log.check_ins || []).map((t: any, i: number) => <Badge key={i} variant="outline" className="text-[10px] bg-green-50/50 text-green-700 border-green-100">IN: {formatTime(t)}</Badge>)}
+                                          {(log.check_outs || []).map((t: any, i: number) => <Badge key={i} variant="outline" className="text-[10px] bg-rose-50/50 text-rose-700 border-rose-100">OUT: {formatTime(t)}</Badge>)}
+                                        </div>
+                                      </td>
+                                      <td className="p-3 text-right text-[11px] font-bold text-slate-400 w-24 border-b border-r border-l border-slate-200 last:border-b-0 hover:bg-blue-50/20">
+                                        {log.working_hours || "0.0"} <span className="text-[9px]">HRS</span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                             </table>
+                          </td>
+                          <td className="p-4 border-b border-slate-200 text-center align-top">
+                             <span className="text-sm font-bold text-blue-600">
+                               {user.daily_logs.reduce((acc: number, log: any) => acc + (parseFloat(log.working_hours) || 0), 0).toFixed(1)}
+                             </span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {user.daily_logs.map((log, logIdx) => (
-                          <tr key={`${idx}-${logIdx}`} className="hover:bg-gray-50 align-top">
-                            <td className="border-b border-r p-2">{formatDisplayDate(log.date)}</td>
-                            <td className="border-b border-r p-2 text-sm">
-                              {log.check_ins.length > 0
-                                ? log.check_ins.map((t, i) => <div key={i}>{formatTime(t)}</div>)
-                                : <span className="text-gray-400">-</span>}
-                            </td>
-                            <td className="border-b border-r p-2 text-sm">
-                              {log.check_outs.length > 0
-                                ? log.check_outs.map((t, i) => <div key={i}>{formatTime(t)}</div>)
-                                : <span className="text-gray-400">-</span>}
-                            </td>
-                            <td className="border-b p-2 text-center">{log.working_hours || "-"}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  /* Profile Logic */
+                  <div className="p-6 grid grid-cols-1 gap-6">
+                    {data.map((emp, idx) => (
+                      <div key={idx} className="bg-slate-50/50 rounded-xl p-6 border border-slate-100 hover:border-purple-200 transition-all">
+                        <div className="flex flex-col md:flex-row justify-between gap-6">
+                           <div className="flex gap-4">
+                              <div className="h-16 w-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400">
+                                <UserIcon className="h-8 w-8" />
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-slate-900 text-lg">{emp.first_name} {emp.last_name}</h4>
+                                  <Badge className="bg-slate-900 text-white text-[10px] rounded-lg">ID: {emp.id}</Badge>
+                                </div>
+                                <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-500">
+                                   <div className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {emp.email}</div>
+                                   <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {emp.mobile || "N/A"}</div>
+                                   <div className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" /> {emp.role || "N/A"}</div>
+                                </div>
+                              </div>
+                           </div>
+                           <div className="flex md:flex-col gap-2">
+                              <div className="p-3 bg-white rounded-xl border border-slate-100 flex-1 min-w-[150px]">
+                                 <span className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Identity Access</span>
+                                 <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-700">Bio: {emp.biometric_id || "-"}</span>
+                                    {emp.is_active ? <Activity className="h-3 w-3 text-green-500" /> : <div className="h-3 w-3 rounded-full bg-slate-200" />}
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
 
-      {/* Employee Profile Modal */}
-      <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Employee Profile</DialogTitle>
-            <DialogDescription>
-              Detailed information for {selectedEmployeeName || "Employee"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {profileLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader className="animate-spin h-6 w-6 text-blue-500" />
-              <span className="ml-2">Loading profile...</span>
-            </div>
-          ) : !profileData ? (
-            <div className="text-center py-12 bg-muted/30 rounded-lg border">
-              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-              <p className="text-muted-foreground">No detailed profile found for this employee.</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Personal Details */}
-              <Card className="border-l-4 border-l-green-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <UserIcon className="h-4 w-4 text-green-600" />
-                    Personal Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Date of Birth</p>
-                      <p className="text-sm font-medium">{profileData.dob || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Guardian Name</p>
-                      <p className="text-sm font-medium">{profileData.guardian_name || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Guardian Phone</p>
-                      <p className="text-sm font-medium">{profileData.guardian_phone || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Blood Group</p>
-                      <p className="text-sm font-medium">{profileData.blood_group || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Religion</p>
-                      <p className="text-sm font-medium">{profileData.religion_name || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Caste</p>
-                      <p className="text-sm font-medium">{profileData.caste_name || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Staff Type</p>
-                      <p className="text-sm font-medium">{profileData.staff_type || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Staff Category</p>
-                      <p className="text-sm font-medium">{profileData.staff_category || "—"}</p>
-                    </div>
+                        {/* Profile Matrix (Only if single employee or for detail view) */}
+                        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-slate-200/60">
+                           <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3 text-purple-600" /> Legal Compliance
+                              </span>
+                              <div className="text-xs font-bold text-slate-800">
+                                Aadhaar: {emp.profile?.aadhar_no || "—"}
+                                <br />
+                                PAN: {emp.profile?.pan_no || "—"}
+                              </div>
+                           </div>
+                           <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
+                                <MapPin className="h-3 w-3 text-blue-600" /> Primary Hub
+                              </span>
+                              <div className="text-xs font-bold text-slate-800 truncate">
+                                {emp.profile?.present_address_details?.city || "City Not Set"}
+                                <br />
+                                {emp.profile?.present_address_details?.state || "State Not Set"}
+                              </div>
+                           </div>
+                           <div className="flex items-end justify-end">
+                              <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50 rounded-lg group text-xs">
+                                Full Dataset <ChevronRight className="h-3.5 w-3.5 ml-1 transition-transform group-hover:translate-x-1" />
+                              </Button>
+                           </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-              {/* Emergency & IDs */}
-              <Card className="border-l-4 border-l-purple-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-purple-600" />
-                    Emergency & IDs
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Alternate Mobile</p>
-                      <p className="text-sm font-medium">{profileData.alternate_mobile || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Alternate Email</p>
-                      <p className="text-sm font-medium">{profileData.alternate_email || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">PAN</p>
-                      <p className="text-sm font-medium">{profileData.pan_no || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Aadhaar</p>
-                      <p className="text-sm font-medium">{profileData.aadhar_no || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">KTU ID</p>
-                      <p className="text-sm font-medium">{profileData.ktu_id || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">AICTE ID</p>
-                      <p className="text-sm font-medium">{profileData.aicte_id || "—"}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Present Address */}
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Home className="h-4 w-4 text-blue-600" />
-                    Present Address
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {profileData.present_address_details ? (
-                    <div className="text-sm">
-                      {profileData.present_address_details.address_line_1}
-                      <br />
-                      {profileData.present_address_details.city}, {profileData.present_address_details.state}
-                      <br />
-                      Pincode: {profileData.present_address_details.pincode}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not provided</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Permanent Address */}
-              <Card className="border-l-4 border-l-blue-500">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-blue-600" />
-                    Permanent Address
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {profileData.permanent_address_details ? (
-                    <div className="text-sm">
-                      {profileData.permanent_address_details.address_line_1}
-                      <br />
-                      {profileData.permanent_address_details.city}, {profileData.permanent_address_details.state}
-                      <br />
-                      Pincode: {profileData.permanent_address_details.pincode}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not provided</p>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProfileModal(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+
 /*"use client";
 
 import { useState, useEffect } from "react";
