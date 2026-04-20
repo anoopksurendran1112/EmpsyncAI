@@ -170,7 +170,7 @@ export default function ReportPage() {
     try {
       const payload: any = {
         company_id: company.id,
-        report_type: reportType,
+        report_type: reportType === "profile" ? "employee" : "punch",
         employee: selectedEmployee
       };
 
@@ -192,7 +192,7 @@ export default function ReportPage() {
       if (reportType === "punch") {
         setData(result.records || []);
       } else {
-        setData(result || []); // Array of profiles
+        setData(result || []);
       }
       
       toast.success(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report fetched`);
@@ -219,18 +219,17 @@ export default function ReportPage() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const timestamp = format(new Date(), "dd MMM yyyy, hh:mm a");
 
-    // Header Helper
     const drawHeader = (title: string) => {
       doc.setFontSize(20);
-      doc.setTextColor(15, 23, 42); // slate-900
+      doc.setTextColor(15, 23, 42);
       doc.text(title, 14, 22);
       
       doc.setFontSize(9);
-      doc.setTextColor(100, 116, 139); // slate-500
+      doc.setTextColor(100, 116, 139);
       doc.text(`Company: ${company?.name || "EmpSync Platform"}`, 14, 28);
       doc.text(`Generated: ${timestamp}`, 14, 33);
       
-      doc.setDrawColor(226, 232, 240); // slate-200
+      doc.setDrawColor(226, 232, 240);
       doc.line(14, 38, pageWidth - 14, 38);
     };
 
@@ -253,38 +252,77 @@ export default function ReportPage() {
         startY: 50,
         head: [["Employee", "Date", "Check-Ins", "Check-Outs", "Hours"]],
         body: tableData,
-        headStyles: { fillGray: 245, textColor: 50, fontStyle: 'bold' },
+        headStyles: { fillColor: [245, 245, 245], textColor: 50, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 3 },
-        alternateRowStyles: { fillGray: 250 },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
       });
     } else {
-      // Profile Report
       if (selectedEmployee !== "all") {
-        // Single Employee Detailed PDF
         const emp = data[0];
-        drawHeader(`Employee Profile: ${emp?.first_name} ${emp?.last_name}`);
-        
         const profile = emp?.profile || {};
-        const pAddress = profile?.present_address_details || {};
-        const permAddress = profile?.permanent_address_details || {};
+        const present = profile.present_address_details || {};
+        const permanent = profile.permanent_address_details || {};
 
-        autoTable(doc, {
-          startY: 45,
-          head: [["Section", "Details"]],
-          body: [
-            ["ID / Code", `#${emp.id} | Biometric: ${emp.biometric_id || "N/A"}`],
-            ["Full Name", `${emp.first_name} ${emp.last_name} (${emp.gender || "N/A"})`],
-            ["Professional", `Role: ${emp.role || "N/A"}\nGroup: ${emp.group || "N/A"}\nStaff Type: ${profile.staff_type || "N/A"}`],
-            ["Contact", `Email: ${emp.email}\nPhone: ${emp.mobile || "N/A"}\nAlt: ${profile.alternate_mobile || "N/A"}`],
-            ["Personal", `DOB: ${profile.dob || "N/A"}\nBlood: ${profile.blood_group || "N/A"}\nGuardian: ${profile.guardian_name || "N/A"}`],
-            ["Legal / IDs", `Aadhaar: ${profile.aadhar_no || "N/A"}\nPAN: ${profile.pan_no || "N/A"}\nKTU ID: ${profile.ktu_id || "N/A"}`],
-            ["Address", `Present: ${pAddress.address_line_1 || "-"}, ${pAddress.city || "-"}\nPermanent: ${permAddress.address_line_1 || "-"}, ${permAddress.city || "-"}`]
-          ],
-          columnStyles: { 0: { fontStyle: 'bold', width: 40 } },
-          styles: { cellPadding: 5, fontSize: 10 }
-        });
+        drawHeader(`Employee Profile: ${emp.first_name} ${emp.last_name}`);
+
+        let y = 45;
+        const addSection = (title: string, rows: [string, string][]) => {
+          doc.setFontSize(14);
+          doc.setTextColor(15, 23, 42);
+          doc.text(title, 14, y);
+          y += 6;
+          autoTable(doc, {
+            startY: y,
+            body: rows.map(([k, v]) => [k, v]),
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 2 },
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } },
+            margin: { left: 14 },
+          });
+          y = (doc as any).lastAutoTable.finalY + 8;
+        };
+
+        addSection("Personal Details", [
+          ["Date of Birth", profile.dob || "—"],
+          ["Guardian Name", profile.guardian_name || "—"],
+          ["Guardian Phone", profile.guardian_phone || "—"],
+          ["Blood Group", profile.blood_group || "—"],
+          ["Religion", profile.religion_name || "—"],
+          ["Caste", profile.caste_name || "—"],
+          ["Staff Type", profile.staff_type || "—"],
+          ["Staff Category", profile.staff_category || "—"],
+        ]);
+
+        addSection("IDs & Contact", [
+          ["KTU ID", profile.ktu_id || "—"],
+          ["AICTE ID", profile.aicte_id || "—"],
+          ["PAN Number", profile.pan_no || "—"],
+          ["Aadhaar Number", profile.aadhar_no || "—"],
+          ["Alternate Mobile", profile.alternate_mobile || "—"],
+          ["Alternate Email", profile.alternate_email || "—"],
+        ]);
+
+        addSection("Present Address", [
+          ["Address Line 1", present.address_line_1 || "—"],
+          ["Address Line 2", present.address_line_2 || "—"],
+          ["City", present.city || "—"],
+          ["District", present.district || "—"],
+          ["State", present.state || "—"],
+          ["Country", present.country || "—"],
+          ["Pincode", present.pincode || "—"],
+        ]);
+
+        addSection("Permanent Address", [
+          ["Address Line 1", permanent.address_line_1 || "—"],
+          ["Address Line 2", permanent.address_line_2 || "—"],
+          ["City", permanent.city || "—"],
+          ["District", permanent.district || "—"],
+          ["State", permanent.state || "—"],
+          ["Country", permanent.country || "—"],
+          ["Pincode", permanent.pincode || "—"],
+        ]);
+
       } else {
-        // Bulk Profile Summary Table
         drawHeader("Staff Profile Summary");
         const tableBody = data.map(emp => [
           emp.id,
@@ -292,15 +330,16 @@ export default function ReportPage() {
           emp.role || "N/A",
           emp.group || "N/A",
           emp.mobile || "N/A",
-          emp.profile?.aadhar_no || "N/A"
+          emp.profile?.aadhar_no || "N/A",
+          emp.profile?.blood_group || "N/A",
+          emp.profile?.dob || "N/A",
         ]);
-
         autoTable(doc, {
           startY: 45,
-          head: [["ID", "Name", "Role", "Group", "Mobile", "Aadhaar"]],
+          head: [["ID", "Name", "Role", "Group", "Mobile", "Aadhaar", "Blood", "DOB"]],
           body: tableBody,
           styles: { fontSize: 8 },
-          headStyles: { fillGray: 245, textColor: 50 }
+          headStyles: { fillColor: [245, 245, 245], textColor: 50 },
         });
       }
     }
@@ -308,14 +347,9 @@ export default function ReportPage() {
     doc.save(`${reportType}_report_${company?.name || "export"}.pdf`);
   };
 
-  const selectedEmployeeName = selectedEmployee !== "all"
-    ? employees.find((e) => String(e.id) === selectedEmployee)?.name
-    : null;
-
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 min-h-screen bg-slate-50/30">
       
-      {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Employee Reports</h1>
@@ -333,9 +367,7 @@ export default function ReportPage() {
 
       <Separator className="bg-slate-200" />
 
-      {/* Main Layout: Vertical Stack */}
       <div className="space-y-8">
-        {/* Compact Configuration Card */}
         <Card className="border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white">
           <CardHeader className="border-b border-slate-200">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
@@ -345,7 +377,6 @@ export default function ReportPage() {
           <CardContent className="px-4">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
               
-              {/* Step 1: Employee (Span 3) */}
               <div className="md:col-span-2 space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
                   <Users className="h-3 w-3" /> Staff
@@ -363,7 +394,6 @@ export default function ReportPage() {
                 </Select>
               </div>
 
-              {/* Step 2: Report Category (Span 4) */}
               <div className="md:col-span-4 space-y-2">
                 <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
                   <Activity className="h-3 w-3" /> Report Type
@@ -380,7 +410,6 @@ export default function ReportPage() {
                 </RadioGroup>
               </div>
 
-              {/* Step 3: Date Filtering (Span 3 or hidden) */}
               <div className={`md:col-span-4 space-y-2 transition-opacity duration-300 ${reportType === "punch" ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
                 <Label className="text-[10px] uppercase font-bold text-slate-400 tracking-widest flex items-center gap-2">
                   <Calendar className="h-3 w-3" /> Date Range
@@ -401,7 +430,6 @@ export default function ReportPage() {
                 </div>
               </div>
 
-              {/* Action: Fetch (Span 2) */}
               <div className="md:col-span-2">
                 <Button 
                   className="w-full h-10 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md transition-all" 
@@ -417,7 +445,6 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
-        {/* Full-Width Result Card */}
         <Card className="w-full border-slate-200 shadow-sm rounded-xl overflow-hidden bg-white min-h-[500px]">
           <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-row items-center justify-between">
             <div>
@@ -448,7 +475,6 @@ export default function ReportPage() {
             ) : (
               <div className="overflow-auto max-h-[70vh]">
                 {reportType === "punch" ? (
-                  /* Punch Data Table */
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-50 z-10">
                       <tr>
@@ -467,7 +493,7 @@ export default function ReportPage() {
                                 </div>
                                 <span className="font-bold text-slate-800 text-sm">{user.name}</span>
                              </div>
-                          </td>
+                           </td>
                           <td className="p-0 border-b border-slate-200">
                              <table className="w-full border-collapse">
                                 <tbody>
@@ -486,80 +512,123 @@ export default function ReportPage() {
                                     </tr>
                                   ))}
                                 </tbody>
-                             </table>
-                          </td>
+                              </table>
+                           </td>
                           <td className="p-4 border-b border-slate-200 text-center align-top">
                              <span className="text-sm font-bold text-blue-600">
                                {user.daily_logs.reduce((acc: number, log: any) => acc + (parseFloat(log.working_hours) || 0), 0).toFixed(1)}
                              </span>
-                          </td>
+                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 ) : (
                   /* Profile Logic */
-                  <div className="p-6 grid grid-cols-1 gap-6">
-                    {data.map((emp, idx) => (
-                      <div key={idx} className="bg-slate-50/50 rounded-xl p-6 border border-slate-100 hover:border-purple-200 transition-all">
-                        <div className="flex flex-col md:flex-row justify-between gap-6">
-                           <div className="flex gap-4">
-                              <div className="h-16 w-16 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400">
-                                <UserIcon className="h-8 w-8" />
+                  <div className="p-6">
+                    {selectedEmployee !== "all" ? (
+                      // Single employee – full detailed profile in one page, colored headings
+                      data.map((emp, idx) => {
+                        const profile = emp.profile || {};
+                        const present = profile.present_address_details || {};
+                        const permanent = profile.permanent_address_details || {};
+                        return (
+                          <div key={idx} className="space-y-6">
+                            {/* Header */}
+                            <div className="flex items-center gap-4 pb-4 border-b">
+                              <div className="h-16 w-16 rounded-full bg-purple-100 flex items-center justify-center">
+                                <UserIcon className="h-8 w-8 text-purple-700" />
                               </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-bold text-slate-900 text-lg">{emp.first_name} {emp.last_name}</h4>
-                                  <Badge className="bg-slate-900 text-white text-[10px] rounded-lg">ID: {emp.id}</Badge>
+                              <div>
+                                <h2 className="text-2xl font-bold">{emp.first_name} {emp.last_name}</h2>
+                                <div className="flex gap-3 text-sm text-muted-foreground">
+                                  <span>{emp.email}</span>
+                                  <span>•</span>
+                                  <span>{emp.mobile || "—"}</span>
                                 </div>
-                                <div className="flex flex-wrap gap-4 text-xs font-medium text-slate-500">
-                                   <div className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5" /> {emp.email}</div>
-                                   <div className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {emp.mobile || "N/A"}</div>
-                                   <div className="flex items-center gap-1.5"><Briefcase className="h-3.5 w-3.5" /> {emp.role || "N/A"}</div>
-                                </div>
                               </div>
-                           </div>
-                           <div className="flex md:flex-col gap-2">
-                              <div className="p-3 bg-white rounded-xl border border-slate-100 flex-1 min-w-[150px]">
-                                 <span className="text-[9px] uppercase font-bold text-slate-400 block mb-1">Identity Access</span>
-                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold text-slate-700">Bio: {emp.biometric_id || "-"}</span>
-                                    {emp.is_active ? <Activity className="h-3 w-3 text-green-500" /> : <div className="h-3 w-3 rounded-full bg-slate-200" />}
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
+                            </div>
 
-                        {/* Profile Matrix (Only if single employee or for detail view) */}
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-slate-200/60">
-                           <div className="space-y-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                                <ShieldCheck className="h-3 w-3 text-purple-600" /> Legal Compliance
-                              </span>
-                              <div className="text-xs font-bold text-slate-800">
-                                Aadhaar: {emp.profile?.aadhar_no || "—"}
-                                <br />
-                                PAN: {emp.profile?.pan_no || "—"}
+                            {/* Personal Details - Green heading */}
+                            <div>
+                              <h3 className="text-xl font-semibold text-emerald-700 border-l-4 border-emerald-500 pl-3 mb-4">Personal Details</h3>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/50 rounded-lg p-4">
+                                <div><Label className="text-slate-500">Date of Birth</Label><p className="font-medium">{profile.dob || "—"}</p></div>
+                                <div><Label className="text-slate-500">Blood Group</Label><p className="font-medium">{profile.blood_group || "—"}</p></div>
+                                <div><Label className="text-slate-500">Guardian Name</Label><p className="font-medium">{profile.guardian_name || "—"}</p></div>
+                                <div><Label className="text-slate-500">Guardian Phone</Label><p className="font-medium">{profile.guardian_phone || "—"}</p></div>
+                                <div><Label className="text-slate-500">Religion</Label><p className="font-medium">{profile.religion_name || "—"}</p></div>
+                                <div><Label className="text-slate-500">Caste</Label><p className="font-medium">{profile.caste_name || "—"}</p></div>
+                                <div><Label className="text-slate-500">Staff Type</Label><p className="font-medium">{profile.staff_type || "—"}</p></div>
+                                <div><Label className="text-slate-500">Staff Category</Label><p className="font-medium">{profile.staff_category || "—"}</p></div>
                               </div>
-                           </div>
-                           <div className="space-y-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
-                                <MapPin className="h-3 w-3 text-blue-600" /> Primary Hub
-                              </span>
-                              <div className="text-xs font-bold text-slate-800 truncate">
-                                {emp.profile?.present_address_details?.city || "City Not Set"}
-                                <br />
-                                {emp.profile?.present_address_details?.state || "State Not Set"}
+                            </div>
+
+                            {/* IDs & Contact - Blue heading */}
+                            <div>
+                              <h3 className="text-xl font-semibold text-blue-700 border-l-4 border-blue-500 pl-3 mb-4">IDs & Contact</h3>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/50 rounded-lg p-4">
+                                <div><Label className="text-slate-500">KTU ID</Label><p className="font-medium">{profile.ktu_id || "—"}</p></div>
+                                <div><Label className="text-slate-500">AICTE ID</Label><p className="font-medium">{profile.aicte_id || "—"}</p></div>
+                                <div><Label className="text-slate-500">PAN Number</Label><p className="font-medium">{profile.pan_no || "—"}</p></div>
+                                <div><Label className="text-slate-500">Aadhaar Number</Label><p className="font-medium">{profile.aadhar_no || "—"}</p></div>
+                                <div><Label className="text-slate-500">Alternate Mobile</Label><p className="font-medium">{profile.alternate_mobile || "—"}</p></div>
+                                <div><Label className="text-slate-500">Alternate Email</Label><p className="font-medium">{profile.alternate_email || "—"}</p></div>
                               </div>
-                           </div>
-                           <div className="flex items-end justify-end">
-                              <Button variant="ghost" size="sm" className="text-blue-600 font-bold hover:bg-blue-50 rounded-lg group text-xs">
-                                Full Dataset <ChevronRight className="h-3.5 w-3.5 ml-1 transition-transform group-hover:translate-x-1" />
-                              </Button>
-                           </div>
-                        </div>
+                            </div>
+
+                            {/* Present Address - Amber heading */}
+                            <div>
+                              <h3 className="text-xl font-semibold text-amber-700 border-l-4 border-amber-500 pl-3 mb-4">Present Address</h3>
+                              <div className="bg-slate-50/50 rounded-lg p-4">
+                                <div className="space-y-1">
+                                  <p>{present.address_line_1 || "—"}</p>
+                                  {present.address_line_2 && <p>{present.address_line_2}</p>}
+                                  <p>{present.city}, {present.district}</p>
+                                  <p>{present.state}, {present.country}</p>
+                                  <p>Pincode: {present.pincode}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Permanent Address - Purple heading */}
+                            <div>
+                              <h3 className="text-xl font-semibold text-purple-700 border-l-4 border-purple-500 pl-3 mb-4">Permanent Address</h3>
+                              <div className="bg-slate-50/50 rounded-lg p-4">
+                                <div className="space-y-1">
+                                  <p>{permanent.address_line_1 || "—"}</p>
+                                  {permanent.address_line_2 && <p>{permanent.address_line_2}</p>}
+                                  <p>{permanent.city}, {permanent.district}</p>
+                                  <p>{permanent.state}, {permanent.country}</p>
+                                  <p>Pincode: {permanent.pincode}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      // Multiple employees – summary cards with more fields
+                      <div className="grid grid-cols-1 gap-6">
+                        {data.map((emp, idx) => (
+                          <div key={idx} className="bg-slate-50/50 rounded-xl p-6 border">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="font-bold text-lg">{emp.first_name} {emp.last_name}</h3>
+                                <p className="text-sm text-muted-foreground">{emp.role || "—"} • {emp.email}</p>
+                              </div>
+                              <Badge>ID: {emp.id}</Badge>
+                            </div>
+                            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                              <div><span className="font-semibold">Mobile:</span> {emp.mobile || "—"}</div>
+                              <div><span className="font-semibold">DOB:</span> {emp.profile?.dob || "—"}</div>
+                              <div><span className="font-semibold">Blood:</span> {emp.profile?.blood_group || "—"}</div>
+                              <div><span className="font-semibold">Aadhaar:</span> {emp.profile?.aadhar_no || "—"}</div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -571,7 +640,6 @@ export default function ReportPage() {
     </div>
   );
 }
-
 /*"use client";
 
 import { useState, useEffect } from "react";
