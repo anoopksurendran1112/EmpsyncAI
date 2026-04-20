@@ -2239,15 +2239,13 @@ def profile(request, id):
         is_whatsapp = request.data.get('is_whatsapp')
         is_wfh = request.data.get('is_wfh')
 
-        # --- Company-level controls first ---
-        if company.soft_disable:
-            return Response({
-                'success': False,
-                'message': 'Messaging services are temporarily disabled by your company.'
-            }, status=status.HTTP_403_FORBIDDEN)
-
         # --- SMS control ---
         if 'is_sms' in request.data:
+            if company.soft_disable:
+                return Response({
+                    'success': False,
+                    'message': 'Messaging services are temporarily disabled by your company.'
+                }, status=status.HTTP_403_FORBIDDEN)
             if company.strict_sms:
                 return Response({
                     'success': False,
@@ -2269,6 +2267,11 @@ def profile(request, id):
 
         # --- WhatsApp control ---
         if 'is_whatsapp' in request.data:
+            if company.soft_disable:
+                return Response({
+                    'success': False,
+                    'message': 'Messaging services are temporarily disabled by your company.'
+                }, status=status.HTTP_403_FORBIDDEN)
             if company.strict_whatsapp:
                 return Response({
                     'success': False,
