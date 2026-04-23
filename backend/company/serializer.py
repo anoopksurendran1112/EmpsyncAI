@@ -1,5 +1,11 @@
 from rest_framework import serializers
-from .models import Company,Device,StaffType,StaffCategory
+from .models import Company,Device,StaffType,StaffCategory,CompanyProfile
+
+class CompanyProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyProfile
+        fields = '__all__'
+
 
 
 
