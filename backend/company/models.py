@@ -167,3 +167,25 @@ class StaffCategory(models.Model):
 
     def __str__(self):
         return self.category_name
+
+
+class CompanyProfile(models.Model):
+    company = models.OneToOneField(Company, on_delete=models.CASCADE, related_name='profile')
+    
+    address_line_1 = models.CharField(max_length=255, null=True, blank=True)
+    address_line_2 = models.CharField(max_length=255, null=True, blank=True)
+    city = models.CharField(max_length=100, null=True, blank=True)
+    district = models.CharField(max_length=100, null=True, blank=True)
+    state = models.CharField(max_length=100, null=True, blank=True)
+    country = models.CharField(max_length=100, default='India')
+    pincode = models.CharField(max_length=10, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    alternate_email = models.EmailField(null=True, blank=True)
+    phone_number = models.CharField(max_length=20, null=True, blank=True)
+    alternate_phone_number = models.CharField(max_length=20, null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.company.company_name} Profile"
