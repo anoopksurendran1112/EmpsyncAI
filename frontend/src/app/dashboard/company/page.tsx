@@ -5,30 +5,10 @@ import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
-  Building2,
-  MapPin,
-  Clock,
-  Gauge,
-  Shield,
-  Calendar,
-  Users,
-  Settings,
-  Edit3,
-  RefreshCw,
-  Save,
-  X,
-  MessageSquare,
-  Phone,
-  Activity,
-  Hash,
-  Globe,
-  Navigation,
-  CheckCircle,
-  XCircle,
-  Zap,
-  MoreVertical,
-  Mail,
-  Home,
+  Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings,
+  Edit3, RefreshCw, Save, X, MessageSquare, Phone, Activity, Hash,
+  Globe, Navigation, CheckCircle, XCircle, Zap, MoreVertical, Mail, Home,
+  Trash2, AlertTriangle
 } from "lucide-react"
 
 import { useAuth } from "@/context/AuthContext"
@@ -43,51 +23,180 @@ import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 
 export default function CompanyProfilePage() {
   const { company, isAdmin } = useAuth()
   const router = useRouter()
   
+  // ============================================================
+  // State for system/geofence/policy (uses /api/company endpoint)
+  // ============================================================
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [formData, setFormData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-  const [activeEmployeeCount, setActiveEmployeeCount] = useState<number | null>(null)
+  const [activeEmployeeCount, setActiveEmployeeCount] = useState<number | null>(0)
 
-  // Initialize form data when company changes
+  // ============================================================
+  // State for address & contact profile (/api/manage-company-profile/)
+  // ============================================================
+  const [profileData, setProfileData] = useState<any>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [profileExists, setProfileExists] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // ------------------------------------------------------------------
+  // 1. Fetch company profile from our Next.js route (proxies to Django)
+  // ------------------------------------------------------------------
+  const fetchProfile = async () => {
+    if (!company?.id) return
+    setProfileLoading(true)
+    try {
+      // Important: trailing slash before query param
+      const res = await fetch(`/api/manage-company-profile/?company_id=${company.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setProfileData(data)
+        setProfileExists(true)
+      } else if (res.status === 404) {
+        setProfileData(null)
+        setProfileExists(false)
+      } else {
+        throw new Error("Failed to load profile")
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error("Could not load company profile")
+      setProfileData(null)
+      setProfileExists(false)
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProfile()
+  }, [company])
+
+  // ------------------------------------------------------------------
+  // 2. Employee count – disabled to avoid 404 (set to 0)
+  //    Replace with real endpoint later if needed.
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    setActiveEmployeeCount(0)
+    // If you later implement a proper endpoint, uncomment:
+    /*
+    const fetchEmployeeCount = async () => {
+      try {
+        const response = await fetch("/api/employees/count?company_id=" + company.id)
+        if (response.ok) {
+          const data = await response.json()
+          setActiveEmployeeCount(data.count)
+        }
+      } catch (err) {
+        setActiveEmployeeCount(0)
+      }
+    }
+    fetchEmployeeCount()
+    */
+  }, [company])
+
+  // ------------------------------------------------------------------
+  // 3. Save profile (POST for create, PUT for update)
+  // ------------------------------------------------------------------
+  const handleSaveProfile = async () => {
+    if (!company) return
+    setIsSaving(true)
+    try {
+      const url = `/api/manage-company-profile/`
+      const payload: any = { ...profileData }
+      payload.company_id = company.id
+
+      let response
+      if (!profileExists) {
+        response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+      } else {
+        response = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+      }
+
+      if (response.ok) {
+        toast.success(profileExists ? "Profile updated!" : "Profile created!")
+        await fetchProfile()
+        setEditingSection(null)
+      } else {
+        const error = await response.json()
+        toast.error(error.error || "Failed to save profile")
+      }
+    } catch (err) {
+      toast.error("Internal Server Error")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 4. Delete profile (DELETE method)
+  // ------------------------------------------------------------------
+  const handleDeleteProfile = async () => {
+    if (!company) return
+    setIsSaving(true)
+    try {
+      const res = await fetch(`/api/manage-company-profile/`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: company.id })
+      })
+      if (res.ok) {
+        toast.success("Company profile deleted")
+        setProfileData(null)
+        setProfileExists(false)
+        setShowDeleteConfirm(false)
+      } else {
+        const error = await res.json()
+        toast.error(error.error || "Delete failed")
+      }
+    } catch (err) {
+      toast.error("Could not delete profile")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // 5. Helper: full address string
+  // ------------------------------------------------------------------
+  const getFullAddress = () => {
+    if (!profileData) return "Not provided"
+    const parts = [
+      profileData.address_line_1,
+      profileData.address_line_2,
+      profileData.city,
+      profileData.district,
+      profileData.state,
+      profileData.country,
+      profileData.pincode
+    ].filter(Boolean)
+    return parts.length ? parts.join(", ") : "Not provided"
+  }
+
+  // ============================================================
+  // Existing logic for system settings (/api/company)
+  // ============================================================
   useEffect(() => {
     if (company) {
       setFormData({ ...company })
     }
-  }, [company])
-
-  // Fetch total active employees
-  useEffect(() => {
-    const fetchEmployeeCount = async () => {
-      if (!company) return
-      try {
-        const response = await fetch("/api/get-all-employees/1", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company_id: company.id, is_active: true })
-        })
-        const result = await response.json()
-        if (result.success) {
-          setActiveEmployeeCount(result.total)
-        }
-      } catch (err) {
-        console.error("Failed to fetch employee count:", err)
-      }
-    }
-    fetchEmployeeCount()
   }, [company])
 
   if (!company || !formData) {
@@ -110,7 +219,26 @@ export default function CompanyProfilePage() {
   }
 
   const handleEdit = (section: string) => {
-    setFormData({ ...company })
+    if (section === "address") {
+      if (!profileExists) {
+        setProfileData({
+          company_id: company.id,
+          address_line_1: "",
+          address_line_2: "",
+          city: "",
+          district: "",
+          state: "",
+          country: "",
+          pincode: "",
+          email: "",
+          phone_number: "",
+          alternate_email: "",
+          alternate_phone_number: "",
+        })
+      } else {
+        setProfileData({ ...profileData })
+      }
+    }
     setEditingSection(section)
   }
 
@@ -118,10 +246,17 @@ export default function CompanyProfilePage() {
     setFormData({ ...company })
     setEditingSection(null)
     setSelectedImageFile(null)
+    if (profileExists) {
+      fetchProfile()
+    }
   }
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }))
+  }
+
+  const handleProfileFieldChange = (field: string, value: string) => {
+    setProfileData((prev: any) => ({ ...prev, [field]: value }))
   }
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,13 +288,6 @@ export default function CompanyProfilePage() {
         data.append("work_summary_interval", formData.work_summary_interval)
         data.append("punch_mode", formData.punch_mode)
         data.append("travel_speed_threshold", formData.travel_speed_threshold?.toString() || "10")
-        
-        // Address, phone, email are NOT sent to API (commented out)
-        // data.append("address", formData.address || "")
-        // data.append("phone", formData.phone || "")
-        // data.append("email", formData.email || "")
-        
-        // Add boolean fields
         data.append("enable_sms", (formData.enable_sms || false).toString())
         data.append("enable_whatsapp", (formData.enable_whatsapp || false).toString())
         data.append("soft_disable", (formData.soft_disable || false).toString())
@@ -171,14 +299,12 @@ export default function CompanyProfilePage() {
           body: data
         })
       } else {
-        // Omit address, phone, email from JSON payload
         response = await fetch("/api/company", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             ...formData,
             companyId: company.id
-            // address, phone, email are excluded
           })
         })
       }
@@ -201,9 +327,12 @@ export default function CompanyProfilePage() {
   const logoUrl = getLogoUrl()
   const initial = company.company_name?.charAt(0).toUpperCase() || "C"
 
+  // ============================================================
+  // Render
+  // ============================================================
   return (
     <div className="max-w-6xl mx-auto pb-12">
-      {/* Header Area */}
+      {/* Header */}
       <div className="mb-6 flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Company Profile</h1>
@@ -218,7 +347,6 @@ export default function CompanyProfilePage() {
       {/* Hero Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-          {/* Logo Section */}
           <div className="relative group">
             <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
               {logoUrl ? (
@@ -325,54 +453,81 @@ export default function CompanyProfilePage() {
         </div>
       </div>
 
-      {/* Details Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
-        {/* Contact Information Section - FULLY COMMENTED OUT (address, phone, email) */}
-        {/* 
+        {/* ================== Contact & Address Section ================== */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
                 <Home className="h-5 w-5" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Contact Information</h3>
+              <h3 className="text-lg font-bold text-gray-900">Contact & Address</h3>
             </div>
             {isAdmin && (
-              <Button 
-                variant="outline" size="sm" 
-                className="text-teal-600 border-teal-100 bg-teal-50 hover:bg-teal-100"
-                onClick={() => handleEdit("contact")}
-              >
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" size="sm" 
+                  className="text-teal-600 border-teal-100 bg-teal-50 hover:bg-teal-100"
+                  onClick={() => handleEdit("address")}
+                >
+                  <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                </Button>
+                {profileExists && (
+                  <Button 
+                    variant="outline" size="sm" 
+                    className="text-red-600 border-red-100 bg-red-50 hover:bg-red-100"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-          <div className="p-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <Home className="h-4 w-4 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Address</p>
-                <p className="text-sm text-gray-800">{company.address || "Not provided"}</p>
+          <div className="p-6">
+            {profileLoading ? (
+              <div className="flex justify-center py-8">Loading profile...</div>
+            ) : profileExists && profileData ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Address</p>
+                    <p className="text-sm text-gray-800">{getFullAddress()}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-start gap-3">
+                    <Mail className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Email</p>
+                      <p className="text-sm text-gray-800">{profileData.email || "Not provided"}</p>
+                      {profileData.alternate_email && (
+                        <p className="text-xs text-gray-500 mt-1">Alt: {profileData.alternate_email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Phone</p>
+                      <p className="text-sm text-gray-800">{profileData.phone_number || "Not provided"}</p>
+                      {profileData.alternate_phone_number && (
+                        <p className="text-xs text-gray-500 mt-1">Alt: {profileData.alternate_phone_number}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Phone Number</p>
-                <p className="text-sm text-gray-800">{company.phone || "Not provided"}</p>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No contact information found.
+                {isAdmin && <p className="text-sm mt-2">Click Edit to add company address & contact details.</p>}
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Mail className="h-4 w-4 text-gray-400 mt-0.5" />
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Email Address</p>
-                <p className="text-sm text-gray-800">{company.email || "Not provided"}</p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
-        */}
 
         {/* Geographic & Location Settings */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -417,7 +572,7 @@ export default function CompanyProfilePage() {
           </div>
         </div>
 
-        {/* System Configurations */}
+        {/* System Preferences */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -458,7 +613,7 @@ export default function CompanyProfilePage() {
           </div>
         </div>
 
-        {/* Global Communication Policy (Admin Only) */}
+        {/* Communication Policy */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -482,20 +637,20 @@ export default function CompanyProfilePage() {
               <div className="space-y-4">
                  <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className={`h-4 w-4 ${company.enable_sms ? "text-green-500" : "text-gray-400"}`} />
+                    <CheckCircle className={`h-4 w-4 ${formData.enable_sms ? "text-green-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-gray-700">SMS Alerts Service</span>
                   </div>
-                  <Badge variant={company.enable_sms ? "default" : "secondary"}>
-                    {company.enable_sms ? "Online" : "Offline"}
+                  <Badge variant={formData.enable_sms ? "default" : "secondary"}>
+                    {formData.enable_sms ? "Online" : "Offline"}
                   </Badge>
                 </div>
                  <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <MessageSquare className={`h-4 w-4 ${company.enable_whatsapp ? "text-green-500" : "text-gray-400"}`} />
+                    <MessageSquare className={`h-4 w-4 ${formData.enable_whatsapp ? "text-green-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-gray-700">WhatsApp Alerts Service</span>
                   </div>
-                  <Badge variant={company.enable_whatsapp ? "default" : "secondary"}>
-                    {company.enable_whatsapp ? "Online" : "Offline"}
+                  <Badge variant={formData.enable_whatsapp ? "default" : "secondary"}>
+                    {formData.enable_whatsapp ? "Online" : "Offline"}
                   </Badge>
                 </div>
               </div>
@@ -503,20 +658,20 @@ export default function CompanyProfilePage() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 rounded-lg bg-red-50/50">
                   <div className="flex items-center gap-3">
-                    <XCircle className={`h-4 w-4 ${company.soft_disable ? "text-red-500" : "text-gray-400"}`} />
+                    <XCircle className={`h-4 w-4 ${formData.soft_disable ? "text-red-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-red-800">Master Kill Switch (Silent Mode)</span>
                   </div>
-                  <Badge variant="destructive" className={company.soft_disable ? "opacity-100" : "opacity-30"}>
-                    {company.soft_disable ? "Active" : "Inactive"}
+                  <Badge variant="destructive" className={formData.soft_disable ? "opacity-100" : "opacity-30"}>
+                    {formData.soft_disable ? "Active" : "Inactive"}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
                    <div className="flex items-center gap-3">
-                    <Shield className={`h-4 w-4 ${(company.strict_sms || company.strict_whatsapp) ? "text-blue-500" : "text-gray-400"}`} />
+                    <Shield className={`h-4 w-4 ${(formData.strict_sms || formData.strict_whatsapp) ? "text-blue-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-blue-800">Strict Enforcement Policy</span>
                   </div>
                   <Badge variant="outline" className="border-blue-200 text-blue-700">
-                    { (company.strict_sms || company.strict_whatsapp) ? "Enforced" : "Standard"}
+                    { (formData.strict_sms || formData.strict_whatsapp) ? "Enforced" : "Standard"}
                   </Badge>
                 </div>
               </div>
@@ -525,54 +680,72 @@ export default function CompanyProfilePage() {
         </div>
       </div>
 
-      {/* Edit Dialogs */}
-      
-      {/* Contact Information Dialog - FULLY COMMENTED OUT */}
-      {/* 
-      <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
-        <DialogContent className="sm:max-w-[500px]">
+      {/* ================== DIALOGS ================== */}
+
+      {/* Edit Address & Contact Dialog */}
+      <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Contact Information</DialogTitle>
-            <DialogDescription>Update company address, phone number, and email</DialogDescription>
+            <DialogTitle className="text-xl font-bold">Edit Contact & Address</DialogTitle>
+            <DialogDescription>Update company location and contact details</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-5 py-4">
-            <div className="space-y-2">
-              <Label>Full Address</Label>
-              <Input 
-                value={formData.address || ""} 
-                onChange={(e) => handleInputChange("address", e.target.value)} 
-                placeholder="Street, city, state, postal code"
-              />
+          {profileData && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Address line 1</Label>
+                <Input value={profileData.address_line_1 || ""} onChange={(e) => handleProfileFieldChange("address_line_1", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Address line 2</Label>
+                <Input value={profileData.address_line_2 || ""} onChange={(e) => handleProfileFieldChange("address_line_2", e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>City</Label><Input value={profileData.city || ""} onChange={(e) => handleProfileFieldChange("city", e.target.value)} /></div>
+                <div className="space-y-2"><Label>District</Label><Input value={profileData.district || ""} onChange={(e) => handleProfileFieldChange("district", e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>State</Label><Input value={profileData.state || ""} onChange={(e) => handleProfileFieldChange("state", e.target.value)} /></div>
+                <div className="space-y-2"><Label>Country</Label><Input value={profileData.country || ""} onChange={(e) => handleProfileFieldChange("country", e.target.value)} /></div>
+              </div>
+              <div className="space-y-2"><Label>Pincode</Label><Input value={profileData.pincode || ""} onChange={(e) => handleProfileFieldChange("pincode", e.target.value)} /></div>
+              <Separator />
+              <div className="space-y-2"><Label>Email</Label><Input type="email" value={profileData.email || ""} onChange={(e) => handleProfileFieldChange("email", e.target.value)} /></div>
+              <div className="space-y-2"><Label>Alternate Email</Label><Input type="email" value={profileData.alternate_email || ""} onChange={(e) => handleProfileFieldChange("alternate_email", e.target.value)} /></div>
+              <div className="space-y-2"><Label>Phone Number</Label><Input value={profileData.phone_number || ""} onChange={(e) => handleProfileFieldChange("phone_number", e.target.value)} /></div>
+              <div className="space-y-2"><Label>Alternate Phone</Label><Input value={profileData.alternate_phone_number || ""} onChange={(e) => handleProfileFieldChange("alternate_phone_number", e.target.value)} /></div>
             </div>
-            <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input 
-                value={formData.phone || ""} 
-                onChange={(e) => handleInputChange("phone", e.target.value)} 
-                placeholder="+91 XXXXXXXXXX"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Email Address</Label>
-              <Input 
-                type="email"
-                value={formData.email || ""} 
-                onChange={(e) => handleInputChange("email", e.target.value)} 
-                placeholder="contact@company.com"
-              />
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Changes"}
+            <Button onClick={handleSaveProfile} disabled={isSaving}>
+              {isSaving ? "Saving..." : (profileExists ? "Update Profile" : "Create Profile")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      */}
 
-      {/* Location Settings Dialog */}
+      {/* Delete Confirmation */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Company Profile
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently remove the address and contact information for <strong>{company.company_name}</strong>. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteProfile} disabled={isSaving}>
+              {isSaving ? "Deleting..." : "Yes, Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Location Dialog */}
       <Dialog open={editingSection === "location"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -610,7 +783,7 @@ export default function CompanyProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* System Styles Dialog */}
+      {/* Edit System Dialog */}
       <Dialog open={editingSection === "system"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -656,7 +829,7 @@ export default function CompanyProfilePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Communication Policy Dialog */}
+      {/* Edit Policy Dialog */}
       <Dialog open={editingSection === "policy"} onOpenChange={(open) => !open && handleCancel()}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>

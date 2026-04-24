@@ -103,23 +103,39 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(false);
   const [fetchingEmployees, setFetchingEmployees] = useState(false);
 
-  // Helper: Format Dates for Display
-  const formatDisplayDate = (date: string) => {
-    if (!date) return "--";
+  // Helper: Format Dates for Display (using raw UTC string, no local conversion)
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "--";
     try {
-      return format(new Date(date), "dd MMM yyyy");
+      // Extract YYYY-MM-DD part (ignore time and timezone)
+      const datePart = dateStr.split('T')[0];
+      const [year, month, day] = datePart.split('-');
+      // Create UTC date to avoid timezone shift when formatting
+      const utcDate = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+      return format(utcDate, "dd MMM yyyy");
     } catch {
-      return date;
+      return dateStr;
     }
   };
 
-  // Helper: Format Time for Display
+  // Helper: Format Time for Display (extract time from UTC string, no conversion)
   const formatTime = (datetime: string) => {
     if (!datetime) return "--";
     try {
-      const d = new Date(datetime);
-      if (isNaN(d.getTime())) return datetime;
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      // Extract the time part (supports both "T" and space separator)
+      let timePart = datetime.includes('T') 
+        ? datetime.split('T')[1] 
+        : datetime.split(' ')[1];
+      if (!timePart) return datetime;
+      
+      // Remove timezone offset (e.g., "+00:00", "Z", "-05:00")
+      timePart = timePart.split('+')[0].split('Z')[0].split('-')[0];
+      const [hours, minutes] = timePart.split(':');
+      const hour = parseInt(hours, 10);
+      const minute = minutes || '00';
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${minute.padStart(2, '0')} ${ampm}`;
     } catch {
       return datetime;
     }
@@ -208,7 +224,7 @@ export default function ReportPage() {
     fetchEmployees();
   }, [company]);
 
-  // PDF Generation Logic
+  // PDF Generation Logic (uses same formatTime/formatDisplayDate helpers)
   const downloadPDF = () => {
     if (!data.length) {
       toast.error("No data available for export");
@@ -505,21 +521,21 @@ export default function ReportPage() {
                                           {(log.check_ins || []).map((t: any, i: number) => <Badge key={i} variant="outline" className="text-[10px] bg-green-50/50 text-green-700 border-green-100">IN: {formatTime(t)}</Badge>)}
                                           {(log.check_outs || []).map((t: any, i: number) => <Badge key={i} variant="outline" className="text-[10px] bg-rose-50/50 text-rose-700 border-rose-100">OUT: {formatTime(t)}</Badge>)}
                                         </div>
-                                      </td>
+                                       </td>
                                       <td className="p-3 text-right text-[11px] font-bold text-slate-400 w-24 border-b border-r border-l border-slate-200 last:border-b-0 hover:bg-blue-50/20">
                                         {log.working_hours || "0.0"} <span className="text-[9px]">HRS</span>
-                                      </td>
-                                    </tr>
+                                       </td>
+                                     </tr>
                                   ))}
                                 </tbody>
-                              </table>
-                           </td>
+                               </table>
+                            </td>
                           <td className="p-4 border-b border-slate-200 text-center align-top">
                              <span className="text-sm font-bold text-blue-600">
                                {user.daily_logs.reduce((acc: number, log: any) => acc + (parseFloat(log.working_hours) || 0), 0).toFixed(1)}
                              </span>
-                           </td>
-                        </tr>
+                            </td>
+                         </tr>
                       ))}
                     </tbody>
                   </table>
