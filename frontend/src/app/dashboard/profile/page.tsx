@@ -185,7 +185,7 @@ export default function ProfilePage() {
   const initials = `${user.first_name?.charAt(0) || ""}${user.last_name?.charAt(0) || ""}`
 
   return (
-    <div className="max-w-6xl mx-auto pb-12">
+    <div className="max-w-6xl mx-auto pb-12 px-6">
       {/* Header & Breadcrumbs */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">

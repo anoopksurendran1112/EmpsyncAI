@@ -164,3 +164,33 @@ class EmployeeProfile(models.Model):
             raise ValidationError({
                 'caste': 'The selected caste does not belong to the selected religion.'
             })
+
+
+class BankDetail(models.Model):
+    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='bank_details')
+    acc_holder_fname = models.CharField(max_length=255)
+    acc_holder_mname = models.CharField(max_length=255, null=True, blank=True)
+    acc_holder_lname = models.CharField(max_length=255)
+
+    bank_name = models.CharField(max_length=255)
+    account_number = models.CharField(max_length=50)
+    ifsc_code = models.CharField(max_length=20)
+    branch_name = models.CharField(max_length=255, null=True, blank=True)
+    is_primary = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.bank_name} - {self.account_number} ({self.user.first_name})"
+
+    def save(self, *args, **kwargs):
+        # 1. If this is the first bank account for the user, force it to be primary
+        if not self.pk and not BankDetail.objects.filter(user=self.user).exists():
+            self.is_primary = True
+        
+        # 2. If this account is being set as primary, unset any other primary accounts for this user
+        if self.is_primary:
+            BankDetail.objects.filter(user=self.user, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
+            
+        super().save(*args, **kwargs)
