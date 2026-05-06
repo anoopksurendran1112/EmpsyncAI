@@ -39,10 +39,11 @@ from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
-    ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer
+    ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
+    BankDetailSerializer
 )
 
 
@@ -2800,4 +2801,61 @@ def manageEmployeeProfile(request):
             EmployeeAddress.objects.filter(id__in=unique_addr_ids).delete()
                 
         return Response({ 'success': True, 'message': 'Profile and unique associated addresses deleted successfully' }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manageBankDetail(request):
+    user = request.user
+    
+    if request.method == 'GET':
+        bank_details = BankDetail.objects.filter(user=user)
+        serializer = BankDetailSerializer(bank_details, many=True)
+        return Response({ 'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
+        
+    elif request.method == 'POST':
+        data = request.data.copy()
+        data['user'] = user.id
+        serializer = BankDetailSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({ 'success': True, 'message': 'Bank details added successfully', 
+                            'data': serializer.data }, status=status.HTTP_201_CREATED)
+        return Response({ 'success': False, 'message': 'Validation failed', 
+                        'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+        
+    elif request.method == 'PUT':
+        bank_id = request.data.get('id')
+        if not bank_id:
+            return Response({ 'success': False, 'message': 'Bank ID is required' }, 
+                            status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            bank_detail = BankDetail.objects.get(id=bank_id, user=user)
+        except BankDetail.DoesNotExist:
+            return Response({ 'success': False, 'message': 'Bank detail not found' }, 
+                            status=status.HTTP_404_NOT_FOUND)
+            
+        serializer = BankDetailSerializer(bank_detail, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({ 'success': True, 'message': 'Bank details updated successfully', 
+                            'data': serializer.data }, status=status.HTTP_200_OK)
+        return Response({ 'success': False, 'message': 'Validation failed', 
+                        'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+        
+    elif request.method == 'DELETE':
+        bank_id = request.data.get('id') or request.query_params.get('id')
+        if not bank_id:
+            return Response({ 'success': False, 'message': 'Bank ID is required' }, 
+                            status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            bank_detail = BankDetail.objects.get(id=bank_id, user=user)
+            bank_detail.delete()
+            return Response({ 'success': True, 'message': 'Bank detail deleted successfully' }, 
+                            status=status.HTTP_200_OK)
+        except BankDetail.DoesNotExist:
+            return Response({ 'success': False, 'message': 'Bank detail not found' }, 
+                            status=status.HTTP_404_NOT_FOUND)
 

@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser
 from company.models import CompanyRole,CompanyGroup, CompanyUser
-from .models import Religion, Caste, EmployeeAddress, EmployeeProfile
+from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -146,3 +146,8 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             
         return data
 
+
+class BankDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BankDetail
+        fields = '__all__'

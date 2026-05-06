@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Users,
   Settings,
+  DollarSign,
   Building2,
   CalendarX,
   Fingerprint,
@@ -21,7 +22,8 @@ import {
   Globe,
   Smartphone,
   MapPin,
-  Navigation
+  Navigation,
+  Landmark
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -81,6 +83,7 @@ export function Sidebar({ className }: SidebarProps) {
       href: "/dashboard/leaves"
     },
     ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+    { title: "Bank Account", icon: Landmark, href: "/dashboard/bank" },
     { title: "Company", icon: Building2, href: "/dashboard/company" },
     {
       title: "Settings", icon: Settings, href: "/dashboard/settings", adminOnly: true,
@@ -237,7 +240,7 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="flex items-center justify-between w-full relative">
           {!collapsed && (
 
-            <div className="flex items-center h-11 space-x-3 bg-blue-50 p-2 rounded-xl border border-blue-100 animate-in fade-in duration-300">
+            <div className="flex items-center h-11 space-x-3 bg-blue-50 p-2 rounded-xl border border-blue-100 shadow-sm animate-in fade-in duration-300">
               <div className="p-1 bg-white rounded-lg shadow-sm">
                 <Image src="/empsync-logo.png" alt="EmpSync AI" width={24} height={24} className="rounded-md" />
               </div>
