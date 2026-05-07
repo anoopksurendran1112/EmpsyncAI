@@ -1,4 +1,5 @@
 // src/app/dashboard/employees/page.tsx
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -24,7 +25,6 @@ import {
   Search,
   RefreshCw,
 } from "lucide-react";
-import { useDebounce } from "@/hooks/useDebounce";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +32,6 @@ import { Button } from "@/components/ui/button";
 import { useEmployeeCache } from "@/hooks/useEmployeeCache";
 import { useEmployeePrefetch } from "@/hooks/useEmployeePrefetch";
 
-// import BulkDownloadButton from '@/components/BulkDownloadButton';
 // Define interfaces
 interface PunchSession {
   check_in?: string;
@@ -59,7 +58,7 @@ interface EmployeeWithKey extends User {
   predictedPage?: number; // Predicted page number for faster lookup
 }
 
-// Helper functions (kept inline as requested)
+// Helper functions
 function extractTime(dateStr: string | null): string {
   if (!dateStr) return "--";
   if (dateStr.includes("T")) return dateStr.split("T")[1]?.slice(0, 5) || "--";
@@ -77,18 +76,13 @@ function calculateCompletedWorkHours(
     const [inHours, inMinutes] = checkIn.split(":").map(Number);
     const [outHours, outMinutes] = checkOut.split(":").map(Number);
 
-    // Calculate total minutes
     let totalMinutes = outHours * 60 + outMinutes - (inHours * 60 + inMinutes);
 
-    // Handle negative (overnight shift)
     if (totalMinutes < 0) {
       totalMinutes += 24 * 60;
     }
 
-    // Calculate hours with decimal
     const hoursDecimal = totalMinutes / 60;
-
-    // Format to 2 decimal places
     return hoursDecimal.toFixed(2);
   } catch {
     return "--";
@@ -105,19 +99,14 @@ function calculateCurrentWorkHours(checkIn: string | null): string {
 
     const [inHours, inMinutes] = checkIn.split(":").map(Number);
 
-    // Calculate total minutes
     let totalMinutes =
       currentHours * 60 + currentMinutes - (inHours * 60 + inMinutes);
 
-    // Handle negative (overnight shift)
     if (totalMinutes < 0) {
       totalMinutes += 24 * 60;
     }
 
-    // Calculate hours with decimal
     const hoursDecimal = totalMinutes / 60;
-
-    // Format to 2 decimal places
     return hoursDecimal.toFixed(2);
   } catch {
     return "--";
@@ -150,10 +139,7 @@ function calculateTotalHours(sessions: PunchSession[]): string {
     }
   });
 
-  // Calculate total hours with decimal
   const totalHours = totalMinutes / 60;
-
-  // Format to 2 decimal places
   return totalHours.toFixed(2);
 }
 
@@ -286,7 +272,6 @@ function PunchSessions({
   );
 }
 
-
 function EmployeesList({ companyId }: { companyId: number }) {
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -294,17 +279,14 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
   // State for filters
   const [selectedGroupId, setSelectedGroupId] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");         // input value
+  const [submittedSearchQuery, setSubmittedSearchQuery] = useState<string>(""); // actual filter value
   const [showFilters, setShowFilters] = useState(false);
-  const [clickLoading, setClickLoading] = useState<string | null>(null); // Track loading employee
+  const [clickLoading, setClickLoading] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-
-  // Debounced search query
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
-  const effectiveSearchQuery =
-    debouncedSearchQuery.length >= 2 ? debouncedSearchQuery : "";
-  const hasActiveFilters = selectedGroupId !== 0 || effectiveSearchQuery !== "";
+  // hasActiveFilters now uses submittedSearchQuery (not the live input)
+  const hasActiveFilters = selectedGroupId !== 0 || submittedSearchQuery !== "";
 
   // Employee caching and prefetching hooks
   const { getEmployee, setEmployee } = useEmployeeCache();
@@ -325,7 +307,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
     companyId,
     page,
     groupId: selectedGroupId !== 0 ? selectedGroupId : undefined,
-    searchQuery: effectiveSearchQuery,
+    searchQuery: submittedSearchQuery,  // Use submittedSearchQuery instead of debounced value
   });
 
   const {
@@ -375,10 +357,10 @@ function EmployeesList({ companyId }: { companyId: number }) {
   const { data: activeUsersData, isLoading: activeUsersLoading } =
     useActiveUsersCount(companyId);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change (depends on submittedSearchQuery, not live input)
   useEffect(() => {
     setPage(1);
-  }, [selectedGroupId, searchQuery]);
+  }, [selectedGroupId, submittedSearchQuery]);
 
   // Get pagination data
   const currentPage = useMemo(() => {
@@ -427,7 +409,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
       const uniqueKey = `${emp.id}-${emp.biometric_id || ""}-${emp.employee_id || ""}`;
 
       if (!uniqueEmployees.has(uniqueKey)) {
-        // Calculate predicted page based on ID for faster future lookups
         let predictedPage = 1;
         if (typeof emp.id === "number" && pageSize > 0) {
           predictedPage = Math.max(1, Math.ceil(emp.id / pageSize));
@@ -448,20 +429,15 @@ function EmployeesList({ companyId }: { companyId: number }) {
     return employees;
   }, [employees]);
 
-  // Find lines 415-444 (the startSerialNumber calculation) and REPLACE it with:
-
-  // Calculate starting serial number - SIMPLIFIED VERSION
+  // Starting serial number calculation
   const startSerialNumber = useMemo(() => {
     if (hasActiveFilters) {
-      // For filtered results, start from 1 on each page
       return 1;
     }
-
-    // For regular pagination, calculate based on page number
     return (currentPage - 1) * pageSize + 1;
   }, [hasActiveFilters, currentPage, pageSize]);
 
-  // Total count calculation - MOVE THIS BEFORE startSerialNumber if it's used elsewhere
+  // Total count calculation
   const displayTotalCount = useMemo(() => {
     if (hasActiveFilters && filteredEmployeesData) {
       return filteredEmployeesData.totalEmployees || 0;
@@ -544,16 +520,14 @@ function EmployeesList({ companyId }: { companyId: number }) {
     pageSize,
   ]);
 
-  // ADJUSTED startSerialNumber that uses the calculated start value
   const adjustedStartSerialNumber = useMemo(() => {
     if (hasActiveFilters) {
       return 1;
     }
-    // Use the calculated start value which is already correct
     return start;
   }, [hasActiveFilters, start]);
 
-  // ⚡ OPTIMIZED: Employee click handler with fast lookup
+  // Employee click handler with fast lookup
   const handleEmployeeClick = useCallback(
     async (employee: EmployeeWithKey, e: React.MouseEvent) => {
       e.preventDefault();
@@ -567,7 +541,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
       );
 
       try {
-        // 1. INSTANT: Check cache first
         const cachedEmployee = getEmployee(employeeId, companyId);
         if (cachedEmployee) {
           console.log("⚡ Instant from cache!");
@@ -575,7 +548,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
           return;
         }
 
-        // 2. FAST: Try direct API lookup
         const startTime = Date.now();
         const response = await fetch("/api/employees", {
           method: "POST",
@@ -591,18 +563,14 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
         if (data.success && data.data) {
           console.log(`✅ Found in ${searchTime}ms`);
-
-          // Cache for future clicks
           setEmployee(employeeId, data.data, companyId);
           router.push(`/dashboard/employees/${employeeId}`);
         } else {
           console.error("Employee not found via API");
-          // Fallback to regular navigation
           router.push(`/dashboard/employees/${employeeId}`);
         }
       } catch (error) {
         console.error("Failed to fetch employee:", error);
-        // Fallback to regular navigation
         router.push(`/dashboard/employees/${employeeId}`);
       } finally {
         setClickLoading(null);
@@ -616,7 +584,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
     setPage(newPage);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
 
   // Fetch punches
   useEffect(() => {
@@ -697,11 +664,17 @@ function EmployeesList({ companyId }: { companyId: number }) {
     };
   }, [filteredEmployees, companyId]);
 
-
-  // Clear all filters
+  // Clear all filters – resets both input and submitted search
   const clearFilters = () => {
     setSelectedGroupId(0);
     setSearchQuery("");
+    setSubmittedSearchQuery("");
+    setPage(1);
+  };
+
+  // Search button handler – applies the current input value as the active filter
+  const handleSearchClick = () => {
+    setSubmittedSearchQuery(searchQuery);
     setPage(1);
   };
 
@@ -711,7 +684,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
         ? emp.prof_img
         : `${currentCompany?.mediaBaseUrl}${emp.prof_img}`
       : null;
-
 
   if (isLoading)
     return (
@@ -739,394 +711,395 @@ function EmployeesList({ companyId }: { companyId: number }) {
       </div>
 
       <div className="pb-4">
-
-
-      {/* Stats Cards */}
-      <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Employees Card */}
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              Total Employees
-            </h3>
-            <p className="text-3xl font-bold text-blue-600">
-              {countLoading ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : (
-                displayTotalCount.toLocaleString()
-              )}
-            </p>
-          </div>
-          <div className="p-3 bg-blue-100 rounded-full">
-            <Users className="h-6 w-6 text-blue-600" />
-          </div>
-        </div>
-
-        {/* Active Today Card */}
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              Active Today
-            </h3>
-            <p className="text-3xl font-bold text-green-600">
-              {activeUsersLoading ? (
-                <span className="text-gray-400">Loading...</span>
-              ) : (
-                activeUsersData?.total.toLocaleString() || "0"
-              )}
-            </p>
-          </div>
-          <div className="p-3 bg-green-100 rounded-full">
-            <UserCheck className="h-6 w-6 text-green-600" />
-          </div>
-        </div>
-
-        {/* Male Staff Card */}
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              Male Staff
-            </h3>
-            <p className="text-3xl font-bold text-purple-600">
-              {activeUsersLoading ? (
-                <span className="text-gray-400">--</span>
-              ) : (
-                activeUsersData?.male_count || 0
-              )}
-            </p>
-          </div>
-          <div className="p-3 bg-purple-100 rounded-full">
-            <Users className="h-6 w-6 text-purple-600" />
-          </div>
-        </div>
-
-        {/* Female Staff Card */}
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              Female Staff
-            </h3>
-            <p className="text-3xl font-bold text-red-600">
-              {activeUsersLoading ? (
-                <span className="text-gray-400">--</span>
-              ) : (
-                activeUsersData?.female_count || 0
-              )}
-            </p>
-          </div>
-          <div className="p-3 bg-red-100 rounded-full">
-            <Users className="h-6 w-6 text-red-600" />
-          </div>
-        </div>
-      </div>
-
-
-      <div className="pt-6 mt-2">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Employee Records</h2>
-
-        {/* Filter Bar - mimicking mypunches */}
-        <div className="flex flex-wrap items-end gap-5 mb-8">
-          {/* Search Box */}
-          <div className="flex flex-col flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Search Employees
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search name, email, ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="border border-gray-300 pl-10 pr-4 py-2 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
-              />
+        {/* Stats Cards */}
+        <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Total Employees Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                Total Employees
+              </h3>
+              <p className="text-3xl font-bold text-blue-600">
+                {countLoading ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : (
+                  displayTotalCount.toLocaleString()
+                )}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Users className="h-6 w-6 text-blue-600" />
             </div>
           </div>
 
-          {/* Group Selector */}
-          <div className="flex flex-col w-full md:w-56">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Group
-            </label>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(Number(e.target.value))}
-              className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white h-[42px]"
-            >
-              <option value={0}>All Groups</option>
-              {allGroups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
+          {/* Active Today Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                Active Today
+              </h3>
+              <p className="text-3xl font-bold text-green-600">
+                {activeUsersLoading ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : (
+                  activeUsersData?.total.toLocaleString() || "0"
+                )}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-full">
+              <UserCheck className="h-6 w-6 text-green-600" />
+            </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {(selectedGroupId !== 0 || searchQuery) && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center justify-center gap-2 px-6 py-[9px] bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium text-sm h-[42px]"
-              >
-                Clear
-              </button>
-            )}
-            <button
-              onClick={() => window.location.reload()}
-              className="flex items-center justify-center gap-2 px-6 py-[9px] bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium text-sm h-[42px]"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
+          {/* Male Staff Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                Male Staff
+              </h3>
+              <p className="text-3xl font-bold text-purple-600">
+                {activeUsersLoading ? (
+                  <span className="text-gray-400">--</span>
+                ) : (
+                  activeUsersData?.male_count || 0
+                )}
+              </p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-full">
+              <Users className="h-6 w-6 text-purple-600" />
+            </div>
+          </div>
+
+          {/* Female Staff Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                Female Staff
+              </h3>
+              <p className="text-3xl font-bold text-red-600">
+                {activeUsersLoading ? (
+                  <span className="text-gray-400">--</span>
+                ) : (
+                  activeUsersData?.female_count || 0
+                )}
+              </p>
+            </div>
+            <div className="p-3 bg-red-100 rounded-full">
+              <Users className="h-6 w-6 text-red-600" />
+            </div>
           </div>
         </div>
 
-        {loadingPunches && (
-          <div className="flex justify-center items-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span className="ml-2 text-sm text-gray-500">
-              Loading punch data...
-            </span>
-          </div>
-        )}
+        <div className="pt-6 mt-2">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Employee Records</h2>
 
-        {filteredEmployees.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            {employees.length === 0 ? (
-              "No employees found for this company."
-            ) : (
-              <div>
-                <p className="text-lg mb-2">No employees match your filters</p>
+          {/* Filter Bar - with manual search button */}
+          <div className="flex flex-wrap items-end gap-5 mb-8">
+            {/* Search Box */}
+            <div className="flex flex-col flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Search Employees
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="border border-gray-300 pl-10 pr-4 py-2 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                />
+              </div>
+            </div>
+
+            {/* Group Selector */}
+            <div className="flex flex-col w-full md:w-56">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Group
+              </label>
+              <select
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white h-[42px]"
+              >
+                <option value={0}>All Groups</option>
+                {allGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              {/* Search button – triggers the filter */}
+              <button
+                onClick={handleSearchClick}
+                className="flex items-center justify-center gap-2 px-6 py-[9px] bg-green-600 text-white rounded-md hover:bg-green-700 transition font-medium text-sm h-[42px]"
+              >
+                <Search size={16} />
+                Search
+              </button>
+
+              {(selectedGroupId !== 0 || searchQuery) && (
                 <button
                   onClick={clearFilters}
-                  className="text-blue-600 hover:text-blue-800 underline"
+                  className="flex items-center justify-center gap-2 px-6 py-[9px] bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium text-sm h-[42px]"
                 >
-                  Clear all filters
+                  Clear
                 </button>
-              </div>
-            )}
+              )}
+              <button
+                onClick={() => window.location.reload()}
+                className="flex items-center justify-center gap-2 px-6 py-[9px] bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium text-sm h-[42px]"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+            </div>
           </div>
-        ) : (
-          <>
-            <ul className="space-y-4">
-              {filteredEmployees.map((emp, index) => {
-                const serialNumber = adjustedStartSerialNumber + index;
-                const profileUrl = getProfileImageUrl(emp);
-                const initials = `${emp.first_name?.[0] || ""}${emp.last_name?.[0] || ""}`;
-                const punch = punches[emp.uniqueKey];
-                const checkInTime = extractTime(punch?.first_check_in);
-                const checkOutTime = extractTime(punch?.last_check_out);
-                const multiMode = punch?.multi_mode || false;
-                const sessions = punch?.punch_sessions || [];
-                const totalSessions = punch?.total_sessions || 0;
 
-                return (
-                  <li
-                    key={emp.uniqueKey}
-                    className="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm group relative"
-                    onMouseEnter={() => {
-                      onHoverStart(emp.id.toString());
-                      setHoveredId(emp.uniqueKey);
-                    }}
-                    onMouseLeave={() => {
-                      onHoverEnd(emp.id.toString());
-                      setHoveredId(null);
-                    }}
-                    onClick={(e) => handleEmployeeClick(emp, e)}
+          {loadingPunches && (
+            <div className="flex justify-center items-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-sm text-gray-500">
+                Loading punch data...
+              </span>
+            </div>
+          )}
+
+          {filteredEmployees.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              {employees.length === 0 ? (
+                "No employees found for this company."
+              ) : (
+                <div>
+                  <p className="text-lg mb-2">No employees match your filters</p>
+                  <button
+                    onClick={clearFilters}
+                    className="text-blue-600 hover:text-blue-800 underline"
                   >
-                    {/* New Serial Number Badge - Placed at the top-left of the LI */}
-                    <div className="absolute top-0 left-0 bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-tl-lg rounded-br-lg z-10 shadow-sm">
-                      #{serialNumber}
-                    </div>
+                    Clear all filters
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <ul className="space-y-4">
+                {filteredEmployees.map((emp, index) => {
+                  const serialNumber = adjustedStartSerialNumber + index;
+                  const profileUrl = getProfileImageUrl(emp);
+                  const initials = `${emp.first_name?.[0] || ""}${emp.last_name?.[0] || ""}`;
+                  const punch = punches[emp.uniqueKey];
+                  const checkInTime = extractTime(punch?.first_check_in);
+                  const checkOutTime = extractTime(punch?.last_check_out);
+                  const multiMode = punch?.multi_mode || false;
+                  const sessions = punch?.punch_sessions || [];
+                  const totalSessions = punch?.total_sessions || 0;
 
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                      {/* Left Section - Profile and Employee Details */}
-                      <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                        {/* Profile Image Container - Cleaned up */}
-                        <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 relative overflow-hidden">
-                          {profileUrl ? (
-                            <Image
-                              src={profileUrl}
-                              alt={`${emp.first_name} ${emp.last_name}`}
-                              width={56}
-                              height={56}
-                              className="object-cover h-full w-full"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center text-blue-700">
-                              <span className="text-xl font-bold leading-none">{initials}</span>
-                              <span className="text-[10px] font-semibold uppercase mt-1">EMP</span>
+                  return (
+                    <li
+                      key={emp.uniqueKey}
+                      className="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm group relative"
+                      onMouseEnter={() => {
+                        onHoverStart(emp.id.toString());
+                        setHoveredId(emp.uniqueKey);
+                      }}
+                      onMouseLeave={() => {
+                        onHoverEnd(emp.id.toString());
+                        setHoveredId(null);
+                      }}
+                      onClick={(e) => handleEmployeeClick(emp, e)}
+                    >
+                      {/* Serial Number Badge */}
+                      <div className="absolute top-0 left-0 bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-tl-lg rounded-br-lg z-10 shadow-sm">
+                        #{serialNumber}
+                      </div>
+
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        {/* Left Section - Profile and Employee Details */}
+                        <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                          <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 relative overflow-hidden">
+                            {profileUrl ? (
+                              <Image
+                                src={profileUrl}
+                                alt={`${emp.first_name} ${emp.last_name}`}
+                                width={56}
+                                height={56}
+                                className="object-cover h-full w-full"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = "none";
+                                }}
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-blue-700">
+                                <span className="text-xl font-bold leading-none">{initials}</span>
+                                <span className="text-[10px] font-semibold uppercase mt-1">EMP</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Employee Details */}
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-lg text-gray-900 truncate">
+                                {emp.first_name} {emp.last_name}
+                              </p>
+                              {clickLoading === emp.id.toString() && (
+                                <Clock className="h-4 w-4 text-blue-600 animate-spin" />
+                              )}
                             </div>
-                          )}
-                        </div>
-
-                        {/* Employee Details */}
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-lg text-gray-900 truncate">
-                              {emp.first_name} {emp.last_name}
-                            </p>
-                            {clickLoading === emp.id.toString() && (
-                              <Clock className="h-4 w-4 text-blue-600 animate-spin" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {/* <span className="text-sm font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                              ID: {emp.employee_id || emp.biometric_id}
-                            </span> */}
-                            <p className="text-sm text-gray-500 truncate">
-                              {emp.email}
-                            </p>
-                          </div>
-                          
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {emp.group && (
-                              <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                                {emp.group}
-                              </span>
-                            )}
-                            {emp.is_wfh !== undefined && (
-                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                                {emp.is_wfh ? "WFH" : "On-Site"}
-                              </span>
-                            )}
-                            {multiMode && totalSessions > 1 && (
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
-                                {totalSessions} SESSIONS
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-gray-500 truncate">
+                                {emp.email}
+                              </p>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {emp.group && (
+                                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
+                                  {emp.group}
+                                </span>
+                              )}
+                              {emp.is_wfh !== undefined && (
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                                  {emp.is_wfh ? "WFH" : "On-Site"}
+                                </span>
+                              )}
+                              {multiMode && totalSessions > 1 && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
+                                  {totalSessions} SESSIONS
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Middle Section - Punch Times */}
-                      <div className="flex items-center gap-8 mx-4 sm:mx-8">
-                        {/* Check-in */}
-                        <div className="flex flex-col items-center min-w-[60px]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <ArrowUpCircle className="h-4 w-4 text-green-500" />
-                            <span className="text-[10px] font-bold text-gray-400">IN</span>
-                          </div>
-                          <span className="text-lg font-bold text-gray-900 leading-none">
-                            {checkInTime}
-                          </span>
-                          {multiMode && punch?.check_in_count > 1 && (
-                            <span className="text-[10px] text-green-600 font-bold mt-0.5">
-                              +{punch.check_in_count - 1} MORE
+                        {/* Middle Section - Punch Times */}
+                        <div className="flex items-center gap-8 mx-4 sm:mx-8">
+                          {/* Check-in */}
+                          <div className="flex flex-col items-center min-w-[60px]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <ArrowUpCircle className="h-4 w-4 text-green-500" />
+                              <span className="text-[10px] font-bold text-gray-400">IN</span>
+                            </div>
+                            <span className="text-lg font-bold text-gray-900 leading-none">
+                              {checkInTime}
                             </span>
-                          )}
-                        </div>
-
-                        {/* Check-out */}
-                        <div className="flex flex-col items-center min-w-[60px]">
-                          <div className="flex items-center gap-2 mb-1">
-                            <ArrowDownCircle className="h-4 w-4 text-red-500" />
-                            <span className="text-[10px] font-bold text-gray-400">OUT</span>
+                            {multiMode && punch?.check_in_count > 1 && (
+                              <span className="text-[10px] text-green-600 font-bold mt-0.5">
+                                +{punch.check_in_count - 1} MORE
+                              </span>
+                            )}
                           </div>
-                          <span className="text-lg font-bold text-gray-900 leading-none">
-                            {checkOutTime}
-                          </span>
-                          {multiMode && punch?.check_out_count > 1 && (
-                            <span className="text-[10px] text-red-600 font-bold mt-0.5">
-                              +{punch.check_out_count - 1} MORE
+
+                          {/* Check-out */}
+                          <div className="flex flex-col items-center min-w-[60px]">
+                            <div className="flex items-center gap-2 mb-1">
+                              <ArrowDownCircle className="h-4 w-4 text-red-500" />
+                              <span className="text-[10px] font-bold text-gray-400">OUT</span>
+                            </div>
+                            <span className="text-lg font-bold text-gray-900 leading-none">
+                              {checkOutTime}
                             </span>
-                          )}
+                            {multiMode && punch?.check_out_count > 1 && (
+                              <span className="text-[10px] text-red-600 font-bold mt-0.5">
+                                +{punch.check_out_count - 1} MORE
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right Section - Average Work Hours */}
+                        <div className="flex items-center justify-end flex-shrink-0">
+                          <TimeCircle
+                            sessions={sessions}
+                            checkIn={checkInTime}
+                            checkOut={checkOutTime}
+                          />
                         </div>
                       </div>
 
-                      {/* Right Section - Average Work Hours */}
-                      <div className="flex items-center justify-end flex-shrink-0">
-                        <TimeCircle
-                          sessions={sessions}
-                          checkIn={checkInTime}
-                          checkOut={checkOutTime}
-                        />
-                      </div>
+                      {/* Multiple Sessions Breakdown on Hover */}
+                      {hoveredId === emp.uniqueKey && multiMode && (
+                        <PunchSessions sessions={sessions} multiMode={multiMode} />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-2 py-4 border-t mt-8">
+                  <div className="text-xs text-gray-500 font-medium">
+                    Showing {start}-{end} of {displayTotalCount.toLocaleString()} employees
+                    {selectedGroupId !== 0 && (
+                      <span className="ml-2 text-blue-600">
+                        • Group: {allGroups.find((g: { id: number; name: string }) => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}
+                      </span>
+                    )}
+                    {submittedSearchQuery && (
+                      <span className="ml-2 text-green-600">
+                        • Searching: "{submittedSearchQuery}"
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      className="h-8 text-xs"
+                    >
+                      Previous
+                    </Button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum = currentPage <= 3 
+                          ? i + 1 
+                          : Math.min(currentPage - 2 + i, totalPages - 4 + i);
+                        
+                        if (pageNum <= 0) pageNum = i + 1;
+                        if (pageNum > totalPages) return null;
+
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`h-8 w-8 text-xs p-0 ${currentPage === pageNum ? 'bg-blue-600' : ''}`}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
                     </div>
 
-                    {/* Multiple Sessions Breakdown on Hover */}
-                    {hoveredId === emp.uniqueKey && multiMode && (
-                      <PunchSessions sessions={sessions} multiMode={multiMode} />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-
-            {/* Standardized Pagination like Leaves Dashboard */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-2 py-4 border-t mt-8">
-                <div className="text-xs text-gray-500 font-medium">
-                  Showing {start}-{end} of {displayTotalCount.toLocaleString()} employees
-                  {selectedGroupId !== 0 && (
-                    <span className="ml-2 text-blue-600">
-                      • Group: {allGroups.find((g: { id: number; name: string }) => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}
-                    </span>
-                  )}
-                  {searchQuery && (
-                    <span className="ml-2 text-green-600">
-                      • Searching: "{searchQuery}"
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    disabled={currentPage === 1}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    className="h-8 text-xs"
-                  >
-                    Previous
-                  </Button>
-                  
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      // Standard 5-page window logic from leaves dashboard
-                      let pageNum = currentPage <= 3 
-                        ? i + 1 
-                        : Math.min(currentPage - 2 + i, totalPages - 4 + i);
-                      
-                      if (pageNum <= 0) pageNum = i + 1;
-                      if (pageNum > totalPages) return null;
-
-                      return (
-                        <Button
-                          key={pageNum}
-                          variant={currentPage === pageNum ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`h-8 w-8 text-xs p-0 ${currentPage === pageNum ? 'bg-blue-600' : ''}`}
-                        >
-                          {pageNum}
-                        </Button>
-                      );
-                    })}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={currentPage === totalPages}
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      className="h-8 text-xs"
+                    >
+                      Next
+                    </Button>
                   </div>
-
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    disabled={currentPage === totalPages}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    className="h-8 text-xs"
-                  >
-                    Next
-                  </Button>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
-  </div>
   );
 }
 
