@@ -19,7 +19,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/ui/use-toast"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -62,15 +61,19 @@ const getFullName = (bank: BankDetail) => {
   return `${bank.acc_holder_fname} ${bank.acc_holder_mname ? bank.acc_holder_mname + ' ' : ''}${bank.acc_holder_lname}`
 }
 
-const getBankColor = (bankName: string) => {
+const getBankLogoBg = () => {
+  return 'bg-white'
+}
+
+const getBankIconColor = (bankName: string) => {
   const colors = [
-    'bg-gradient-to-br from-blue-500 to-blue-600',
-    'bg-gradient-to-br from-emerald-500 to-emerald-600',
-    'bg-gradient-to-br from-purple-500 to-purple-600',
-    'bg-gradient-to-br from-amber-500 to-amber-600',
-    'bg-gradient-to-br from-rose-500 to-rose-600',
-    'bg-gradient-to-br from-indigo-500 to-indigo-600',
-    'bg-gradient-to-br from-teal-500 to-teal-600',
+    'text-blue-600',
+    'text-emerald-600',
+    'text-purple-600',
+    'text-amber-600',
+    'text-rose-600',
+    'text-indigo-600',
+    'text-teal-600',
   ]
   let hash = 0
   for (let i = 0; i < bankName.length; i++) {
@@ -80,31 +83,25 @@ const getBankColor = (bankName: string) => {
   return colors[Math.abs(hash) % colors.length]
 }
 
-// ✅ Updated BankAccountCard with Logo integration
 const BankAccountCard = ({ bank, onEdit, onDelete }: { bank: BankDetail; onEdit: (bank: BankDetail) => void; onDelete: (id: number) => void }) => {
-  const bankColorClass = getBankColor(bank.bank_name)
   const firstLetter = bank.bank_name.charAt(0).toUpperCase()
   const isPrimary = bank.is_primary
+  const iconColor = getBankIconColor(bank.bank_name)
 
-  // Try to find the domain for logo
   const bankInfo = PREDEFINED_BANKS.find(b => b.name === bank.bank_name);
   const logoUrl = bankInfo ? `https://www.google.com/s2/favicons?domain=${bankInfo.domain}&sz=128` : null;
   const [logoError, setLogoError] = useState(false);
 
+  const cardBgClass = isPrimary ? 'bg-gradient-to-br from-green-50 to-green-100' : 'bg-gradient-to-br from-red-50 to-red-100';
+  const borderClass = isPrimary ? 'border-green-200' : 'border-red-200';
+  const shadowClass = 'shadow-md hover:shadow-lg';
+
   return (
-    <div className="group relative rounded-xl border border-gray-200/80 bg-white shadow-sm transition-all duration-300 hover:shadow-xl overflow-hidden">
-      {/* Top accent bar - Green for Primary, Blue for Secondary */}
-      <div className={`h-2 w-full ${
-        isPrimary 
-          ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' 
-          : 'bg-gradient-to-r from-blue-400 to-blue-600'
-      }`} />
-      
+    <div className={`group relative rounded-xl border ${borderClass} ${cardBgClass} ${shadowClass} transition-all duration-300 overflow-hidden`}>
       <div className="p-5 space-y-4">
-        {/* Header with Bank Icon + Name & Actions */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden border border-gray-100 shadow-sm ${!logoUrl || logoError ? bankColorClass : 'bg-white'}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 shadow-sm ${getBankLogoBg()}`}>
               {logoUrl && !logoError ? (
                 <img 
                   src={logoUrl} 
@@ -113,57 +110,55 @@ const BankAccountCard = ({ bank, onEdit, onDelete }: { bank: BankDetail; onEdit:
                   onError={() => setLogoError(true)}
                 />
               ) : (
-                <span className="text-white font-bold text-xl">{firstLetter}</span>
+                <span className={`font-bold text-xl ${iconColor}`}>{firstLetter}</span>
               )}
             </div>
             <div>
               <h3 className="font-bold text-lg text-gray-800 tracking-tight leading-tight">{bank.bank_name}</h3>
-              <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+              <p className="text-xs text-gray-600 flex items-center gap-1 mt-0.5">
                 <MapPin className="w-3 h-3" /> {bank.branch_name || "Main Branch"}
               </p>
             </div>
           </div>
           <div className="flex gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="icon" onClick={() => onEdit(bank)} className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50">
+            <Button variant="ghost" size="icon" onClick={() => onEdit(bank)} className="h-8 w-8 text-blue-700 hover:text-blue-800 hover:bg-blue-100/60 rounded-full">
               <Pencil className="w-3.5 h-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => onDelete(bank.id)} className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50">
+            <Button variant="ghost" size="icon" onClick={() => onDelete(bank.id)} className="h-8 w-8 text-rose-700 hover:text-rose-800 hover:bg-rose-100/60 rounded-full">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
 
-        {/* Primary / Secondary Badge */}
         <div>
           {isPrimary ? (
-            <Badge className="bg-gradient-to-r from-emerald-100 to-emerald-200 text-emerald-800 border-0 shadow-sm gap-1 px-3 py-1">
+            <Badge className="bg-gradient-to-r from-green-200 to-green-300 text-green-800 border-0 shadow-sm gap-1 px-3 py-1">
               <CheckCircle2 className="w-3 h-3" /> Primary Account
             </Badge>
           ) : (
-            <Badge className="bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-0 shadow-sm gap-1 px-3 py-1">
+            <Badge className="bg-gradient-to-r from-red-200 to-red-300 text-red-800 border-0 shadow-sm gap-1 px-3 py-1">
               <Circle className="w-3 h-3" /> Secondary Account
             </Badge>
           )}
         </div>
 
-        {/* Account Details */}
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-            <div className="flex items-center gap-2 text-gray-500 text-sm">
+        <div className="space-y-3 pt-2 bg-white/70 backdrop-blur-sm rounded-lg p-3 shadow-inner">
+          <div className="flex items-center justify-between border-b border-gray-200/70 pb-2">
+            <div className="flex items-center gap-2 text-gray-700 text-sm">
               <User className="w-4 h-4" />
               <span>Account Holder</span>
             </div>
             <span className="font-semibold text-gray-800 text-sm">{getFullName(bank)}</span>
           </div>
-          <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-            <div className="flex items-center gap-2 text-gray-500 text-sm">
+          <div className="flex items-center justify-between border-b border-gray-200/70 pb-2">
+            <div className="flex items-center gap-2 text-gray-700 text-sm">
               <CardIcon className="w-4 h-4" />
               <span>Account Number</span>
             </div>
             <span className="font-mono font-bold text-gray-800 text-sm tracking-wider">{bank.account_number}</span>
           </div>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-500 text-sm">
+            <div className="flex items-center gap-2 text-gray-700 text-sm">
               <Hash className="w-4 h-4" />
               <span>IFSC Code</span>
             </div>
@@ -240,7 +235,6 @@ export default function BankAccountPage() {
     e.preventDefault()
     setIsSubmitLoading(true)
     
-    // Combine selected bank type or custom name
     const finalBankName = selectedBankType === "Other" ? customBankName : selectedBankType;
     
     if (!finalBankName) {
@@ -370,8 +364,6 @@ export default function BankAccountPage() {
   }
 
   const totalAccounts = banks.length
-  const primaryAccounts = banks.filter(b => b.is_primary).length
-  const secondaryAccounts = banks.filter(b => !b.is_primary).length
   const totalBanks = new Set(banks.map(b => b.bank_name)).size
 
   return (
@@ -519,33 +511,43 @@ export default function BankAccountPage() {
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+      {/* Stats Cards  */}
+      <div className="mb-8 flex flex-wrap justify-start gap-6">
+        {/* Total Banks Card */}
+        <div className="relative bg-white rounded-lg w-36 h-36 sm:w-40 sm:h-40 flex flex-col items-center justify-center transition-all duration-200 hover:-translate-y-1"
+             style={{
+               boxShadow: '0 10px 15px -3px rgba(34, 197, 94, 0.2), 0 4px 6px -2px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255,255,255,0.6)',
+               border: '1px solid rgba(34, 197, 94, 0.2)'
+             }}>
+          <div className="text-center">
+            <div className="p-2 bg-green-100 rounded-full inline-flex mb-2">
+              <Landmark className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+            </div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Total Banks
             </h3>
-            <p className="text-3xl font-bold text-purple-600">
+            <p className="text-2xl sm:text-3xl font-bold text-green-600">
               {totalBanks}
             </p>
           </div>
-          <div className="p-3 bg-purple-100 rounded-full">
-            <Landmark className="h-6 w-6 text-purple-600" />
-          </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+        {/* Total Accounts Card */}
+        <div className="relative bg-white rounded-lg w-36 h-36 sm:w-40 sm:h-40 flex flex-col items-center justify-center transition-all duration-200 hover:-translate-y-1"
+             style={{
+               boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.2), 0 4px 6px -2px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255,255,255,0.6)',
+               border: '1px solid rgba(239, 68, 68, 0.2)'
+             }}>
+          <div className="text-center">
+            <div className="p-2 bg-red-100 rounded-full inline-flex mb-2">
+              <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
+            </div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
               Total Accounts
             </h3>
-            <p className="text-3xl font-bold text-blue-600">
+            <p className="text-2xl sm:text-3xl font-bold text-red-600">
               {totalAccounts}
             </p>
-          </div>
-          <div className="p-3 bg-blue-100 rounded-full">
-            <CreditCard className="h-6 w-6 text-blue-600" />
           </div>
         </div>
       </div>
