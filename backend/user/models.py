@@ -91,10 +91,10 @@ class CustomUser(AbstractUser):
     weekly_days_count = models.IntegerField(default=0)
     last_avg_calculated_date = models.DateField(null=True, blank=True)
     company = models.ManyToManyField(
-    c.Company,
-    blank=True,
-    related_name='users_company'
-)
+        c.Company,
+        blank=True,
+        related_name='users_company'
+    )
     parent_company = models.ForeignKey(
         c.Company,
         blank=True,
@@ -164,6 +164,62 @@ class EmployeeProfile(models.Model):
             raise ValidationError({
                 'caste': 'The selected caste does not belong to the selected religion.'
             })
+
+
+# class EmployeeQualification(models.Model):
+#     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='qualifications')
+#     qualification_level = models.CharField(max_length=100)
+#     specialization = models.CharField(max_length=100)
+#     institution_name = models.CharField(max_length=100)
+#     university = models.CharField(max_length=100)
+#     location = models.CharField(max_length=100, null=True, blank=True)
+
+#     start_year = models.DateField()
+#     passing_year = models.DateField(null=True)
+#     percentage = models.FloatField()
+#     certificate = models.FileField(upload_to='qualifications/', null=True, blank=True)
+
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+    
+#     def __str__(self):
+#         return f"{self.user.first_name} {self.user.last_name} Qualification"
+
+
+# class EmployeeExperience(models.Model):
+#     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='experiences')
+#     company_name = models.CharField(max_length=200)
+#     location = models.CharField(max_length=100, null=True, blank=True)
+#     start_year = models.DateField()
+#     end_year = models.DateField(null=True)
+    
+#     experience_letter = models.FileField(upload_to='experience_letters/', null=True, blank=True)
+    
+#     created_at = models.DateTimeField(auto_now_add=True)
+#     updated_at = models.DateTimeField(auto_now=True)
+
+#     def __str__(self):
+#         return f"{self.user.first_name} at {self.company_name}"
+
+
+# class ExperienceDesignation(models.Model):
+#     TYPE_CHOICES = [
+#         ('Joined', 'Joined'),
+#         ('Promotion', 'Promotion'),
+#         ('Demotion', 'Demotion'),
+#         ('Lateral', 'Lateral Shift'),
+#     ]
+    
+#     experience = models.ForeignKey(EmployeeExperience, on_delete=models.CASCADE, related_name='designations')
+#     designation = models.CharField(max_length=100)
+#     start_date = models.DateField()
+#     end_date = models.DateField(null=True, blank=True) # Null if it's the most recent role at that company
+#     change_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Joined')
+#     description = models.TextField(null=True, blank=True)
+
+#     def __str__(self):
+#         return f"{self.designation} ({self.experience.company_name})"
+
 
 
 class BankDetail(models.Model):

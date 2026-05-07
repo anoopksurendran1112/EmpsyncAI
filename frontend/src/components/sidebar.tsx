@@ -241,8 +241,10 @@ export function Sidebar({ className }: SidebarProps) {
           {!collapsed && (
 
             <div className="flex items-center h-11 space-x-3 bg-blue-50 p-2 rounded-xl border border-blue-100 shadow-sm animate-in fade-in duration-300">
-              <div className="p-1 bg-white rounded-lg shadow-sm">
-                <Image src="/empsync-logo.png" alt="EmpSync AI" width={24} height={24} className="rounded-md" />
+              <div className="h-7 w-7 bg-white rounded-lg shadow-sm flex items-center justify-center shrink-0">
+                <div className="relative h-full w-full">
+                  <Image src="/empsync-logo.png" alt="EmpSync AI" fill className="object-contain rounded-md" />
+                </div>
               </div>
               <span className="text-gray-900 font-bold tracking-tight">EmpSync AI</span>
             </div>

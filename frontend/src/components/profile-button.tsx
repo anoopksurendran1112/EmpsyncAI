@@ -25,15 +25,29 @@ export function ProfileButton() {
 
   return (
     <button
-      onClick={() => router.push("/dashboard/profile")}
-      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-    >
-      <Avatar className="h-8 w-8">
-        <AvatarImage src={profileUrl || ""} alt={user ? `${user.first_name} ${user.last_name}` : "Admin"} />
-        <AvatarFallback className="bg-blue-600 text-white text-xs font-medium">
+  onClick={() => router.push("/dashboard/profile")}
+  className="group flex items-center h-11 space-x-3 bg-blue-50 p-2 pr-4 rounded-xl border border-blue-100 shadow-sm transition-all duration-300 hover:bg-blue-100/50 animate-in fade-in duration-300"
+>
+  <div className="h-8 w-8 bg-white rounded-lg shadow-sm flex items-center justify-center shrink-0 overflow-hidden">
+    <Avatar className="h-full w-full rounded-none">
+      <div className="relative h-full w-full">
+        <AvatarImage 
+          src={profileUrl || ""} 
+          alt={user ? `${user.first_name} ${user.last_name}` : "Admin"} 
+          className="object-cover"
+        />
+        <AvatarFallback className="bg-blue-600 text-white text-[10px] font-bold rounded-none">
           {initials}
         </AvatarFallback>
-      </Avatar>
-    </button>
+      </div>
+    </Avatar>
+  </div>
+
+  <div className="flex flex-col items-start overflow-hidden">
+    <span className="text-gray-900 font-bold text-sm tracking-tight leading-none truncate max-w-[120px]">
+      {user?.first_name} {user?.last_name}
+    </span>
+  </div>
+</button>
   );
 }

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { Building2 } from "lucide-react";
+import { Building2, ChevronDown } from "lucide-react";
 
 export function SwitchCompanyButton() {
   const [companies, setCompanies] = useState<{ id: string; name: string; logo?: string; is_admin: boolean }[]>([]);
@@ -133,55 +133,58 @@ export function SwitchCompanyButton() {
   console.log("Show logo:", showLogo);
 
   return (
-    <div className="flex items-center space-x-2">
-      {/* Current Company Logo Only (without name) - Using same pattern as EmployeeBanner */}
-      {currentCompany && (
-        <div className="h-8 w-8 rounded overflow-hidden border bg-white flex items-center justify-center">
-          {showLogo ? (
-            <div className="relative h-8 w-8 rounded overflow-hidden">
-              <Image
-                src={getLogoUrl()}
-                alt="Company Logo"
-                fill
-                className="object-cover w-full h-full"
-                onError={() => setImageError(true)}
-              />
-            </div>
-          ) : (
-            <div className="h-8 w-8 bg-gray-100 rounded flex items-center justify-center">
-              <Building2 className="h-4 w-4 text-gray-500" />
-            </div>
-          )}
+<div className="flex items-center h-11 space-x-3 bg-blue-50 p-2 rounded-xl border border-blue-100 shadow-sm animate-in fade-in duration-300">
+  {/* Company Logo Container */}
+  {currentCompany && (
+    <div className="h-7 w-7 bg-white rounded-lg shadow-sm flex items-center justify-center shrink-0">
+      {showLogo ? (
+        <div className="relative h-full w-full">
+          <Image
+            src={getLogoUrl()}
+            alt="Company Logo"
+            fill
+            className="object-contain rounded-md"
+            onError={() => setImageError(true)}
+          />
+        </div>
+      ) : (
+        <div className="h-full w-full bg-blue-50 flex items-center justify-center rounded-md">
+          <Building2 className="h-4 w-4 text-blue-600" />
         </div>
       )}
-
-      {/* Company Selector with company names in dropdown */}
-      <select
-        value={selectedCompany}
-        onChange={(e) => {
-          setSelectedCompany(e.target.value);
-          setImageError(false); // Reset image error when company changes
-        }}
-        className="border p-2 rounded min-w-[150px]"
-      >
-        <option value="">Select Company</option>
-        {companies.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      
-      {/* Switch Company Button (Teal) */}
-      <Button 
-        onClick={handleSwitch} 
-        className="bg-teal-600 hover:bg-teal-700 text-white"
-        size="sm"
-        disabled={!selectedCompany}
-      >
-        Switch
-      </Button>
     </div>
+  )}
+
+  {/* Company Selector Text Area */}
+  <div className="relative flex items-center min-w-[100px]">
+    <select
+      value={selectedCompany}
+      onChange={(e) => {
+        setSelectedCompany(e.target.value);
+        setImageError(false);
+      }}
+      className="px-1 bg-transparent text-sm font-bold text-gray-900 focus:outline-none cursor-pointer pr-5 appearance-none tracking-tight leading-none"
+    >
+      <option value="">Select Company</option>
+      {companies.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.name}
+        </option>
+      ))}
+    </select>
+    <ChevronDown className="absolute right-0 h-3 w-3 text-gray-400 pointer-events-none" />
+  </div>
+  
+  {/* Switch Company Button - More integrated look */}
+  <Button 
+    onClick={handleSwitch} 
+    size="sm"
+    disabled={!selectedCompany}
+    className="h-7 bg-blue-600 hover:bg-blue-700 text-white shadow-md border-none px-3 rounded-lg font-bold text-[9px] transition-all duration-200 uppercase tracking-widest disabled:opacity-50"
+  >
+    Switch
+  </Button>
+</div>
   );
 }
 
