@@ -3,7 +3,8 @@ from .views import (
     signUp, profile, login, getAllUsers, todaysActiveUsers, changePassword, request_otp,
     verify_otp, reset_password, request_login_otp, verify_login_otp, privacy_policy,
     logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
-    manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail
+    manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail, manageQualification,
+    manageExperience
 )
 
 
@@ -28,5 +29,7 @@ urlpatterns = [
     path('api/manage-religion/', manageReligion, name='manage-religion'),
     path('api/manage-caste/', manageCaste, name='manage-caste'),
     path('api/employee-profile/', manageEmployeeProfile, name='employee-profile'),
-    path('api/manage-banks/', manageBankDetail, name='manage-bank-detail')
+    path('api/manage-banks/', manageBankDetail, name='manage-bank-detail'),
+    path('api/manage-qualification/', manageQualification, name='manage-qualification'),
+    path('api/manage-experience/', manageExperience, name='manage-experience'),
 ]
