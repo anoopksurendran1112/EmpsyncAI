@@ -39,11 +39,11 @@ from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
-    BankDetailSerializer
+    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer
 )
 
 
@@ -2858,4 +2858,173 @@ def manageBankDetail(request):
         except BankDetail.DoesNotExist:
             return Response({ 'success': False, 'message': 'Bank detail not found' }, 
                             status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manageQualification(request):
+    if request.method == 'GET':
+        employee_id = request.query_params.get('employee_id')
+        if not employee_id:
+            return Response({'success': False, 'message': 'employee_id is required'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        qualifications = EmployeeQualification.objects.filter(user__id=employee_id)
+        serializer = EmployeeQualificationSerializer(qualifications, many=True)
+        return Response({'success': True, 'data': serializer.data}, 
+                        status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        data = request.data.copy()
+        employee_id = data.get('employee_id')
+        if not employee_id:
+            return Response({'success': False, 'message': 'employee_id is required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        data['user'] = employee_id
+        serializer = EmployeeQualificationSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Qualification added successfully',
+                            'data': serializer.data}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'message': 'Validation failed', 
+                        'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        qualification_id = request.data.get('id')
+        if not qualification_id:
+            return Response({'success': False, 'message': 'Qualification ID is required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            qualification = EmployeeQualification.objects.get(id=qualification_id)
+        except EmployeeQualification.DoesNotExist:
+            return Response({'success': False, 'message': 'Qualification not found'}, 
+                            status=status.HTTP_404_NOT_FOUND)
+        serializer = EmployeeQualificationSerializer(qualification, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Qualification updated successfully',
+                            'data': serializer.data}, status=status.HTTP_200_OK)
+        return Response({'success': False, 'message': 'Validation failed', 
+                        'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        qualification_id = request.data.get('id') or request.query_params.get('id')
+        if not qualification_id:
+            return Response({'success': False, 'message': 'Qualification ID is required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            qualification = EmployeeQualification.objects.get(id=qualification_id)
+            qualification.delete()
+            return Response({'success': True, 'message': 'Qualification deleted successfully'}, 
+                            status=status.HTTP_200_OK)
+        except EmployeeQualification.DoesNotExist:
+            return Response({'success': False, 'message': 'Qualification not found'}, 
+                            status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manageExperience(request):
+    if request.method == 'GET':
+        employee_id = request.query_params.get('employee_id')
+        if not employee_id:
+            return Response({'success': False, 'message': 'employee_id is required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        experiences = EmployeeExperience.objects.filter(user__id=employee_id)
+        serializer = EmployeeExperienceSerializer(experiences, many=True)
+        return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        data = request.data.copy()
+        employee_id = data.get('employee_id')
+        designations_data = data.pop('designations', [])
+
+        if not employee_id:
+            return Response({'success': False, 'message': 'employee_id is required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        data['user'] = employee_id
+
+        try:
+            with transaction.atomic():
+                # 1. Create Experience
+                exp_serializer = EmployeeExperienceSerializer(data=data)
+                if exp_serializer.is_valid():
+                    experience = exp_serializer.save()
+                    
+                    # 2. Create Designations
+                    created_designations = []
+                    if isinstance(designations_data, str):
+                        import json
+                        designations_data = json.loads(designations_data)
+
+                    for des_data in designations_data:
+                        des_data['experience'] = experience.id
+                        des_serializer = ExperienceDesignationSerializer(data=des_data)
+                        if des_serializer.is_valid():
+                            des_serializer.save()
+                            created_designations.append(des_serializer.data)
+                        else:
+                            # If any designation is invalid, rollback
+                            raise ValueError(f"Designation error: {des_serializer.errors}")
+                    
+                    return Response({
+                        'success': True, 
+                        'message': 'Experience and designations added successfully', 
+                        'data': {**exp_serializer.data, 'designations': created_designations}
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({'success': False, 'message': 'Validation failed', 'errors': exp_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        experience_id = request.data.get('experience_id')
+        designation_id = request.data.get('designation_id')
+
+        if designation_id:
+            try:
+                designation = ExperienceDesignation.objects.get(id=designation_id)
+                serializer = ExperienceDesignationSerializer(designation, data=request.data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response({'success': True, 'message': 'Designation updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+                return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            except ExperienceDesignation.DoesNotExist:
+                return Response({'success': False, 'message': 'Designation not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        elif experience_id:
+            try:
+                experience = EmployeeExperience.objects.get(id=experience_id)
+                serializer = EmployeeExperienceSerializer(experience, data=request.data, partial=True)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response({'success': True, 'message': 'Experience updated successfully', 'data': serializer.data}, status=status.HTTP_200_OK)
+                return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            except EmployeeExperience.DoesNotExist:
+                return Response({'success': False, 'message': 'Experience not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        return Response({'success': False, 'message': 'experience_id or designation_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        experience_id = request.data.get('experience_id') or request.query_params.get('experience_id')
+        designation_id = request.data.get('designation_id') or request.query_params.get('designation_id')
+
+        if designation_id:
+            try:
+                designation = ExperienceDesignation.objects.get(id=designation_id)
+                designation.delete()
+                return Response({'success': True, 'message': 'Designation deleted successfully'}, status=status.HTTP_200_OK)
+            except ExperienceDesignation.DoesNotExist:
+                return Response({'success': False, 'message': 'Designation not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        elif experience_id:
+            try:
+                experience = EmployeeExperience.objects.get(id=experience_id)
+                experience.delete()
+                return Response({'success': True, 'message': 'Experience and all its designations deleted'}, status=status.HTTP_200_OK)
+            except EmployeeExperience.DoesNotExist:
+                return Response({'success': False, 'message': 'Experience not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({'success': False, 'message': 'experience_id or designation_id required'}, status=status.HTTP_400_BAD_REQUEST)
 
