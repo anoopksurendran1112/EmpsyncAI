@@ -2665,8 +2665,18 @@ def manageEmployeeProfile(request):
             return Response({ 'success': False, 'message': 'Employee not found' }, status=status.HTTP_404_NOT_FOUND)
 
         serializer = EmployeeProfileSerializer(employee)
+        data = serializer.data
+
+        # Fetch related records
+        bank_details = BankDetail.objects.filter(user__id=employee_id)
+        qualifications = EmployeeQualification.objects.filter(user__id=employee_id)
+        experiences = EmployeeExperience.objects.filter(user__id=employee_id)
+
+        data['bank_details'] = BankDetailSerializer(bank_details, many=True).data
+        data['qualifications'] = EmployeeQualificationSerializer(qualifications, many=True).data
+        data['experiences'] = EmployeeExperienceSerializer(experiences, many=True).data
         
-        return Response({ 'success': True, 'data': serializer.data }, status=status.HTTP_200_OK)
+        return Response({ 'success': True, 'data': data }, status=status.HTTP_200_OK)
 
 
     elif request.method == 'POST':
@@ -2716,7 +2726,81 @@ def manageEmployeeProfile(request):
 
                 if serializer.is_valid():
                     profile = serializer.save()
-                    return Response({ 'success': True, 'message': 'Profile created successfully', 'data': serializer.data }, status=status.HTTP_201_CREATED)
+                    response_data = serializer.data
+
+                    try:
+                        import json
+                        
+                        # Process Bank Details
+                        bank_data_list = request.data.get('bank_details', [])
+                        if isinstance(bank_data_list, str):
+                            bank_data_list = json.loads(bank_data_list)
+                            
+                        if bank_data_list:
+                            for b_data in bank_data_list:
+                                b_data['user'] = user_obj.id
+                            b_serializer = BankDetailSerializer(data=bank_data_list, many=True)
+                            if b_serializer.is_valid():
+                                b_serializer.save()
+                                response_data['bank_details'] = b_serializer.data
+                            else:
+                                raise ValueError(f"Bank detail validation failed: {b_serializer.errors}")
+
+                        # Process Qualifications
+                        qual_data_list = request.data.get('qualifications', [])
+                        if isinstance(qual_data_list, str):
+                            qual_data_list = json.loads(qual_data_list)
+                            
+                        if qual_data_list:
+                            for q_data in qual_data_list:
+                                q_data['user'] = user_obj.id
+                            q_serializer = EmployeeQualificationSerializer(data=qual_data_list, many=True)
+                            if q_serializer.is_valid():
+                                q_serializer.save()
+                                response_data['qualifications'] = q_serializer.data
+                            else:
+                                raise ValueError(f"Qualification validation failed: {q_serializer.errors}")
+
+                        # Process Experiences
+                        exp_data_list = request.data.get('experiences', [])
+                        if isinstance(exp_data_list, str):
+                            exp_data_list = json.loads(exp_data_list)
+                            
+                        response_exps = []
+                        if exp_data_list:
+                            for e_data in exp_data_list:
+                                e_data['user'] = user_obj.id
+                                designations_data = e_data.pop('designations', [])
+                                
+                                e_serializer = EmployeeExperienceSerializer(data=e_data)
+                                if e_serializer.is_valid():
+                                    experience = e_serializer.save()
+                                    
+                                    created_designations = []
+                                    if isinstance(designations_data, str):
+                                        designations_data = json.loads(designations_data)
+                                        
+                                    for des_data in designations_data:
+                                        if isinstance(des_data, str):
+                                            des_data = json.loads(des_data)
+                                        des_data['experience'] = experience.id
+                                        des_serializer = ExperienceDesignationSerializer(data=des_data)
+                                        if des_serializer.is_valid():
+                                            des_serializer.save()
+                                            created_designations.append(des_serializer.data)
+                                        else:
+                                            raise ValueError(f"Designation error: {des_serializer.errors}")
+                                    response_exps.append({**e_serializer.data, 'designations': created_designations})
+                                else:
+                                    raise ValueError(f"Experience validation failed: {e_serializer.errors}")
+                            
+                            response_data['experiences'] = response_exps
+
+                    except ValueError as e:
+                        transaction.set_rollback(True)
+                        return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+                    return Response({ 'success': True, 'message': 'Profile created successfully', 'data': response_data }, status=status.HTTP_201_CREATED)
                 else:
                     return Response({ 'success': False, 'message': 'Profile validation failed', 'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2778,7 +2862,115 @@ def manageEmployeeProfile(request):
             serializer = EmployeeProfileSerializer(profile, data=update_data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                return Response({ 'success': True, 'message': 'Profile updated successfully', 'data': serializer.data }, status=status.HTTP_200_OK)
+                response_data = serializer.data
+
+                try:
+                    import json
+                    
+                    # Upsert Bank Details
+                    bank_data_list = request.data.get('bank_details', [])
+                    if isinstance(bank_data_list, str):
+                        bank_data_list = json.loads(bank_data_list)
+                        
+                    if bank_data_list:
+                        for b_data in bank_data_list:
+                            b_data['user'] = employee_id
+                            if 'id' in b_data:
+                                try:
+                                    inst = BankDetail.objects.get(id=b_data['id'], user__id=employee_id)
+                                    b_serializer = BankDetailSerializer(inst, data=b_data, partial=True)
+                                except BankDetail.DoesNotExist:
+                                    raise ValueError(f"Bank detail with id {b_data['id']} not found")
+                            else:
+                                b_serializer = BankDetailSerializer(data=b_data)
+                                
+                            if b_serializer.is_valid():
+                                b_serializer.save()
+                            else:
+                                raise ValueError(f"Bank detail validation failed: {b_serializer.errors}")
+
+                    # Upsert Qualifications
+                    qual_data_list = request.data.get('qualifications', [])
+                    if isinstance(qual_data_list, str):
+                        qual_data_list = json.loads(qual_data_list)
+                        
+                    if qual_data_list:
+                        for q_data in qual_data_list:
+                            q_data['user'] = employee_id
+                            if 'id' in q_data:
+                                try:
+                                    inst = EmployeeQualification.objects.get(id=q_data['id'], user__id=employee_id)
+                                    q_serializer = EmployeeQualificationSerializer(inst, data=q_data, partial=True)
+                                except EmployeeQualification.DoesNotExist:
+                                    raise ValueError(f"Qualification with id {q_data['id']} not found")
+                            else:
+                                q_serializer = EmployeeQualificationSerializer(data=q_data)
+                                
+                            if q_serializer.is_valid():
+                                q_serializer.save()
+                            else:
+                                raise ValueError(f"Qualification validation failed: {q_serializer.errors}")
+
+                    # Upsert Experiences
+                    exp_data_list = request.data.get('experiences', [])
+                    if isinstance(exp_data_list, str):
+                        exp_data_list = json.loads(exp_data_list)
+                        
+                    if exp_data_list:
+                        for e_data in exp_data_list:
+                            e_data['user'] = employee_id
+                            designations_data = e_data.pop('designations', [])
+                            
+                            if 'id' in e_data:
+                                try:
+                                    inst = EmployeeExperience.objects.get(id=e_data['id'], user__id=employee_id)
+                                    e_serializer = EmployeeExperienceSerializer(inst, data=e_data, partial=True)
+                                except EmployeeExperience.DoesNotExist:
+                                    raise ValueError(f"Experience with id {e_data['id']} not found")
+                            else:
+                                e_serializer = EmployeeExperienceSerializer(data=e_data)
+                                
+                            if e_serializer.is_valid():
+                                experience = e_serializer.save()
+                                
+                                # Upsert Designations
+                                if isinstance(designations_data, str):
+                                    designations_data = json.loads(designations_data)
+                                    
+                                for des_data in designations_data:
+                                    if isinstance(des_data, str):
+                                        des_data = json.loads(des_data)
+                                    des_data['experience'] = experience.id
+                                    
+                                    if 'id' in des_data:
+                                        try:
+                                            des_inst = ExperienceDesignation.objects.get(id=des_data['id'], experience=experience)
+                                            des_serializer = ExperienceDesignationSerializer(des_inst, data=des_data, partial=True)
+                                        except ExperienceDesignation.DoesNotExist:
+                                            raise ValueError(f"Designation with id {des_data['id']} not found")
+                                    else:
+                                        des_serializer = ExperienceDesignationSerializer(data=des_data)
+                                        
+                                    if des_serializer.is_valid():
+                                        des_serializer.save()
+                                    else:
+                                        raise ValueError(f"Designation error: {des_serializer.errors}")
+                            else:
+                                raise ValueError(f"Experience validation failed: {e_serializer.errors}")
+                                
+                except ValueError as e:
+                    transaction.set_rollback(True)
+                    return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Refresh data to include updated relations
+                bank_details = BankDetail.objects.filter(user__id=employee_id)
+                qualifications = EmployeeQualification.objects.filter(user__id=employee_id)
+                experiences = EmployeeExperience.objects.filter(user__id=employee_id)
+                response_data['bank_details'] = BankDetailSerializer(bank_details, many=True).data
+                response_data['qualifications'] = EmployeeQualificationSerializer(qualifications, many=True).data
+                response_data['experiences'] = EmployeeExperienceSerializer(experiences, many=True).data
+
+                return Response({ 'success': True, 'message': 'Profile updated successfully', 'data': response_data }, status=status.HTTP_200_OK)
             
             return Response({ 'success': False, 'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2799,6 +2991,9 @@ def manageEmployeeProfile(request):
             unique_addr_ids = {addr.id for addr in addrs_to_delete}
             profile.delete()
             EmployeeAddress.objects.filter(id__in=unique_addr_ids).delete()
+            BankDetail.objects.filter(user__id=employee_id).delete()
+            EmployeeQualification.objects.filter(user__id=employee_id).delete()
+            EmployeeExperience.objects.filter(user__id=employee_id).delete()
                 
         return Response({ 'success': True, 'message': 'Profile and unique associated addresses deleted successfully' }, status=status.HTTP_200_OK)
 
@@ -2814,9 +3009,17 @@ def manageBankDetail(request):
         return Response({ 'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
         
     elif request.method == 'POST':
-        data = request.data.copy()
-        data['user'] = user.id
-        serializer = BankDetailSerializer(data=data)
+        is_many = isinstance(request.data, list)
+        
+        if is_many:
+            data = [item.copy() for item in request.data]
+            for item in data:
+                item['user'] = user.id
+        else:
+            data = request.data.copy()
+            data['user'] = user.id
+            
+        serializer = BankDetailSerializer(data=data, many=is_many)
         if serializer.is_valid():
             serializer.save()
             return Response({ 'success': True, 'message': 'Bank details added successfully', 
@@ -2874,13 +3077,25 @@ def manageQualification(request):
                         status=status.HTTP_200_OK)
 
     elif request.method == 'POST':
-        data = request.data.copy()
-        employee_id = data.get('employee_id')
-        if not employee_id:
-            return Response({'success': False, 'message': 'employee_id is required'}, 
-                            status=status.HTTP_400_BAD_REQUEST)
-        data['user'] = employee_id
-        serializer = EmployeeQualificationSerializer(data=data)
+        is_many = isinstance(request.data, list)
+        
+        if is_many:
+            data = [item.copy() for item in request.data]
+            for item in data:
+                employee_id = item.get('employee_id')
+                if not employee_id:
+                    return Response({'success': False, 'message': 'employee_id is required in all items'}, 
+                                    status=status.HTTP_400_BAD_REQUEST)
+                item['user'] = employee_id
+        else:
+            data = request.data.copy()
+            employee_id = data.get('employee_id')
+            if not employee_id:
+                return Response({'success': False, 'message': 'employee_id is required'}, 
+                                status=status.HTTP_400_BAD_REQUEST)
+            data['user'] = employee_id
+            
+        serializer = EmployeeQualificationSerializer(data=data, many=is_many)
         if serializer.is_valid():
             serializer.save()
             return Response({'success': True, 'message': 'Qualification added successfully',
@@ -2935,46 +3150,55 @@ def manageExperience(request):
         return Response({'success': True, 'data': serializer.data}, status=status.HTTP_200_OK)
 
     elif request.method == 'POST':
-        data = request.data.copy()
-        employee_id = data.get('employee_id')
-        designations_data = data.pop('designations', [])
-
-        if not employee_id:
-            return Response({'success': False, 'message': 'employee_id is required'}, 
-                            status=status.HTTP_400_BAD_REQUEST)
-        
-        data['user'] = employee_id
+        is_many = isinstance(request.data, list)
+        raw_data_list = request.data if is_many else [request.data]
+        response_data = []
 
         try:
             with transaction.atomic():
-                # 1. Create Experience
-                exp_serializer = EmployeeExperienceSerializer(data=data)
-                if exp_serializer.is_valid():
-                    experience = exp_serializer.save()
-                    
-                    # 2. Create Designations
-                    created_designations = []
-                    if isinstance(designations_data, str):
-                        import json
-                        designations_data = json.loads(designations_data)
+                for raw_data in raw_data_list:
+                    data = raw_data.copy()
+                    employee_id = data.get('employee_id')
+                    designations_data = data.pop('designations', [])
 
-                    for des_data in designations_data:
-                        des_data['experience'] = experience.id
-                        des_serializer = ExperienceDesignationSerializer(data=des_data)
-                        if des_serializer.is_valid():
-                            des_serializer.save()
-                            created_designations.append(des_serializer.data)
-                        else:
-                            # If any designation is invalid, rollback
-                            raise ValueError(f"Designation error: {des_serializer.errors}")
+                    if not employee_id:
+                        raise ValueError("employee_id is required in all items")
                     
-                    return Response({
-                        'success': True, 
-                        'message': 'Experience and designations added successfully', 
-                        'data': {**exp_serializer.data, 'designations': created_designations}
-                    }, status=status.HTTP_201_CREATED)
-                else:
-                    return Response({'success': False, 'message': 'Validation failed', 'errors': exp_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+                    data['user'] = employee_id
+
+                    # 1. Create Experience
+                    exp_serializer = EmployeeExperienceSerializer(data=data)
+                    if exp_serializer.is_valid():
+                        experience = exp_serializer.save()
+                        
+                        # 2. Create Designations
+                        created_designations = []
+                        if isinstance(designations_data, str):
+                            import json
+                            designations_data = json.loads(designations_data)
+
+                        for des_data in designations_data:
+                            if isinstance(des_data, str):
+                                import json
+                                des_data = json.loads(des_data)
+                            des_data['experience'] = experience.id
+                            des_serializer = ExperienceDesignationSerializer(data=des_data)
+                            if des_serializer.is_valid():
+                                des_serializer.save()
+                                created_designations.append(des_serializer.data)
+                            else:
+                                # If any designation is invalid, rollback
+                                raise ValueError(f"Designation error: {des_serializer.errors}")
+                        
+                        response_data.append({**exp_serializer.data, 'designations': created_designations})
+                    else:
+                        raise ValueError(f"Validation failed: {exp_serializer.errors}")
+                
+                return Response({
+                    'success': True, 
+                    'message': 'Experience and designations added successfully', 
+                    'data': response_data if is_many else response_data[0]
+                }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
