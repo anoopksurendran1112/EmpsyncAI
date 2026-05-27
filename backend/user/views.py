@@ -1,5 +1,6 @@
 # 1. Standard Library Imports
 import jwt
+import json
 import random
 import logging
 import requests
@@ -2458,6 +2459,233 @@ def token_refresh(request):
         }, status=status.HTTP_401_UNAUTHORIZED)
 
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def employee_with_profile(request):
+    """
+    Atomically creates a CustomUser and their flat/nested Employee Profile elements
+    (Addresses, Bank Details, Qualifications, and Experiences).
+    Designed for administrative creation—no authentication tokens are issued.
+    """
+    # 1. Base User Field Validation (mirroring signUp logic)
+    email = request.data.get('email')
+    mobile = request.data.get('mobile')
+    company_id = request.data.get('company_id')
+    role_id = request.data.get('role_id')
+    group_id = request.data.get('group_id')
+    biometric_id = request.data.get('biometric_id')
+
+    try:
+        if email:
+            validate_email(email)
+    except DjangoValidationError:
+        return Response({'message': 'Enter a valid email', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(email=email).exists():
+        return Response({'message': 'Email already exists.', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(mobile=mobile).exists():
+        return Response({'message': 'Mobile number already exists.', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
+
+    if biometric_id and CustomUser.objects.filter(biometric_id=biometric_id, company__id=company_id).exists():
+        return Response({'message': 'Oops! This Biometric ID is already linked to this company', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate mandatory external entities beforehand (handling potential ValueErrors safely)
+    try:
+        company_obj = c.Company.objects.get(id=company_id)
+    except (c.Company.DoesNotExist, ValueError, TypeError):
+        return Response({'message': 'Invalid or missing company ID.', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
+
+    role_obj = c.CompanyRole.objects.filter(id=role_id).first() if role_id else None
+    group_obj = c.CompanyGroup.objects.filter(id=group_id).first() if group_id else None
+
+    # Helper function to safely parse potential stringified JSON structures
+    def safe_parse_json(field_name, default_factory):
+        val = request.data.get(field_name)
+        if not val:
+            return default_factory()
+        if isinstance(val, str):
+            try:
+                return json.loads(val)
+            except json.JSONDecodeError:
+                return default_factory()
+        return val
+
+    # Extract components cleanly from the flat/multipart payload structure
+    present_address_data = safe_parse_json('present_address', dict)
+    permanent_address_data = safe_parse_json('permanent_address', dict)
+    bank_details = safe_parse_json('bank_details', list)
+    qualifications = safe_parse_json('qualifications', list)
+    experiences = safe_parse_json('experiences', list)
+
+    # Begin safe atomic transaction context
+    with transaction.atomic():
+        try:
+            # STEP A: Create the core application User
+            user_data = request.data.copy()
+            if 'prof_img' in request.FILES:
+                user_data['prof_img'] = request.FILES['prof_img']
+                
+            user_serializer = UserSerializer(data=user_data)
+            if not user_serializer.is_valid():
+                raise ValueError(f"User validation failed: {user_serializer.errors}")
+            
+            user = user_serializer.save()
+            user.set_password(request.data.get('password'))
+            user.company.set([company_obj])
+            if role_obj:
+                user.role = role_obj
+            if group_obj:
+                user.group = group_obj
+
+            # Respect incoming team_lead flag from the multipart/form-data payload
+            def _parse_bool(v):
+                if isinstance(v, bool):
+                    return v
+                if v is None:
+                    return False
+                return str(v).lower() in ('1', 'true', 'yes', 'on')
+
+            user.team_lead = _parse_bool(request.data.get('team_lead'))
+            if not user.parent_company:
+                user.parent_company = company_obj
+            user.save()
+
+            if 'fcm_token' in request.data and request.data.get('fcm_token'):
+                FcmToken.objects.update_or_create(user=user, fcm_token=request.data.get('fcm_token'))
+
+            # Helper method to process present/permanent addresses safely
+            def save_address(address_data, label):
+                if not address_data:
+                    return None
+                addr_serializer = EmployeeAddressSerializer(data=address_data)
+                if addr_serializer.is_valid():
+                    return addr_serializer.save()
+                raise ValueError(f"Invalid {label}: {addr_serializer.errors}")
+
+            # STEP B: Build out Addresses
+            present_addr_obj = save_address(present_address_data, "present address")
+            permanent_addr_obj = save_address(permanent_address_data, "permanent address")
+
+            # STEP C: Map and structure Profile payload handling empty strings safely
+            def clean_optional_id(key):
+                val = request.data.get(key)
+                return int(val) if val and str(val).strip() not in ("", "null", "undefined") else None
+
+            profile_data = {
+                'user': user.id,
+                'present_address': present_addr_obj.id if present_addr_obj else None,
+                'permanent_address': permanent_addr_obj.id if permanent_addr_obj else None,
+                'religion': clean_optional_id('religion_id'),
+                'caste': clean_optional_id('caste_id'),
+                'staff_type': clean_optional_id('staff_type_id'),
+                'staff_category': clean_optional_id('staff_category_id'),
+            }
+            
+            # Append other optional top-level profile fields, normalizing "" to None
+            profile_fields = [
+                'dob', 'guardian_name', 'guardian_phone', 'blood_group', 
+                'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 
+                'alternate_mobile', 'alternate_email'
+            ]
+            for field in profile_fields:
+                if field in request.data:
+                    val = request.data.get(field)
+                    profile_data[field] = None if val in ("", "null", "undefined") else val
+
+            profile_serializer = EmployeeProfileSerializer(data=profile_data)
+            if not profile_serializer.is_valid():
+                raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
+            
+            profile_serializer.save()
+            final_response_data = profile_serializer.data
+
+            # STEP D: Process nested relational arrays
+            # 1. Bank details array
+            if bank_details:
+                for b_data in bank_details:
+                    b_data['user'] = user.id
+                b_serializer = BankDetailSerializer(data=bank_details, many=True)
+                if not b_serializer.is_valid():
+                    raise ValueError(f"Bank validation failed: {b_serializer.errors}")
+                b_serializer.save()
+                final_response_data['bank_details'] = b_serializer.data
+
+            # 2. Qualifications array + handling dynamic file buffers
+            if qualifications:
+                for idx, q_data in enumerate(qualifications):
+                    q_data['user'] = user.id
+                    cert_key = f'qualifications[{idx}][certificate]'
+                    if cert_key in request.FILES:
+                        q_data['certificate'] = request.FILES[cert_key]
+                        
+                q_serializer = EmployeeQualificationSerializer(data=qualifications, many=True)
+                if not q_serializer.is_valid():
+                    raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
+                q_serializer.save()
+                final_response_data['qualifications'] = q_serializer.data
+
+            # 3. Work experiences array + structural nested designations
+            final_experiences_response = []
+            if experiences:
+                for idx, e_data in enumerate(experiences):
+                    e_data['user'] = user.id
+                    
+                    exp_letter_key = f'experiences[{idx}][experience_letter]'
+                    if exp_letter_key in request.FILES:
+                        e_data['experience_letter'] = request.FILES[exp_letter_key]
+
+                    # Experiences parsing optimization: drop designations key for structural segregation
+                    designations = e_data.pop('designations', [])
+
+                    e_serializer = EmployeeExperienceSerializer(data=e_data)
+                    if not e_serializer.is_valid():
+                        raise ValueError(f"Experience validation failed at item {idx}: {e_serializer.errors}")
+                    
+                    experience_obj = e_serializer.save()
+                    created_designations = []
+                    
+                    for des_data in designations:
+                        des_data['experience'] = experience_obj.id
+                        des_serializer = ExperienceDesignationSerializer(data=des_data)
+                        if not des_serializer.is_valid():
+                            raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                        des_serializer.save()
+                        created_designations.append(des_serializer.data)
+                    
+                    final_experiences_response.append({
+                        **e_serializer.data,
+                        'designations': created_designations
+                    })
+                final_response_data['experiences'] = final_experiences_response
+
+            # Return registration response payload
+            return Response({
+                "success": True,
+                "message": "Employee and complete profile created smoothly",
+                "data": {
+                    "user": user_serializer.data,
+                    "profile": final_response_data
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except ValueError as err:
+            transaction.set_rollback(True)  # Clean atomic rollback (valid because we are inside the context)
+            return Response({
+                "success": False,
+                "message": "Validation Error inside Employee Creation sequence",
+                "errors": str(err)
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        except Exception as exc:
+            transaction.set_rollback(True)  # Clean atomic rollback (valid because we are inside the context)
+            return Response({
+                "success": False,
+                "message": "Internal Server Error occurred during transaction workflow",
+                "debug_error": str(exc)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def manageReligion(request):
 
@@ -2729,7 +2957,6 @@ def manageEmployeeProfile(request):
                     response_data = serializer.data
 
                     try:
-                        import json
                         
                         # Process Bank Details
                         bank_data_list = request.data.get('bank_details', [])
@@ -2865,7 +3092,6 @@ def manageEmployeeProfile(request):
                 response_data = serializer.data
 
                 try:
-                    import json
                     
                     # Upsert Bank Details
                     bank_data_list = request.data.get('bank_details', [])
@@ -3174,12 +3400,10 @@ def manageExperience(request):
                         # 2. Create Designations
                         created_designations = []
                         if isinstance(designations_data, str):
-                            import json
                             designations_data = json.loads(designations_data)
 
                         for des_data in designations_data:
                             if isinstance(des_data, str):
-                                import json
                                 des_data = json.loads(des_data)
                             des_data['experience'] = experience.id
                             des_serializer = ExperienceDesignationSerializer(data=des_data)

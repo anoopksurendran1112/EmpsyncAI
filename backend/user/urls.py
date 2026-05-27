@@ -4,7 +4,7 @@ from .views import (
     verify_otp, reset_password, request_login_otp, verify_login_otp, privacy_policy,
     logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
     manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail, manageQualification,
-    manageExperience
+    manageExperience, employee_with_profile
 )
 
 
@@ -26,6 +26,8 @@ urlpatterns = [
     path('api/verify-login-otp',verify_login_otp),
     path('api/user-companies',get_user_companies),
     path('api/group-members/<int:page>',get_team_members),
+    
+    path('api/employee-with-profile/', employee_with_profile, name='employee-with-profile'),
     path('api/manage-religion/', manageReligion, name='manage-religion'),
     path('api/manage-caste/', manageCaste, name='manage-caste'),
     path('api/employee-profile/', manageEmployeeProfile, name='employee-profile'),

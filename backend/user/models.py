@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.core.exceptions import ValidationError
 from company import models as c
 
 
@@ -83,7 +84,7 @@ class CustomUser(AbstractUser):
     prof_img = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     biometric_id = models.CharField(max_length=20,null=True,blank=True)
     gender = models.CharField(max_length=2, choices=GENDER_CHOICES, default='N')
-    company = models.ManyToManyField(c.Company,blank=True)
+    # `company` ManyToMany defined once (with related_name) below
     shift = models.ForeignKey(c.CompanyShift,blank=True,null=True,on_delete=models.CASCADE)
     weekly_avg_working_hour = models.FloatField(default=0)
     monthly_avg_working_hour = models.FloatField(default=0)
