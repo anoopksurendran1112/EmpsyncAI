@@ -253,57 +253,143 @@ export default function AddEmployeePage() {
 
   // ---------- Submit ----------
   const handleSubmit = async () => {
+    // 1. Run your existing validation for the final step
     if (!validateStep(5)) return;
-    setLoading(true); setMessage("");
+    
+    setLoading(true); 
+    setMessage("");
 
     try {
       const fd = new FormData();
-      Object.entries(formData).forEach(([key, value]) => fd.append(key, value.toString()));
-      if (profileImage) fd.append('prof_img', profileImage);
 
-      const empRes = await fetch("/api/employees/add_employees", { method: "POST", body: fd });
-      const empData = await empRes.json();
-      if (!empRes.ok) throw new Error(empData.message || "Failed to add employee");
-
-      let employeeId = empData?.data?.user?.id || empData?.data?.id || empData?.user?.id || empData?.id;
-      if (!employeeId) throw new Error("Employee created but ID not returned.");
-
-      const profilePayload = {
-        employee_id: Number(employeeId),
-        dob: profileData.dob || null,
-        guardian_name: profileData.guardian_name, guardian_phone: profileData.guardian_phone,
-        religion: profileData.religion_id ? Number(profileData.religion_id) : null,
-        caste: profileData.caste_id ? Number(profileData.caste_id) : null,
-        staff_type: profileData.staff_type_id ? Number(profileData.staff_type_id) : null,
-        staff_category: profileData.staff_category_id ? Number(profileData.staff_category_id) : null,
-        ktu_id: profileData.ktu_id, aicte_id: profileData.aicte_id,
-        pan_no: profileData.pan_no, aadhar_no: profileData.aadhar_no,
-        blood_group: profileData.blood_group,
-        alternate_mobile: profileData.alternate_mobile, alternate_email: profileData.alternate_email,
-        present_address: profileData.present_address,
-        permanent_address: profileData.permanent_address,
-        bank_details: bankDetails,
-        qualifications: qualifications,
-        experiences: experiences
-      };
-
-      const profileRes = await fetch("/api/employee-profile/", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayload),
-      });
-
-      if (!profileRes.ok) {
-        const txt = await profileRes.text();
-        throw new Error("Failed to create profile: " + txt);
+      // 2. Append all Top-Level Account Fields (from formData state)
+      fd.append('first_name', formData.first_name);
+      fd.append('last_name', formData.last_name);
+      fd.append('email', formData.email);
+      fd.append('mobile', formData.mobile);
+      fd.append('password', formData.password);
+      fd.append('gender', formData.gender);
+      fd.append('biometric_id', formData.biometric_id);
+      fd.append('company_id', formData.company_id.toString());
+      
+      if (formData.group_id) {
+        fd.append('group_id', formData.group_id.toString());
+      }
+      if (formData.role_id) {
+        fd.append('role_id', formData.role_id.toString());
       }
 
-      setMessage("Employee and profile created successfully!");
+      // Append your UI feature switches / booleans correctly
+      fd.append('is_whatsapp', formData.is_whatsapp.toString());
+      fd.append('is_sms', formData.is_sms.toString());
+      fd.append('is_wfh', formData.is_wfh.toString());
+      fd.append('is_active', formData.is_active.toString());
+      fd.append('team_lead', formData.team_lead.toString());
+
+      // 3. Append Profile Metadata & References (from profileData state)
+      if (profileData.religion_id) fd.append('religion_id', profileData.religion_id);
+      if (profileData.caste_id) fd.append('caste_id', profileData.caste_id);
+      if (profileData.staff_type_id) fd.append('staff_type_id', profileData.staff_type_id);
+      if (profileData.staff_category_id) fd.append('staff_category_id', profileData.staff_category_id);
+
+      // Append standard profile details
+      fd.append('dob', profileData.dob || '');
+      fd.append('guardian_name', profileData.guardian_name || '');
+      fd.append('guardian_phone', profileData.guardian_phone || '');
+      fd.append('blood_group', profileData.blood_group || '');
+      fd.append('aadhar_no', profileData.aadhar_no || '');
+      fd.append('pan_no', profileData.pan_no || '');
+      fd.append('ktu_id', profileData.ktu_id || '');
+      fd.append('aicte_id', profileData.aicte_id || '');
+      fd.append('alternate_mobile', profileData.alternate_mobile || '');
+      fd.append('alternate_email', profileData.alternate_email || '');
+
+      // 4. Append Profile Binary Profile Photo (if present)
+      if (profileImage) {
+        fd.append('prof_img', profileImage); 
+      }
+
+      // 5. Stringify Objects & Arrays (mapping to backend key names)
+      const mappedBankDetails = bankDetails.map(bank => ({
+        acc_holder_fname: formData.first_name, // Defaulting to the employee's name
+        acc_holder_mname: "",
+        acc_holder_lname: formData.last_name,
+        bank_name: bank.bank_name,
+        account_number: bank.account_number,
+        ifsc_code: bank.ifsc_code,
+        branch_name: bank.branch_name || "",
+        is_primary: bank.is_primary || false
+      }));
+
+      const mappedQualifications = qualifications.map(q => ({
+        qualification_level: q.qualification_level || q.degree, // Fallback safety
+        specialization: q.specialization || "",
+        institution_name: q.institution_name || q.institution,
+        university: q.university || "",
+        passing_year: q.passing_year || q.year_of_passing,
+        percentage: q.percentage || ""
+      }));
+
+      const mappedExperiences = experiences.map(exp => ({
+        company_name: exp.company_name,
+        location: exp.location || "",
+        start_year: exp.start_year || "",
+        end_year: exp.end_year || "",
+        description: exp.description || "",
+        designations: (exp.designations || []).map((des: any) => ({
+          designation: des.designation || des.title,
+          start_date: des.start_date,
+          end_date: des.end_date,
+          change_type: des.change_type || "Joined",
+          description: des.description || ""
+        }))
+      }));
+
+      // Append the cleanly structured JSON strings to FormData
+      fd.append('present_address', JSON.stringify(profileData.present_address));
+      fd.append('permanent_address', JSON.stringify(profileData.permanent_address));
+      fd.append('bank_details', JSON.stringify(mappedBankDetails));
+      fd.append('qualifications', JSON.stringify(mappedQualifications));
+      fd.append('experiences', JSON.stringify(mappedExperiences));
+
+      // Append qualification and experience files using keys backend expects
+      for (let i = 0; i < qualifications.length; i++) {
+        const cert = qualifications[i]?.certificate;
+        if (cert) {
+          fd.append(`qualifications[${i}][certificate]`, cert);
+        }
+      }
+
+      for (let i = 0; i < experiences.length; i++) {
+        const letter = experiences[i]?.experience_letter;
+        if (letter) {
+          fd.append(`experiences[${i}][experience_letter]`, letter);
+        }
+        // Also append any designation files in future if needed
+      }
+
+      // 6. Send the unified payload to your single backend route
+      const response = await fetch('/api/employee-with-profile/', { 
+        method: "POST", 
+        body: fd 
+      });
+      
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.message || "Failed to create complete employee profile");
+      }
+
+      // 7. Handle Unified Success Response
+      setMessage("Employee and complete profile created successfully!");
       queryClient.invalidateQueries({ queryKey: ["employees", companyId] });
       
-      // reset form
+      // Reset wizard form steps and state variables
       setCurrentStep(0);
-      setBankDetails([]); setQualifications([]); setExperiences([]);
+      setBankDetails([]); 
+      setQualifications([]); 
+      setExperiences([]);
       removeImage();
+
     } catch (error: any) {
       setMessage(error.message || "An unexpected error occurred");
     } finally {
