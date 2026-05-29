@@ -12,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 
 interface CalendarViewProps {
   employeeId: string;
+  companyId?: string;
 }
 
 // Update the AttendanceEvent interface

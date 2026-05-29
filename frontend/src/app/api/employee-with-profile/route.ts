@@ -1,6 +1,126 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+const buildProxyHeaders = async (): Promise<HeadersInit> => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("access_token")?.value;
+  const headers: HeadersInit = {
+    Accept: "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+export async function GET(req: Request) {
+  try {
+    const apiUrl = process.env.API_URL;
+    if (!apiUrl) {
+      return NextResponse.json({ success: false, message: "API_URL is not configured" }, { status: 500 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("user_id");
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "user_id query parameter is required" }, { status: 400 });
+    }
+
+    const headers = await buildProxyHeaders();
+    const response = await fetch(`${apiUrl}/employee-with-profile/?user_id=${encodeURIComponent(userId)}`, {
+      method: "GET",
+      headers,
+      cache: "no-store",
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const errorText = await response.text();
+      console.error("employee-with-profile GET returned non-JSON:", errorText);
+      return NextResponse.json({ success: false, message: "Invalid backend response" }, { status: response.status });
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (err) {
+    console.error("employee-with-profile GET proxy error:", err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(req: Request) {
+  try {
+    const apiUrl = process.env.API_URL;
+    if (!apiUrl) {
+      return NextResponse.json({ success: false, message: "API_URL is not configured" }, { status: 500 });
+    }
+
+    const contentType = req.headers.get("content-type") || "";
+    const headers = await buildProxyHeaders();
+
+    if (contentType.includes("multipart/form-data")) {
+      const incomingForm = await req.formData();
+      const djangoForm = new FormData();
+
+      for (const [key, value] of incomingForm.entries()) {
+        if (value instanceof File) {
+          djangoForm.append(key, value);
+        } else if (value !== undefined && value !== null) {
+          djangoForm.append(key, String(value));
+        }
+      }
+
+      const res = await fetch(`${apiUrl}/employee-with-profile/`, {
+        method: "PUT",
+        headers,
+        body: djangoForm,
+      });
+
+      const responseContentType = res.headers.get("content-type") || "";
+      if (!responseContentType.includes("application/json")) {
+        return NextResponse.json(
+          { success: false, error: `Backend returned HTML status ${res.status}.` },
+          { status: res.status }
+        );
+      }
+
+      const data = await res.json();
+      return NextResponse.json(data, { status: res.status });
+    }
+
+    const body = await req.json();
+    const requestHeaders = new Headers(headers);
+    requestHeaders.set("Content-Type", "application/json");
+
+    const res = await fetch(`${apiUrl}/employee-with-profile/`, {
+      method: "PUT",
+      headers: requestHeaders,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+
+    const responseContentType = res.headers.get("content-type") || "";
+    if (!responseContentType.includes("application/json")) {
+      return NextResponse.json(
+        { success: false, error: `Backend returned HTML status ${res.status}.` },
+        { status: res.status }
+      );
+    }
+
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch (err) {
+    console.error("employee-with-profile PUT proxy error:", err);
+    return NextResponse.json(
+      { success: false, error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const cookieStore = await cookies();
@@ -54,11 +174,12 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    headers["Content-Type"] = "application/json";
+    const requestHeaders = new Headers(headers);
+    requestHeaders.set("Content-Type", "application/json");
 
     const res = await fetch(fetchUrl, {
       method: "POST",
-      headers,
+      headers: requestHeaders,
       body: JSON.stringify(body),
       cache: "no-store",
     });
