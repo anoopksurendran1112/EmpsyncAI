@@ -1,15 +1,14 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import Image from "next/image"
-
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Image from "next/image";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   SquareUser,
   Mail,
@@ -33,140 +32,138 @@ import {
   Settings,
   Key,
   Clock,
-} from "lucide-react"
+} from "lucide-react";
 
-import { useAuth } from "@/context/AuthContext"
-import { useCompany } from "@/context/CompanyContext"
-import { useState, useEffect } from "react"
-import { toast } from "sonner"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/context/AuthContext";
+import { useCompany } from "@/context/CompanyContext";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog"
-
+} from "@/components/ui/dialog";
 
 export default function ProfilePage() {
-  const { user, isAdmin, updateUser } = useAuth()
-  const { currentCompany } = useCompany()
-  const [editingSection, setEditingSection] = useState<string | null>(null)
-  const [editedUser, setEditedUser] = useState({ ...user })
-  const [profileData, setProfileData] = useState<any>(null)
-  const [editedProfile, setEditedProfile] = useState<any>(null)
-  const [profileLoading, setProfileLoading] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-
+  const { user, isAdmin, updateUser } = useAuth();
+  const { currentCompany } = useCompany();
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editedUser, setEditedUser] = useState({ ...user });
+  const [profileData, setProfileData] = useState<any>(null);
+  const [editedProfile, setEditedProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Update editedUser when user data changes
   useEffect(() => {
     if (user) {
-      setEditedUser({ ...user })
+      setEditedUser({ ...user });
     }
-  }, [user])
+  }, [user]);
 
   useEffect(() => {
-    if (!user?.id) return
+    if (!user?.id) return;
     const fetchProfileData = async () => {
-      setProfileLoading(true)
+      setProfileLoading(true);
       try {
-        const res = await fetch(`/api/employee-with-profile?user_id=${user.id}`, { cache: "no-store" })
+        const res = await fetch(`/api/employee-with-profile?user_id=${user.id}`, { cache: "no-store" });
         if (!res.ok) {
-          console.error("Failed to load extended profile", await res.text())
-          return
+          console.error("Failed to load extended profile", await res.text());
+          return;
         }
-        const result = await res.json()
+        const result = await res.json();
         if (result?.success && result.data) {
-          setProfileData(result.data.profile || null)
-          setEditedProfile(result.data.profile || null)
+          setProfileData(result.data.profile || null);
+          setEditedProfile(result.data.profile || null);
           if (result.data.user) {
-            setEditedUser({ ...result.data.user })
+            setEditedUser({ ...result.data.user });
           }
         }
       } catch (err) {
-        console.error("Error loading employee-with-profile:", err)
+        console.error("Error loading employee-with-profile:", err);
       } finally {
-        setProfileLoading(false)
+        setProfileLoading(false);
       }
-    }
+    };
 
-    fetchProfileData()
-  }, [user?.id])
+    fetchProfileData();
+  }, [user?.id]);
 
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
-    )
+    );
   }
 
   // Get profile image URL using the same logic as employees list
   const getProfileImageUrl = () => {
-    if (!user.prof_img) return null
+    if (!user.prof_img) return null;
     return user.prof_img.startsWith("http")
       ? user.prof_img
       : currentCompany?.mediaBaseUrl
-        ? `${currentCompany.mediaBaseUrl}${user.prof_img}`
-        : user.prof_img
-  }
+      ? `${currentCompany.mediaBaseUrl}${user.prof_img}`
+      : user.prof_img;
+  };
 
   const getStatusColor = (isActive: boolean) => {
-    return isActive ? "bg-green-500" : "bg-red-500"
-  }
+    return isActive ? "bg-green-500" : "bg-red-500";
+  };
 
   const getGenderIcon = (gender: string) => {
     switch (gender) {
       case "M":
-        return "👨"
+        return "👨";
       case "F":
-        return "👩"
+        return "👩";
       default:
-        return "🧑"
+        return "🧑";
     }
-  }
+  };
 
   const handleEdit = (section: string) => {
-    setEditedUser({ ...user })
-    setEditedProfile(profileData ? { ...profileData } : null)
-    setEditingSection(section)
-  }
+    setEditedUser({ ...user });
+    setEditedProfile(profileData ? { ...profileData } : null);
+    setEditingSection(section);
+  };
 
   const handleCancel = () => {
-    setEditedUser({ ...user })
-    setEditedProfile(profileData ? { ...profileData } : null)
-    setEditingSection(null)
-  }
+    setEditedUser({ ...user });
+    setEditedProfile(profileData ? { ...profileData } : null);
+    setEditingSection(null);
+  };
 
   const handleProfileChange = (field: string, value: any) => {
-    setEditedProfile((prev: any) => (prev ? { ...prev, [field]: value } : { [field]: value }))
-  }
+    setEditedProfile((prev: any) => (prev ? { ...prev, [field]: value } : { [field]: value }));
+  };
 
   const handleAddressChange = (type: "present_address_details" | "permanent_address_details", field: string, value: string) => {
     setEditedProfile((prev: any) => {
-      if (!prev) return null
+      if (!prev) return null;
       return {
         ...prev,
         [type]: {
           ...(prev[type] || {}),
           [field]: value,
         },
-      }
-    })
-  }
+      };
+    });
+  };
 
   // PUT request to update profile
   const handleSave = async () => {
     if (!user || !currentCompany) {
-      toast.error("Missing user data or company information")
-      return
+      toast.error("Missing user data or company information");
+      return;
     }
 
-    setIsSaving(true)
+    setIsSaving(true);
 
     try {
       const payload: any = {
@@ -184,9 +181,9 @@ export default function ProfilePage() {
         is_active: editedUser.is_active,
         role_id: editedUser.role_id,
         group_id: editedUser.group_id,
-      }
+      };
 
-      const profilePayload = editedProfile ?? profileData
+      const profilePayload = editedProfile ?? profileData;
       if (profilePayload) {
         payload.profile = {
           dob: profilePayload.dob || null,
@@ -203,17 +200,17 @@ export default function ProfilePage() {
           blood_group: profilePayload.blood_group || "",
           alternate_mobile: profilePayload.alternate_mobile || "",
           alternate_email: profilePayload.alternate_email || "",
-        }
+        };
 
         if (profilePayload.present_address_details) {
-          payload.present_address = profilePayload.present_address_details
+          payload.present_address = profilePayload.present_address_details;
         }
         if (profilePayload.permanent_address_details) {
-          payload.permanent_address = profilePayload.permanent_address_details
+          payload.permanent_address = profilePayload.permanent_address_details;
         }
       }
 
-      console.log("💾 Saving profile data:", payload)
+      console.log("💾 Saving profile data:", payload);
 
       const response = await fetch(`/api/employee-with-profile/`, {
         method: "PUT",
@@ -222,52 +219,54 @@ export default function ProfilePage() {
           "x-company-id": currentCompany.id.toString(),
         },
         body: JSON.stringify(payload),
-      })
+      });
 
-      const result = await response.json()
-      console.log("💾 Save response:", result)
+      const result = await response.json();
+      console.log("💾 Save response:", result);
 
       if (result.success) {
-        toast.success("Profile updated successfully!")
-        setEditingSection(null)
+        toast.success("Profile updated successfully!");
+        setEditingSection(null);
 
         if (updateUser && result.data?.user) {
-          updateUser(result.data.user)
-          setEditedUser({ ...result.data.user })
+          updateUser(result.data.user);
+          setEditedUser({ ...result.data.user });
         }
         if (result.data?.profile) {
-          setProfileData(result.data.profile)
-          setEditedProfile({ ...result.data.profile })
+          setProfileData(result.data.profile);
+          setEditedProfile({ ...result.data.profile });
         }
 
-        window.location.reload()
+        window.location.reload();
       } else {
-        toast.error(result.message || "Failed to update profile")
+        toast.error(result.message || "Failed to update profile");
       }
     } catch (error) {
-      console.error("Error updating profile:", error)
-      toast.error("Failed to update profile")
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile");
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const handleInputChange = (field: string, value: any) => {
-    setEditedUser(prev => ({
+    setEditedUser((prev) => ({
       ...prev,
-      [field]: value
-    }))
-  }
+      [field]: value,
+    }));
+  };
 
-  const profileUrl = getProfileImageUrl()
-  const initials = `${user.first_name?.charAt(0) || ""}${user.last_name?.charAt(0) || ""}`
+  const profileUrl = getProfileImageUrl();
+  const initials = `${user.first_name?.charAt(0) || ""}${user.last_name?.charAt(0) || ""}`;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
         {/* Header & Breadcrumbs */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 bg-[#eff6ff] rounded-lg text-[#2563eb] shadow-sm"><SquareUser className="h-8 w-8" /></div>
+          <div className="p-3 bg-[#eff6ff] rounded-lg text-[#2563eb] shadow-sm">
+            <SquareUser className="h-8 w-8" />
+          </div>
           <div>
             <h1 className="text-2xl font-bold text-[#0f2744]">My Profile</h1>
             <p className="text-sm text-[#7a8ba0] mt-0.5">Manage your personal information, contact details and preferences</p>
@@ -280,7 +279,8 @@ export default function ProfilePage() {
             <AlertDescription className="text-yellow-800 flex items-center gap-2">
               <XCircle className="h-4 w-4" />
               <span>
-                <strong>Account Inactive:</strong> Your account is currently inactive. Please contact your administrator for full access.
+                <strong>Account Inactive:</strong> Your account is currently inactive. Please contact your administrator for full
+                access.
               </span>
             </AlertDescription>
           </Alert>
@@ -311,11 +311,7 @@ export default function ProfilePage() {
                   user.is_active ? "bg-green-500" : "bg-red-500"
                 }`}
               >
-                {user.is_active ? (
-                  <CheckCircle className="h-4 w-4 text-white" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-white" />
-                )}
+                {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
               </div>
             </div>
 
@@ -349,26 +345,9 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
-              
+
               <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
-                {/* <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                    <Activity className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Last Login</p>
-                    <p className="text-sm font-semibold text-gray-700">Today, 09:45 AM</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-                    <Clock className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Member Since</p>
-                    <p className="text-sm font-semibold text-gray-700">Jan 2024</p>
-                  </div>
-                </div> */}
+                {/* Optional stats can be added here */}
               </div>
             </div>
           </div>
@@ -417,9 +396,9 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Details Sections */}
+        {/* Details Sections - REORDERED as requested */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Personal Details */}
+          {/* Personal Details - stays first */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -428,9 +407,9 @@ export default function ProfilePage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">Personal Details</h3>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
                 onClick={() => handleEdit("personal")}
               >
@@ -459,7 +438,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Contact Details */}
+          {/* Contact Details - stays second */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -468,9 +447,9 @@ export default function ProfilePage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">Contact Details</h3>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="text-green-600 border-green-100 bg-green-50 hover:bg-green-100"
                 onClick={() => handleEdit("contact")}
               >
@@ -490,91 +469,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Work Preferences */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
-                  <Settings className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Work Preferences</h3>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100"
-                onClick={() => handleEdit("preferences")}
-              >
-                <Edit3 className="h-3.5 w-3.5 mr-2" />
-                Edit
-              </Button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                <div className="flex items-center gap-3">
-                  <Home className="h-4 w-4 text-orange-500" />
-                  <span className="text-sm font-medium text-gray-700">Work From Home</span>
-                </div>
-                <Badge variant={user.is_wfh ? "default" : "secondary"} className={user.is_wfh ? "bg-orange-500" : ""}>
-                  {user.is_wfh ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                <div className="flex items-center gap-3">
-                  <MessageCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span>
-                </div>
-                <Badge variant={user.is_whatsapp ? "default" : "secondary"} className={user.is_whatsapp ? "bg-green-500" : ""}>
-                  {user.is_whatsapp ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                <div className="flex items-center gap-3">
-                  <MessageSquare className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
-                </div>
-                <Badge variant={user.is_sms ? "default" : "secondary"} className={user.is_sms ? "bg-blue-500" : ""}>
-                  {user.is_sms ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
-          {/* Security & Access */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                  <Shield className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Security & Access</h3>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <Key className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-gray-700">Administrator Access</span>
-                </div>
-                <Badge variant={isAdmin ? "default" : "secondary"} className={isAdmin ? "bg-purple-600" : ""}>
-                  {isAdmin ? "Full Access" : "Restricted"}
-                </Badge>
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <Crown className="h-4 w-4 text-pink-500" />
-                  <span className="text-sm font-medium text-gray-700">Superuser Privileges</span>
-                </div>
-                <Badge variant={user.is_superuser ? "default" : "secondary"} className={user.is_superuser ? "bg-pink-600" : ""}>
-                  {user.is_superuser ? "Yes" : "No"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-
+          {/* Profile & Identity - moved to first column, third row */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -633,6 +528,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          {/* Legal & Contact - moved to second column, third row */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -668,7 +564,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
+          {/* Address Details - now in first column, fourth row */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
@@ -683,27 +580,124 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   <p className="text-sm text-gray-500">{profileData?.present_address_details?.address_line_1 || "Not provided"}</p>
                   <p className="text-sm text-gray-500">{profileData?.present_address_details?.address_line_2 || ""}</p>
-                  <p className="text-sm text-gray-500">{profileData?.present_address_details?.city || ""}, {profileData?.present_address_details?.district || ""}</p>
-                  <p className="text-sm text-gray-500">{profileData?.present_address_details?.state || ""} {profileData?.present_address_details?.pincode || ""}</p>
+                  <p className="text-sm text-gray-500">
+                    {profileData?.present_address_details?.city || ""}, {profileData?.present_address_details?.district || ""}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {profileData?.present_address_details?.state || ""} {profileData?.present_address_details?.pincode || ""}
+                  </p>
                   <p className="text-sm text-gray-500">{profileData?.present_address_details?.country || ""}</p>
                 </div>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-3">Permanent Address</p>
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-500">{profileData?.permanent_address_details?.address_line_1 || "Not provided"}</p>
+                  <p className="text-sm text-gray-500">
+                    {profileData?.permanent_address_details?.address_line_1 || "Not provided"}
+                  </p>
                   <p className="text-sm text-gray-500">{profileData?.permanent_address_details?.address_line_2 || ""}</p>
-                  <p className="text-sm text-gray-500">{profileData?.permanent_address_details?.city || ""}, {profileData?.permanent_address_details?.district || ""}</p>
-                  <p className="text-sm text-gray-500">{profileData?.permanent_address_details?.state || ""} {profileData?.permanent_address_details?.pincode || ""}</p>
+                  <p className="text-sm text-gray-500">
+                    {profileData?.permanent_address_details?.city || ""}, {profileData?.permanent_address_details?.district || ""}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {profileData?.permanent_address_details?.state || ""} {profileData?.permanent_address_details?.pincode || ""}
+                  </p>
                   <p className="text-sm text-gray-500">{profileData?.permanent_address_details?.country || ""}</p>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Security & Access - moved to second column, fourth row */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Security & Access</h3>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <Key className="h-4 w-4 text-purple-500" />
+                  <span className="text-sm font-medium text-gray-700">Administrator Access</span>
+                </div>
+                <Badge variant={isAdmin ? "default" : "secondary"} className={isAdmin ? "bg-purple-600" : ""}>
+                  {isAdmin ? "Full Access" : "Restricted"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <Crown className="h-4 w-4 text-pink-500" />
+                  <span className="text-sm font-medium text-gray-700">Superuser Privileges</span>
+                </div>
+                <Badge variant={user.is_superuser ? "default" : "secondary"} className={user.is_superuser ? "bg-pink-600" : ""}>
+                  {user.is_superuser ? "Yes" : "No"}
+                </Badge>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Edit Dialogs */}
-        
+        {/* Work Preferences - placed directly under the grid */}
+        <div className="mt-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Work Preferences</h3>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100"
+                onClick={() => handleEdit("preferences")}
+              >
+                <Edit3 className="h-3.5 w-3.5 mr-2" />
+                Edit
+              </Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+                <div className="flex items-center gap-3">
+                  <Home className="h-4 w-4 text-orange-500" />
+                  <span className="text-sm font-medium text-gray-700">Work From Home</span>
+                </div>
+                <Badge variant={user.is_wfh ? "default" : "secondary"} className={user.is_wfh ? "bg-orange-500" : ""}>
+                  {user.is_wfh ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+                <div className="flex items-center gap-3">
+                  <MessageCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span>
+                </div>
+                <Badge variant={user.is_whatsapp ? "default" : "secondary"} className={user.is_whatsapp ? "bg-green-500" : ""}>
+                  {user.is_whatsapp ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
+                </div>
+                <Badge variant={user.is_sms ? "default" : "secondary"} className={user.is_sms ? "bg-blue-500" : ""}>
+                  {user.is_sms ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Edit Dialogs (unchanged) */}
+
         {/* 1. Personal Details Dialog */}
         <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-[425px]">
@@ -731,10 +725,7 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="gender">Gender</Label>
-                <Select
-                  value={editedUser.gender || ""}
-                  onValueChange={(value) => handleInputChange("gender", value)}
-                >
+                <Select value={editedUser.gender || ""} onValueChange={(value) => handleInputChange("gender", value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Gender" />
                   </SelectTrigger>
@@ -747,7 +738,9 @@ export default function ProfilePage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+              <Button variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </Button>
@@ -782,7 +775,9 @@ export default function ProfilePage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+              <Button variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </Button>
@@ -790,13 +785,14 @@ export default function ProfilePage() {
           </DialogContent>
         </Dialog>
 
+        {/* Extended Profile Dialog - with fixed scrolling */}
         <Dialog open={editingSection === "extended"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-4xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-cyan-600 text-white">
+          <DialogContent className="max-w-4xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col max-h-[90vh]">
+            <DialogHeader className="p-8 bg-cyan-600 text-white flex-shrink-0">
               <DialogTitle className="text-2xl font-bold">Edit Extended Profile</DialogTitle>
               <p className="text-sm text-cyan-100">Update guardian, identity, and address details.</p>
             </DialogHeader>
-            <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -972,8 +968,10 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            <DialogFooter className="p-8 bg-slate-50 flex gap-4">
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+            <DialogFooter className="p-8 bg-slate-50 flex gap-4 flex-shrink-0">
+              <Button variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </Button>
@@ -981,7 +979,7 @@ export default function ProfilePage() {
           </DialogContent>
         </Dialog>
 
-        {/* 3. Work Preferences Dialog */}
+        {/* Work Preferences Dialog */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
@@ -1020,7 +1018,9 @@ export default function ProfilePage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+              <Button variant="outline" onClick={handleCancel}>
+                Cancel
+              </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </Button>
@@ -1029,5 +1029,5 @@ export default function ProfilePage() {
         </Dialog>
       </div>
     </div>
-  )
+  );
 }
