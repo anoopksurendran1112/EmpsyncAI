@@ -682,7 +682,7 @@ export default function EmployeeDetailsPage() {
                   <p className="text-base font-semibold text-gray-800">{formData?.role || "Not provided"}</p>
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Organizational Group</Label>
+                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Department</Label>
                   <p className="text-base font-semibold text-gray-800">{formData?.group || "Not provided"}</p>
                 </div>
               </div>
