@@ -113,7 +113,7 @@ export default function ProfilePage() {
     }
   }, [fullProfile, profileLoading, retryCount, user?.id, company?.id]);
 
-  // Fetch castes when religion changes in edit mode
+  
   useEffect(() => {
     if (!editingSection || !editProfileData?.religion_id) {
       setCastes([]);
@@ -168,11 +168,11 @@ export default function ProfilePage() {
       profileFromApi.permanent_address ||
       null;
     
-    // Extract religion/caste IDs (backend uses "religion" and "caste" fields)
+    
     const religionId = profileFromApi.religion ?? null;
     const casteId = profileFromApi.caste ?? null;
     
-    // Also handle nested objects if ever present
+    
     let religionName = profileFromApi.religion_name;
     let casteName = profileFromApi.caste_name;
     if (profileFromApi.religion && typeof profileFromApi.religion === 'object') {
@@ -193,7 +193,7 @@ export default function ProfilePage() {
     };
   };
 
-  // Fixed: short pincode default (10 chars)
+
   const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
     const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
     const result = { ...addr };
@@ -295,7 +295,7 @@ export default function ProfilePage() {
     if (!user) return;
     let religionId = null, casteId = null;
     if (fullProfile) {
-      // Use the IDs we now store (fullProfile.religion and fullProfile.caste)
+     
       religionId = fullProfile.religion ?? null;
       casteId = fullProfile.caste ?? null;
     }
@@ -337,7 +337,7 @@ export default function ProfilePage() {
     setEditedUser(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- Save (with corrected field names for backend) ---
+  
   const handleSave = async () => {
     if (!user || !company) return;
     setIsSaving(true);
@@ -362,7 +362,7 @@ export default function ProfilePage() {
       if (editProfileData) {
         payload.profile = {
           dob: nullIfEmpty(editProfileData.dob),
-          // Backend expects "religion" and "caste" (not religion_id/caste_id)
+          
           religion: editProfileData.religion_id,
           caste: editProfileData.caste_id,
           staff_type: editProfileData.staff_type_id,
