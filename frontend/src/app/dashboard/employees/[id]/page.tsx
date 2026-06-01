@@ -272,6 +272,19 @@ export default function EmployeeDetailsPage() {
     }
   };
 
+  const calculateAge = (dob: string | null | undefined) => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   // --- Handlers ---
   const handleEdit = (section: string) => {
     if (!formData) return;
@@ -281,14 +294,20 @@ export default function EmployeeDetailsPage() {
     let casteId = null;
     
     if (fullProfile) {
-      if (fullProfile.religion_name) {
+      religionId = (fullProfile as any).religion || null;
+      if (!religionId && fullProfile.religion_name) {
         const found = religions.find(r => r.name === fullProfile.religion_name);
         religionId = found ? found.id : null;
       }
-      if (fullProfile.caste_name) {
-        // This might need a refetch if religions changed, but usually okay for simple init
+      
+      casteId = (fullProfile as any).caste || null;
+      if (!casteId && fullProfile.caste_name) {
         const found = castes.find(c => c.name === fullProfile.caste_name);
         casteId = found ? found.id : null;
+      }
+      
+      if (religionId) {
+        fetchCastes(religionId);
       }
     }
 
@@ -661,6 +680,50 @@ export default function EmployeeDetailsPage() {
 
         {/* Detail Sections Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          {/* Personal Details Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-pruple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
+                  <UserIcon className="h-5 w-5" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">Personal Details</h3>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => handleEdit("personal")} className="text-purple-600 border-purple-100 bg-purple-50 hover:bg-purple-100 font-bold rounded-lg px-4">
+                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+              </Button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-3 gap-6">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                    {fullProfile?.dob && <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">{calculateAge(fullProfile.dob)} yrs</Badge>}
+                  </div>
+                </div>
+                <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                    <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
+                  <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
+                </div>
+                <div>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p>
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p>
+                </div>
+              </div>
+            </div>
+          </div>
           
           {/* Professional Details Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -678,11 +741,11 @@ export default function EmployeeDetailsPage() {
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Designation/Role</Label>
+                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Designation / Role</Label>
                   <p className="text-base font-semibold text-gray-800">{formData?.role || "Not provided"}</p>
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Department</Label>
+                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Department / Group</Label>
                   <p className="text-base font-semibold text-gray-800">{formData?.group || "Not provided"}</p>
                 </div>
               </div>
@@ -719,59 +782,28 @@ export default function EmployeeDetailsPage() {
                   <p className="text-base font-semibold text-gray-800">{formData?.email || "Not provided"}</p>
                 </div>
                 <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Mobile</p>
+                  <p className="text-base font-semibold text-gray-800">{formData?.mobile || "Not provided"}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Mobile</p>
-                  <p className="text-base font-semibold text-gray-800">{formData?.mobile || "Not provided"}</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p>
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p>
                 </div>
                 <div>
                     <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Mobile</p>
                     <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Personal Details Section */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-pruple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
-                  <UserIcon className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Personal Details</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEdit("personal")} className="text-purple-600 border-purple-100 bg-purple-50 hover:bg-purple-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            </div>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
-                  <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Name</p>
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_name || "Not provided"}</p>
                 </div>
                 <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                    <p className="text-sm font-semibold text-gray-800">{formData?.gender_display || "Not provided"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
-                  <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-6">
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
-                    <p className="text-sm font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p>
-                    <p className="text-sm font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Phone</p>
+                    <p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_phone || "Not provided"}</p>
                 </div>
               </div>
             </div>
@@ -800,6 +832,8 @@ export default function EmployeeDetailsPage() {
                     <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">PAN Number</p>
                     <p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.pan_no || "Not provided"}</p>
                   </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                   <div>
                     <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">KTU ID</p>
                     <p className="text-base font-bold text-gray-800">{fullProfile?.ktu_id || "Not provided"}</p>
@@ -918,12 +952,10 @@ export default function EmployeeDetailsPage() {
                     <Select value={formData?.role_id?.toString() || "none"} onValueChange={(val) => {
                       const selected = roles.find(r => r.id.toString() === val);
                       handleInputChange("role_id", val === "none" ? null : Number(val));
-                      handleInputChange("role", selected ? (selected.role || selected.name) : "");
                     }}>
                       <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue placeholder="Select Designation" /></SelectTrigger>
-                      <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">Manual Entry Only</SelectItem>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
+                      <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">No Designation</SelectItem>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
                     </Select>
-                    <Input value={formData?.role || ""} onChange={(e) => handleInputChange("role", e.target.value)} placeholder="Manual Designation" className="rounded-xl mt-2 h-11 border-slate-100 bg-slate-50" />
                   </div>
                   <div className="space-y-2">
                     <Label>Organizational Group</Label>
@@ -1007,11 +1039,14 @@ export default function EmployeeDetailsPage() {
               <DialogTitle className="text-2xl font-black">Private Identity Metadata</DialogTitle>
               <DialogDescription className="text-purple-100 font-bold opacity-80">Refine demographic details and physical attributes.</DialogDescription>
             </DialogHeader>
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label>Date of Birth</Label>
                     <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
+                    {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                      <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Gender</Label>
@@ -1019,6 +1054,16 @@ export default function EmployeeDetailsPage() {
                         <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
                     </Select>
+                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <div className="space-y-2">
+                    <Label className="text-purple-900">Guardian Name</Label>
+                    <Input value={editProfileData?.guardian_name || ""} onChange={(e) => handleProfileChange("guardian_name", e.target.value)} className="rounded-xl h-11 font-bold bg-white border-purple-200" placeholder="E.g. John Doe" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-purple-900">Guardian Phone</Label>
+                    <Input value={editProfileData?.guardian_phone || ""} onChange={(e) => handleProfileChange("guardian_phone", e.target.value)} className="rounded-xl h-11 font-bold bg-white border-purple-200" placeholder="+1 234 567 890" />
                   </div>
               </div>
               <div className="grid grid-cols-3 gap-4">

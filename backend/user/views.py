@@ -2462,11 +2462,6 @@ def token_refresh(request):
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def employee_with_profile(request):
-    """
-    GET: Return a complete employee payload by user_id.
-    POST: Create a CustomUser and nested Employee Profile elements.
-    PUT: Update CustomUser, EmployeeProfile, addresses, bank details, qualifications, experiences.
-    """
 
     def _parse_bool(value):
         if isinstance(value, bool):
@@ -2838,14 +2833,12 @@ def employee_with_profile(request):
                             raw_value = request.data.get(key)
                             profile_updates[key] = None if raw_value in ('', 'null', 'undefined') else raw_value
 
-                    if 'religion_id' in request.data:
-                        profile_updates['religion'] = clean_optional_id('religion_id')
-                    if 'caste_id' in request.data:
-                        profile_updates['caste'] = clean_optional_id('caste_id')
-                    if 'staff_type_id' in request.data:
-                        profile_updates['staff_type'] = clean_optional_id('staff_type_id')
-                    if 'staff_category_id' in request.data:
-                        profile_updates['staff_category'] = clean_optional_id('staff_category_id')
+                    for key, field in [('religion_id', 'religion'), ('caste_id', 'caste'), ('staff_type_id', 'staff_type'), ('staff_category_id', 'staff_category')]:
+                        if key in profile_updates:
+                            val = profile_updates.pop(key)
+                            profile_updates[field] = None if val in ('', 'null', 'undefined', None) else int(val)
+                        elif key in request.data:
+                            profile_updates[field] = clean_optional_id(key)
 
                     if present_addr_obj:
                         profile_updates['present_address'] = present_addr_obj.id
