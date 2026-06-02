@@ -10,16 +10,17 @@ import {
   Mail, UserIcon, Briefcase, Shield, ShieldCheck,
   MessageSquare, MessageCircle, Home, Activity, Hash, Users,
   CheckCircle, XCircle, Crown, Edit3, Settings, Key, Smartphone,
-  Heart, MapPin, Plus, RefreshCw,
+  Heart, MapPin, Plus, RefreshCw, Camera,
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { useState, useEffect } from "react";
+import { useAuth, User } from "@/context/AuthContext";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 // --- Interfaces ---
 interface AddressDetails {
@@ -83,7 +84,7 @@ interface RoleItem { id: number; role?: string; name?: string; }
 export default function ProfilePage() {
   const { user, isAdmin, updateUser, company } = useAuth();
   const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [editedUser, setEditedUser] = useState({ ...user });
+  const [editedUser, setEditedUser] = useState<User | null>(user ? { ...user } : null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
@@ -91,6 +92,12 @@ export default function ProfilePage() {
   const [editProfileData, setEditProfileData] = useState<EditableProfile | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
+  // Image upload & error states
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lookups
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [staffTypes, setStaffTypes] = useState<LookupItem[]>([]);
@@ -98,7 +105,33 @@ export default function ProfilePage() {
   const [religions, setReligions] = useState<LookupItem[]>([]);
   const [castes, setCastes] = useState<LookupItem[]>([]);
 
-  // Helper functions to map IDs to names for display
+  // Refs to prevent duplicate fetches
+  const initialFetchDone = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Helper: sanitize User object
+  const sanitizeUser = useCallback((rawUser: any): User => ({
+    id: rawUser.id,
+    first_name: rawUser.first_name || '',
+    last_name: rawUser.last_name || '',
+    email: rawUser.email || '',
+    mobile: rawUser.mobile || '',
+    role: rawUser.role || '',
+    gender: rawUser.gender || '',
+    group: rawUser.group || '',
+    prof_img: rawUser.prof_img || null,
+    biometric_id: rawUser.biometric_id || null,
+    is_active: rawUser.is_active ?? true,
+    is_wfh: rawUser.is_wfh ?? false,
+    is_whatsapp: rawUser.is_whatsapp ?? false,
+    is_sms: rawUser.is_sms ?? false,
+    is_superuser: rawUser.is_superuser ?? false,
+    role_id: rawUser.role_id ?? null,
+    group_id: rawUser.group_id ?? null,
+    gender_display: rawUser.gender_display || '',
+  }), []);
+
+  // Helper functions for display
   const getGroupName = (groupId: string | number | undefined) => {
     if (!groupId) return "Not provided";
     const asNum = Number(groupId);
@@ -131,134 +164,67 @@ export default function ProfilePage() {
     return found ? found.name : `ID ${id}`;
   };
 
-  // Sync editedUser when user changes
-  useEffect(() => {
-    if (user) setEditedUser({ ...user });
-  }, [user]);
+  const getGenderIcon = (gender: string) => ({ M: "👨", F: "👩" }[gender] || "🧑");
+  const getInitials = () => `${user?.first_name?.[0] || ""}${user?.last_name?.[0] || ""}`;
 
-  // Fetch profile & lookups when ready
-  useEffect(() => {
-    if (user?.id && company?.id) {
-      fetchProfile();
-      fetchLookups();
-    }
-  }, [user?.id, company?.id]);
-
-  // Auto-retry if profile fails
-  useEffect(() => {
-    if (!fullProfile && !profileLoading && retryCount < 2 && user?.id && company?.id) {
-      const timer = setTimeout(() => { fetchProfile(); setRetryCount(c => c + 1); }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [fullProfile, profileLoading, retryCount, user?.id, company?.id]);
-
-  useEffect(() => {
-    if (!editingSection || !editProfileData?.religion_id) {
-      setCastes([]);
-      return;
-    }
-    fetchCastes(editProfileData.religion_id);
-  }, [editProfileData?.religion_id, editingSection]);
-
-  // Enrich profile with religion/caste names when lookups are loaded
-  useEffect(() => {
-    if (!fullProfile) return;
-    if (fullProfile.religion_name && fullProfile.caste_name) return;
-    
-    let updated = false;
-    const newProfile = { ...fullProfile };
-    
-    if (!newProfile.religion_name && newProfile.religion && religions.length) {
-      const rel = religions.find(r => r.id === newProfile.religion);
-      if (rel) {
-        newProfile.religion_name = rel.name;
-        updated = true;
-      }
-    }
-    if (!newProfile.caste_name && newProfile.caste && castes.length) {
-      const caste = castes.find(c => c.id === newProfile.caste);
-      if (caste) {
-        newProfile.caste_name = caste.name;
-        updated = true;
-      }
-    }
-    
-    if (updated) {
-      setFullProfile(newProfile);
-    }
-  }, [fullProfile, religions, castes]);
-
-  // --- Helpers ---
-  const mapProfileFromBackend = (profileFromApi: any): EmployeeFullProfile | null => {
-    if (!profileFromApi) return null;
-    
-    const presentAddress = 
-      profileFromApi.present_address_details ||
-      profileFromApi.present_address ||
-      null;
-    const permanentAddress = 
-      profileFromApi.permanent_address_details ||
-      profileFromApi.permanent_address ||
-      null;
-    
-    const religionId = profileFromApi.religion ?? null;
-    const casteId = profileFromApi.caste ?? null;
-    
-    let religionName = profileFromApi.religion_name;
-    let casteName = profileFromApi.caste_name;
-    if (profileFromApi.religion && typeof profileFromApi.religion === 'object') {
-      religionName = profileFromApi.religion.name;
-    }
-    if (profileFromApi.caste && typeof profileFromApi.caste === 'object') {
-      casteName = profileFromApi.caste.name;
-    }
-    
-    return {
-      ...profileFromApi,
-      religion: religionId,
-      caste: casteId,
-      religion_name: religionName,
-      caste_name: casteName,
-      present_address_details: presentAddress,
-      permanent_address_details: permanentAddress,
-    };
+  // Correct image URL using env variable
+  const getProfileImageUrl = () => {
+    if (!user?.prof_img) return null;
+    if (user.prof_img.startsWith('http')) return user.prof_img;
+    const baseUrl = process.env.NEXT_PUBLIC_COMPANY_MEDIA_BASE || '';
+    const path = user.prof_img.startsWith('/') ? user.prof_img : `/${user.prof_img}`;
+    return `${baseUrl}${path}`;
   };
 
-  const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
-    const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
-    const result = { ...addr };
-    for (const field of requiredFields) {
-      const value = result[field as keyof AddressDetails];
-      if (!value || value.trim() === '') {
-        if (field === 'pincode') {
-          (result as any)[field] = '0000000000';
-        } else {
-          (result as any)[field] = 'Not provided';
-        }
-      }
-    }
-    return result;
+  const calculateAge = (dob: string | null | undefined): number | null => {
+    if (!dob) return null;
+    const birth = new Date(dob);
+    if (isNaN(birth.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    return age;
   };
 
-  const nullIfEmpty = (value: string | null | undefined): string | null => {
-    if (value === undefined || value === null || value.trim() === '') return null;
-    return value;
-  };
-
-  // --- API calls ---
-  const fetchProfile = async () => {
+  // --- API calls with AbortController ---
+  const fetchProfile = useCallback(async () => {
     if (!user?.id || !company?.id) return;
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setProfileLoading(true);
     try {
       const res = await fetch(`/api/employee-with-profile?user_id=${user.id}`, {
         cache: "no-store",
         headers: { "x-company-id": company.id.toString() },
+        signal: controller.signal,
       });
       if (res.ok) {
         const result = await res.json();
         if (result?.success && result.data) {
           const profileData = result.data.profile || result.data;
-          const mapped = mapProfileFromBackend(profileData);
+          const presentAddress = profileData.present_address_details || profileData.present_address || null;
+          const permanentAddress = profileData.permanent_address_details || profileData.permanent_address || null;
+          const religionId = profileData.religion ?? null;
+          const casteId = profileData.caste ?? null;
+          let religionName = profileData.religion_name;
+          let casteName = profileData.caste_name;
+          if (profileData.religion && typeof profileData.religion === 'object') {
+            religionName = profileData.religion.name;
+          }
+          if (profileData.caste && typeof profileData.caste === 'object') {
+            casteName = profileData.caste.name;
+          }
+          const mapped: EmployeeFullProfile = {
+            ...profileData,
+            religion: religionId,
+            caste: casteId,
+            religion_name: religionName,
+            caste_name: casteName,
+            present_address_details: presentAddress,
+            permanent_address_details: permanentAddress,
+          };
           setFullProfile(mapped);
           setRetryCount(0);
         } else {
@@ -267,11 +233,15 @@ export default function ProfilePage() {
       } else {
         setFullProfile(null);
       }
-    } catch (err) { console.error(err); }
-    finally { setProfileLoading(false); }
-  };
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.error(err);
+    } finally {
+      if (abortControllerRef.current === controller) setProfileLoading(false);
+    }
+  }, [user?.id, company?.id]);
 
-  const fetchLookups = async () => {
+  const fetchLookups = useCallback(async () => {
     if (!company?.id) return;
     try {
       const [staffTypeRes, staffCatRes, religionRes, groupsRes, rolesRes] = await Promise.all([
@@ -285,11 +255,7 @@ export default function ProfilePage() {
       const safeJson = async (res: Response) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = await res.text();
-        try {
-          return JSON.parse(text);
-        } catch {
-          throw new Error("Invalid JSON response");
-        }
+        try { return JSON.parse(text); } catch { throw new Error("Invalid JSON"); }
       };
 
       const staffTypeData = await safeJson(staffTypeRes);
@@ -312,40 +278,146 @@ export default function ProfilePage() {
 
       const rolesArray = rolesData?.data ?? (Array.isArray(rolesData) ? rolesData : []);
       setRoles(rolesArray.map((r: any) => ({ id: r.id, role: r.role || r.name })));
-
-    } catch (e) { 
+    } catch (e) {
       console.error("Lookup fetch error:", e);
       toast.error("Failed to load dropdown data. Please refresh.");
     }
+  }, [company?.id]);
+
+  // --- Initial data fetch (only once) ---
+  useEffect(() => {
+    if (!initialFetchDone.current && user?.id && company?.id) {
+      initialFetchDone.current = true;
+      fetchProfile();
+      fetchLookups();
+    }
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, [user?.id, company?.id, fetchProfile, fetchLookups]);
+
+  // Auto‑retry on failure
+  useEffect(() => {
+    if (!fullProfile && !profileLoading && retryCount < 2 && user?.id && company?.id) {
+      const timer = setTimeout(() => { fetchProfile(); setRetryCount(c => c + 1); }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [fullProfile, profileLoading, retryCount, user?.id, company?.id, fetchProfile]);
+
+  // Sync editedUser when user changes
+  useEffect(() => {
+    if (user) setEditedUser(prev => prev?.id === user.id ? prev : { ...user });
+  }, [user]);
+
+  // Reset image error when profile image URL changes
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.prof_img]);
+
+  // Fetch castes when religion changes in personal edit mode
+  useEffect(() => {
+    if (editingSection !== "personal") {
+      setCastes([]);
+      return;
+    }
+    const religionId = editProfileData?.religion_id;
+    if (!religionId || typeof religionId !== 'number') {
+      setCastes([]);
+      return;
+    }
+    let isMounted = true;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/settings/manage-caste/?religion_id=${religionId}`, {
+          headers: company?.id ? { "x-company-id": company.id.toString() } : {},
+        });
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : data.data || [];
+        if (isMounted) setCastes(items.map((c: any) => ({ id: c.id, name: c.name })));
+      } catch (e) { console.error(e); if (isMounted) setCastes([]); }
+    };
+    load();
+    return () => { isMounted = false; };
+  }, [editProfileData?.religion_id, editingSection, company?.id]);
+
+  // Enrich profile with religion/caste names when lookups load
+  useEffect(() => {
+    if (!fullProfile) return;
+    if (fullProfile.religion_name && fullProfile.caste_name) return;
+    let updated = false;
+    const newProfile = { ...fullProfile };
+    if (!newProfile.religion_name && newProfile.religion && religions.length) {
+      const rel = religions.find(r => r.id === newProfile.religion);
+      if (rel) { newProfile.religion_name = rel.name; updated = true; }
+    }
+    if (!newProfile.caste_name && newProfile.caste && castes.length) {
+      const caste = castes.find(c => c.id === newProfile.caste);
+      if (caste) { newProfile.caste_name = caste.name; updated = true; }
+    }
+    if (updated) setFullProfile(newProfile);
+  }, [fullProfile, religions, castes]);
+
+  // --- Helpers for saving ---
+  const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
+    const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
+    const result = { ...addr };
+    for (const field of requiredFields) {
+      const value = result[field as keyof AddressDetails];
+      if (!value || value.trim() === '') {
+        if (field === 'pincode') (result as any)[field] = '0000000000';
+        else (result as any)[field] = 'Not provided';
+      }
+    }
+    return result;
   };
 
-  const fetchCastes = async (religionId: number) => {
+  const nullIfEmpty = (value: string | null | undefined): string | null => {
+    if (value === undefined || value === null || value.trim() === '') return null;
+    return value;
+  };
+
+  // --- Image Upload Handler ---
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only JPEG, PNG, or WEBP images are allowed');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be smaller than 2MB');
+      return;
+    }
+
+    setUploadingImage(true);
     try {
-      const res = await fetch(`/api/settings/manage-caste/?religion_id=${religionId}`, {
-        headers: company?.id ? { "x-company-id": company.id.toString() } : {},
-      });
-      const data = await res.json();
-      const items = Array.isArray(data) ? data : data.data || [];
-      setCastes(items.map((c: any) => ({ id: c.id, name: c.name })));
-    } catch (e) { console.error(e); }
+      const formData = new FormData();
+      formData.append('prof_img', file);
+      formData.append('user_id', user.id.toString());
+
+      const response = await fetch('/api/employee-with-profile/', { method: 'PUT', body: formData });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Upload failed');
+
+      const newImageUrl = result.data?.user?.prof_img || result.prof_img;
+      if (newImageUrl && updateUser) {
+        const updatedUser = sanitizeUser({ ...user, prof_img: newImageUrl });
+        updateUser(updatedUser);
+        setEditedUser(updatedUser);
+      }
+      toast.success('Profile picture updated!');
+      await fetchProfile();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
-  // --- UI helpers ---
-  const getProfileImageUrl = () => user?.prof_img ? (user.prof_img.startsWith("http") ? user.prof_img : user.prof_img) : null;
-  const getGenderIcon = (gender: string) => ({ M: "👨", F: "👩" }[gender] || "🧑");
-  const getInitials = () => `${user?.first_name?.[0] || ""}${user?.last_name?.[0] || ""}`;
-
-  const calculateAge = (dob: string | null | undefined): number | null => {
-    if (!dob) return null;
-    const birth = new Date(dob);
-    if (isNaN(birth.getTime())) return null;
-    const now = new Date();
-    let age = now.getFullYear() - birth.getFullYear();
-    const m = now.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-    return age;
-  };
-  
   // --- Edit handlers ---
   const handleEditExtended = (section: string) => {
     if (!user) return;
@@ -393,14 +465,13 @@ export default function ProfilePage() {
 
   const handleCancel = () => {
     setEditingSection(null);
-    setEditedUser({ ...user });
+    if (user) setEditedUser({ ...user });
   };
 
   const handleInputChange = (field: string, value: any) => {
-    setEditedUser(prev => ({ ...prev, [field]: value }));
+    setEditedUser(prev => prev ? { ...prev, [field]: value } : null);
   };
 
-  // New handlers for group and role that update both name and id
   const handleGroupChange = (groupId: string) => {
     const selectedGroup = groups.find(g => g.id.toString() === groupId);
     if (selectedGroup) {
@@ -423,19 +494,19 @@ export default function ProfilePage() {
     try {
       const payload: any = {
         user_id: user.id,
-        first_name: editedUser.first_name,
-        last_name: editedUser.last_name,
-        email: editedUser.email,
-        mobile: editedUser.mobile,
-        role: editedUser.role,
-        gender: editedUser.gender,
-        group: editedUser.group,
-        is_wfh: editedUser.is_wfh,
-        is_active: editedUser.is_active,
-        role_id: editedUser.role_id,
-        group_id: editedUser.group_id,
-        is_whatsapp: editedUser.is_whatsapp || false,
-        is_sms: editedUser.is_sms || false,
+        first_name: editedUser?.first_name || "",
+        last_name: editedUser?.last_name || "",
+        email: editedUser?.email || "",
+        mobile: editedUser?.mobile || "",
+        role: editedUser?.role || "",
+        gender: editedUser?.gender || "",
+        group: editedUser?.group || "",
+        is_wfh: editedUser?.is_wfh || false,
+        is_active: editedUser?.is_active ?? true,
+        role_id: editedUser?.role_id,
+        group_id: editedUser?.group_id,
+        is_whatsapp: editedUser?.is_whatsapp || false,
+        is_sms: editedUser?.is_sms || false,
       };
 
       if (editProfileData) {
@@ -470,14 +541,12 @@ export default function ProfilePage() {
 
       toast.success("Profile updated successfully!");
       setEditingSection(null);
-      
       if (updateUser && result.data?.user) {
-        updateUser(result.data.user);
-        setEditedUser(result.data.user);
+        const safeUser = sanitizeUser(result.data.user);
+        updateUser(safeUser);
+        setEditedUser(safeUser);
       }
-      
       await fetchProfile();
-      
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -517,6 +586,7 @@ export default function ProfilePage() {
     }
   };
 
+  // --- Render guard ---
   if (!user) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   const profileUrl = getProfileImageUrl();
@@ -526,6 +596,7 @@ export default function ProfilePage() {
     return <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><div className="text-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-gray-500">Loading your profile data...</p></div></div>;
   }
 
+  // ========== JSX (the complete UI) ==========
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
@@ -538,14 +609,47 @@ export default function ProfilePage() {
         {/* Inactive User Warning */}
         {!user.is_active && <Alert className="mb-6 bg-yellow-50 border-yellow-200"><AlertDescription className="text-yellow-800 flex items-center gap-2"><XCircle className="h-4 w-4" /><span><strong>Account Inactive:</strong> Your account is currently inactive. Please contact your administrator.</span></AlertDescription></Alert>}
 
-        {/* Hero Profile Card */}
+        {/* Hero Profile Card with Image Upload */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             <div className="relative group">
               <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
-                {profileUrl ? <Image src={profileUrl} alt="Profile" width={128} height={128} className="object-cover h-full w-full" /> : <div className="flex flex-col items-center justify-center text-blue-700"><span className="text-4xl font-bold">{initials}</span><span className="text-xs font-semibold uppercase mt-1">User</span></div>}
+                {profileUrl && !imgError ? (
+                  <Image
+                    src={profileUrl}
+                    alt="Profile"
+                    width={128}
+                    height={128}
+                    className="object-cover h-full w-full"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-blue-700">
+                    <span className="text-4xl font-bold">{initials}</span>
+                    <span className="text-xs font-semibold uppercase mt-1">User</span>
+                  </div>
+                )}
               </div>
-              <div className={`absolute -bottom-2 -right-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
+                aria-label="Change profile picture"
+              >
+                {uploadingImage ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                ) : (
+                  <Camera className="h-4 w-4 text-white" />
+                )}
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageUpload}
+              />
+              <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
                 {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
               </div>
             </div>
@@ -588,451 +692,240 @@ export default function ProfilePage() {
             </div>
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-3 gap-6">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
-                    {fullProfile?.dob && <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">{calculateAge(fullProfile.dob)} yrs</Badge>}
-                  </div>
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                    <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
-                  <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
-                </div>
+                <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p><div className="flex items-center gap-2"><p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>{fullProfile?.dob && <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">{calculateAge(fullProfile.dob)} yrs</Badge>}</div></div>
+                <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p><p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p></div>
+                <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p><p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p></div>
               </div>
               <div className="grid grid-cols-2 gap-6">
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p>
-                </div>
+                <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p><p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p></div>
+                <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p><p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p></div>
               </div>
             </div>
           </div>
-          
-          {/* Professional Details Section - FIXED DISPLAY */}
+
+          {/* Professional Details Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm border border-blue-50">
-                  <Briefcase className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Professional Profile</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEditExtended("professional")} className="text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
+              <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Briefcase className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Professional Profile</h3></div>
+              <Button variant="outline" size="sm" onClick={() => handleEditExtended("professional")} className="text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</Button>
             </div>
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Designation / Role</Label>
-                  <p className="text-base font-semibold text-gray-800">{getRoleName(user.role_id || user.role)}</p>
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Department / Group</Label>
-                  <p className="text-base font-semibold text-gray-800">{getGroupName(user.group_id || user.group)}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Staff Category</Label>
-                  <p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffCategoryName(fullProfile.staff_category) : "Not provided"}</p>
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Staff Type</Label>
-                  <p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffTypeName(fullProfile.staff_type) : "Not provided"}</p>
-                </div>
-              </div>
+              <div className="grid grid-cols-2 gap-6"><div><Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Designation / Role</Label><p className="text-base font-semibold text-gray-800">{getRoleName(user.role_id || user.role)}</p></div><div><Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Department / Group</Label><p className="text-base font-semibold text-gray-800">{getGroupName(user.group_id || user.group)}</p></div></div>
+              <div className="grid grid-cols-2 gap-6"><div><Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Staff Category</Label><p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffCategoryName(fullProfile.staff_category) : "Not provided"}</p></div><div><Label className="text-[10px] uppercase font-bold text-gray-400 mb-1">Staff Type</Label><p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffTypeName(fullProfile.staff_type) : "Not provided"}</p></div></div>
             </div>
           </div>
 
           {/* Contact Intelligence Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600 shadow-sm border border-green-50">
-                  <Smartphone className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Contact Details</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEditExtended("contact")} className="text-green-600 border-green-100 bg-green-50 hover:bg-green-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            </div>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600"><Smartphone className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Contact Details</h3></div><Button variant="outline" size="sm" onClick={() => handleEditExtended("contact")} className="text-green-600 border-green-100 bg-green-50 hover:bg-green-100 font-bold rounded-lg px-4"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</Button></div>
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                  <div>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Email</p>
-                  <p className="text-base font-semibold text-gray-800">{user?.email || "Not provided"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Mobile</p>
-                  <p className="text-base font-semibold text-gray-800">{user?.mobile || "Not provided"}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Mobile</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Name</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_name || "Not provided"}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Phone</p>
-                    <p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_phone || "Not provided"}</p>
-                </div>
-              </div>
+              <div className="grid grid-cols-2 gap-4"><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Email</p><p className="text-base font-semibold text-gray-800">{user?.email || "Not provided"}</p></div><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Mobile</p><p className="text-base font-semibold text-gray-800">{user?.mobile || "Not provided"}</p></div></div>
+              <div className="grid grid-cols-2 gap-4"><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p><p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p></div><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Mobile</p><p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p></div></div>
+              <div className="grid grid-cols-2 gap-6"><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Name</p><p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_name || "Not provided"}</p></div><div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Guardian Phone</p><p className="text-base font-semibold text-gray-800">{fullProfile?.guardian_phone || "Not provided"}</p></div></div>
             </div>
           </div>
 
           {/* Identity & Legal Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm border border-amber-50">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEditExtended("legal")} className="text-amber-600 border-amber-100 bg-amber-50 hover:bg-amber-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            </div>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><ShieldCheck className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3></div><Button variant="outline" size="sm" onClick={() => handleEditExtended("legal")} className="text-amber-600 border-amber-100 bg-amber-50 hover:bg-amber-100 font-bold rounded-lg px-4"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</Button></div>
             <div className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Aadhaar Card</p>
-                    <p className="text-base font-bold text-gray-800">{fullProfile?.aadhar_no || "Not provided"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">PAN Number</p>
-                    <p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.pan_no || "Not provided"}</p>
-                  </div>
-              </div>
-              <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">KTU ID</p>
-                    <p className="text-base font-bold text-gray-800">{fullProfile?.ktu_id || "Not provided"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">AICTE ID</p>
-                    <p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.aicte_id || "Not provided"}</p>
-                  </div>
-              </div>
+              <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100"><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Aadhaar Card</p><p className="text-base font-bold text-gray-800">{fullProfile?.aadhar_no || "Not provided"}</p></div><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">PAN Number</p><p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.pan_no || "Not provided"}</p></div></div>
+              <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100"><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">KTU ID</p><p className="text-base font-bold text-gray-800">{fullProfile?.ktu_id || "Not provided"}</p></div><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">AICTE ID</p><p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.aicte_id || "Not provided"}</p></div></div>
             </div>
           </div>
 
           {/* Physical Address Matrix */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center text-white shadow-sm border border-gray-800">
-                  <MapPin className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Address Matrix</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEditExtended("address")} className="text-gray-900 border-gray-200 bg-gray-50 hover:bg-gray-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            </div>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center text-white"><MapPin className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Address Matrix</h3></div><Button variant="outline" size="sm" onClick={() => handleEditExtended("address")} className="text-gray-900 border-gray-200 bg-gray-50 hover:bg-gray-100 font-bold rounded-lg px-4"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</Button></div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Present Residence</p>
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
-                  {fullProfile?.present_address_details ? (
-                    <div className="text-sm font-semibold text-gray-800 space-y-1">
-                      <p>{fullProfile.present_address_details.address_line_1}</p>
-                      <p>{fullProfile.present_address_details.city}, {fullProfile.present_address_details.district}</p>
-                      <p>{fullProfile.present_address_details.state}, {fullProfile.present_address_details.country}</p>
-                      <p className="text-blue-600 mt-2 font-bold">{fullProfile.present_address_details.pincode}</p>
-                    </div>
-                  ) : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}
-                </div>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Permanent Landmark</p>
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
-                    {fullProfile?.permanent_address_details ? (
-                      <div className="text-sm font-semibold text-gray-800 space-y-1">
-                        <p>{fullProfile.permanent_address_details.address_line_1}</p>
-                        <p>{fullProfile.permanent_address_details.city}, {fullProfile.permanent_address_details.district}</p>
-                        <p>{fullProfile.permanent_address_details.state}, {fullProfile.permanent_address_details.country}</p>
-                        <p className="text-blue-600 mt-2 font-bold">{fullProfile.permanent_address_details.pincode}</p>
-                      </div>
-                    ) : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}
-                </div>
-              </div>
+              <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Present Residence</p><div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">{fullProfile?.present_address_details ? <div className="text-sm font-semibold text-gray-800 space-y-1"><p>{fullProfile.present_address_details.address_line_1}</p><p>{fullProfile.present_address_details.city}, {fullProfile.present_address_details.district}</p><p>{fullProfile.present_address_details.state}, {fullProfile.present_address_details.country}</p><p className="text-blue-600 mt-2 font-bold">{fullProfile.present_address_details.pincode}</p></div> : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}</div></div>
+              <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Permanent Landmark</p><div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">{fullProfile?.permanent_address_details ? <div className="text-sm font-semibold text-gray-800 space-y-1"><p>{fullProfile.permanent_address_details.address_line_1}</p><p>{fullProfile.permanent_address_details.city}, {fullProfile.permanent_address_details.district}</p><p>{fullProfile.permanent_address_details.state}, {fullProfile.permanent_address_details.country}</p><p className="text-blue-600 mt-2 font-bold">{fullProfile.permanent_address_details.pincode}</p></div> : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}</div></div>
             </div>
           </div>
 
           {/* Preferences & Settings */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shadow-sm border border-orange-50">
-                  <Settings className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">System Preferences</h3>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => handleEditExtended("preferences")} className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100 font-bold rounded-lg px-4">
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            </div>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600"><Settings className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">System Preferences</h3></div><Button variant="outline" size="sm" onClick={() => handleEditExtended("preferences")} className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100 font-bold rounded-lg px-4"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</Button></div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                  <div className="flex items-center gap-3">
-                    <MessageCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span>
-                  </div>
-                  <Badge variant={user?.is_whatsapp ? "default" : "secondary"} className={user?.is_whatsapp ? "bg-green-600" : "bg-gray-300"}>
-                    {user?.is_whatsapp ? "Enabled" : "Disabled"}
-                  </Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                  <div className="flex items-center gap-3">
-                    <MessageSquare className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
-                  </div>
-                  <Badge variant={user?.is_sms ? "default" : "secondary"} className={user?.is_sms ? "bg-blue-600" : "bg-gray-300"}>
-                    {user?.is_sms ? "Enabled" : "Disabled"}
-                  </Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                  <div className="flex items-center gap-3">
-                    <Home className="h-4 w-4 text-orange-500" />
-                    <span className="text-sm font-medium text-gray-700">Work From Home</span>
-                  </div>
-                  <Badge variant={user?.is_wfh ? "default" : "secondary"} className={user?.is_wfh ? "bg-orange-600" : "bg-gray-300"}>
-                    {user?.is_wfh ? "Enabled" : "Disabled"}
-                  </Badge>
-              </div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><MessageCircle className="h-4 w-4 text-green-500" /><span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span></div><Badge variant={user?.is_whatsapp ? "default" : "secondary"} className={user?.is_whatsapp ? "bg-green-600" : "bg-gray-300"}>{user?.is_whatsapp ? "Enabled" : "Disabled"}</Badge></div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><MessageSquare className="h-4 w-4 text-blue-500" /><span className="text-sm font-medium text-gray-700">SMS Notifications</span></div><Badge variant={user?.is_sms ? "default" : "secondary"} className={user?.is_sms ? "bg-blue-600" : "bg-gray-300"}>{user?.is_sms ? "Enabled" : "Disabled"}</Badge></div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><Home className="h-4 w-4 text-orange-500" /><span className="text-sm font-medium text-gray-700">Work From Home</span></div><Badge variant={user?.is_wfh ? "default" : "secondary"} className={user?.is_wfh ? "bg-orange-600" : "bg-gray-300"}>{user?.is_wfh ? "Enabled" : "Disabled"}</Badge></div>
             </div>
           </div>
 
           {/* Security & Access */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
-                  <Shield className="h-5 w-5" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Security & Access</h3>
-              </div>
-            </div>
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600"><Shield className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Security & Access</h3></div></div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                 <div className="flex items-center gap-3">
-                  <Key className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium text-gray-700">Administrator Access</span>
-                </div>
-                <Badge variant={isAdmin ? "default" : "secondary"} className={isAdmin ? "bg-purple-600" : "bg-gray-300"}>{isAdmin ? "Full Access" : "Restricted"}</Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                  <div className="flex items-center gap-3">
-                  <Crown className="h-4 w-4 text-pink-500" />
-                  <span className="text-sm font-medium text-gray-700">Superuser Privileges</span>
-                </div>
-                <Badge variant={user.is_superuser ? "default" : "secondary"} className={user.is_superuser ? "bg-pink-600" : "bg-gray-300"}>{user.is_superuser ? "Enabled" : "Disabled"}</Badge>
-              </div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><Key className="h-4 w-4 text-purple-500" /><span className="text-sm font-medium text-gray-700">Administrator Access</span></div><Badge variant={isAdmin ? "default" : "secondary"} className={isAdmin ? "bg-purple-600" : "bg-gray-300"}>{isAdmin ? "Full Access" : "Restricted"}</Badge></div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><Crown className="h-4 w-4 text-pink-500" /><span className="text-sm font-medium text-gray-700">Superuser Privileges</span></div><Badge variant={user.is_superuser ? "default" : "secondary"} className={user.is_superuser ? "bg-pink-600" : "bg-gray-300"}>{user.is_superuser ? "Enabled" : "Disabled"}</Badge></div>
             </div>
           </div>
         </div>
 
-        {/* ========== PROFESSIONAL EDIT DIALOG (FIXED GROUP/ROLE) ========== */}
+        {/* ========== PROFESSIONAL EDIT DIALOG (Blue Theme) ========== */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                  <Briefcase className="h-6 w-6" />
+            <DialogHeader className="p-8 bg-blue-600 text-white relative">
+              <DialogTitle className="text-2xl font-bold">Professional Identity Metadata</DialogTitle>
+              <DialogDescription className="text-blue-100 mt-1">Refine corporate structure alignment and tracking parameters.</DialogDescription>
+              <Briefcase className="absolute right-8 top-8 h-12 w-12 text-blue-300/30" />
+            </DialogHeader>
+            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Department / Group</Label><Select value={editedUser?.group_id?.toString() || ""} onValueChange={handleGroupChange}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent>{groups.map(g => (<SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name || g.group_name}</SelectItem>))}</SelectContent></Select></div>
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Designation / Role</Label><Select value={editedUser?.role_id?.toString() || ""} onValueChange={handleRoleChange}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select designation" /></SelectTrigger><SelectContent>{roles.map(r => (<SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>))}</SelectContent></Select></div>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Staff Type</Label><Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select type" /></SelectTrigger><SelectContent>{staffTypes.map(st => (<SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>))}</SelectContent></Select></div>
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Staff Category</Label><Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent>{staffCategories.map(sc => (<SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>))}</SelectContent></Select></div>
+              </div>
+            </div>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-6">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 rounded-xl px-6">{isSaving ? "Saving..." : "Update Professional Profile"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ========== PERSONAL EDIT DIALOG (Purple Theme) ========== */}
+        <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
+          <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-8 bg-purple-600 text-white relative">
+              <DialogTitle className="text-2xl font-bold">Private Identity Metadata</DialogTitle>
+              <DialogDescription className="text-purple-100 mt-1">Refine demographic details and physical attributes.</DialogDescription>
+              <UserIcon className="absolute right-8 top-8 h-12 w-12 text-purple-300/30" />
+            </DialogHeader>
+            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Date of Birth</Label><Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11" />{editProfileData?.dob && calculateAge(editProfileData.dob) !== null && <p className="text-xs text-purple-600 font-medium mt-1">Age: {calculateAge(editProfileData.dob)} years</p>}</div>
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Gender</Label><Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select gender" /></SelectTrigger><SelectContent><SelectItem value="M">Male</SelectItem><SelectItem value="F">Female</SelectItem><SelectItem value="O">Other</SelectItem></SelectContent></Select></div>
+              </div>
+              <div className="grid grid-cols-2 gap-6 p-5 bg-purple-50 rounded-2xl border border-purple-100">
+                <div className="space-y-2"><Label className="text-purple-900 font-semibold">Guardian Name</Label><Input value={editProfileData?.guardian_name || ""} onChange={(e) => handleProfileChange("guardian_name", e.target.value)} placeholder="E.g. John Doe" className="rounded-xl h-11 bg-white border-purple-200" /></div>
+                <div className="space-y-2"><Label className="text-purple-900 font-semibold">Guardian Phone</Label><Input value={editProfileData?.guardian_phone || ""} onChange={(e) => handleProfileChange("guardian_phone", e.target.value)} placeholder="+1 234 567 890" className="rounded-xl h-11 bg-white border-purple-200" /></div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Blood Group</Label><Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Religion</Label><Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => { const newId = v ? parseInt(v) : null; handleProfileChange("religion_id", newId); setCastes([]); }}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Caste Identity</Label><Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}><SelectTrigger className="rounded-xl h-11"><SelectValue placeholder={!editProfileData?.religion_id ? "Select religion first" : "Select caste"} /></SelectTrigger><SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              </div>
+            </div>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-6">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-purple-600 hover:bg-purple-700 rounded-xl px-6">{isSaving ? "Updating..." : "Update Identity"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ========== CONTACT EDIT DIALOG (Green Theme WITH GUARDIAN FIELDS) ========== */}
+        <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
+          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-8 bg-green-600 text-white relative">
+              <DialogTitle className="text-2xl font-bold">Communication & Guardian Edit</DialogTitle>
+              <DialogDescription className="text-green-100 mt-1">Manage primary/alternate contacts and guardian details.</DialogDescription>
+              <Smartphone className="absolute right-8 top-8 h-12 w-12 text-green-300/30" />
+            </DialogHeader>
+            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
+              {/* Primary Contact */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase text-green-700 tracking-wider border-b border-green-100 pb-1">Primary Contact</h4>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-gray-500">Primary Email</Label>
+                  <Input value={editedUser?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="rounded-xl h-11" />
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold text-slate-900">Professional Identity Metadata</DialogTitle>
-                  <DialogDescription className="text-sm text-slate-500 mt-0.5">Refine corporate structure alignment and tracking parameters.</DialogDescription>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-gray-500">Primary Mobile</Label>
+                  <Input value={editedUser?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="rounded-xl h-11" maxLength={10} />
                 </div>
               </div>
-            </DialogHeader>
-            
-            <div className="p-6 space-y-5 max-h-[60vh] overflow-auto">
-              <div className="grid grid-cols-2 gap-5">
-                {/* Department / Group */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Department / Group</Label>
-                  <Select 
-                    value={editedUser.group_id?.toString() || ""} 
-                    onValueChange={handleGroupChange}
-                  >
-                    <SelectTrigger className="w-full rounded-xl h-11">
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map(g => (
-                        <SelectItem key={g.id} value={g.id.toString()}>
-                          {g.group || g.name || g.group_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                {/* Designation / Role */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Designation / Role</Label>
-                  <Select 
-                    value={editedUser.role_id?.toString() || ""} 
-                    onValueChange={handleRoleChange}
-                  >
-                    <SelectTrigger className="w-full rounded-xl h-11">
-                      <SelectValue placeholder="Select designation" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map(r => (
-                        <SelectItem key={r.id} value={r.id.toString()}>
-                          {r.role || r.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* Guardian Details */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase text-green-700 tracking-wider border-b border-green-100 pb-1">Guardian Information</h4>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-gray-500">Guardian Name</Label>
+                  <Input value={editProfileData?.guardian_name || ""} onChange={(e) => handleProfileChange("guardian_name", e.target.value)} placeholder="Father / Mother / Spouse name" className="rounded-xl h-11" />
                 </div>
-
-                {/* Staff Type */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Staff Type</Label>
-                  <Select 
-                    value={editProfileData?.staff_type_id?.toString() || ""} 
-                    onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)}
-                  >
-                    <SelectTrigger className="w-full rounded-xl h-11">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {staffTypes.map(st => (
-                        <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase text-gray-500">Guardian Phone</Label>
+                  <Input value={editProfileData?.guardian_phone || ""} onChange={(e) => handleProfileChange("guardian_phone", e.target.value)} placeholder="Guardian's mobile number" className="rounded-xl h-11" maxLength={10} />
                 </div>
+              </div>
 
-                {/* Staff Category */}
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Staff Category</Label>
-                  <Select 
-                    value={editProfileData?.staff_category_id?.toString() || ""} 
-                    onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)}
-                  >
-                    <SelectTrigger className="w-full rounded-xl h-11">
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {staffCategories.map(sc => (
-                        <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              {/* Alternate Contact */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase text-green-700 tracking-wider border-b border-green-100 pb-1">Alternate Contact</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Alternate Mobile</Label>
+                    <Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-10 bg-gray-50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase text-gray-500">Alternate Email</Label>
+                    <Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-10 bg-gray-50" />
+                  </div>
                 </div>
               </div>
             </div>
-            
-            <DialogFooter className="p-5 bg-slate-50 border-t border-slate-100">
-              <Button variant="outline" onClick={handleCancel}>Cancel</Button>
-              <Button onClick={handleSave} disabled={isSaving}>{isSaving ? "Saving..." : "Update Identity"}</Button>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100">
+              <Button onClick={handleSave} disabled={isSaving} className="bg-green-600 hover:bg-green-700 w-full rounded-xl h-12">
+                {isSaving ? "Saving..." : "Apply Transformations"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* ========== PERSONAL EDIT DIALOG ========== */}
-        <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-purple-50 text-purple-600 rounded-2xl"><UserIcon className="h-6 w-6" /></div>
-                <div><DialogTitle className="text-xl font-bold text-slate-900">Personal Details</DialogTitle><DialogDescription className="text-sm text-slate-500">Update your personal information.</DialogDescription></div>
-              </div>
-            </DialogHeader>
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5"><Label>First Name</Label><Input value={editedUser.first_name || ""} onChange={(e) => handleInputChange("first_name", e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Last Name</Label><Input value={editedUser.last_name || ""} onChange={(e) => handleInputChange("last_name", e.target.value)} /></div>
-              </div>
-              <div className="space-y-1.5"><Label>Date of Birth</Label><Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} /></div>
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5"><Label>Gender</Label><Select value={editedUser.gender || ""} onValueChange={(v) => handleInputChange("gender", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="M">Male</SelectItem><SelectItem value="F">Female</SelectItem><SelectItem value="O">Other</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><Label>Blood Group</Label><Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}</SelectContent></Select></div>
-              </div>
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5"><Label>Religion</Label><Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => handleProfileChange("religion_id", v ? parseInt(v) : null)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1.5"><Label>Caste</Label><Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-              </div>
-              <div className="grid grid-cols-2 gap-5"><div className="space-y-1.5"><Label>Guardian Name</Label><Input value={editProfileData?.guardian_name || ""} onChange={(e) => handleProfileChange("guardian_name", e.target.value)} /></div><div className="space-y-1.5"><Label>Guardian Phone</Label><Input value={editProfileData?.guardian_phone || ""} onChange={(e) => handleProfileChange("guardian_phone", e.target.value)} /></div></div>
-            </div>
-            <DialogFooter className="p-5 bg-slate-50 border-t"><Button variant="outline" onClick={handleCancel}>Cancel</Button><Button onClick={handleSave} disabled={isSaving}>Save Changes</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ========== CONTACT EDIT DIALOG ========== */}
-        <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white"><div className="flex items-center gap-4"><div className="p-3 bg-green-50 text-green-600 rounded-2xl"><Smartphone className="h-6 w-6" /></div><div><DialogTitle>Contact Details</DialogTitle><DialogDescription>Update email and phone numbers.</DialogDescription></div></div></DialogHeader>
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-5"><div className="space-y-1.5"><Label>Primary Email</Label><Input value={editedUser.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} /></div><div className="space-y-1.5"><Label>Primary Mobile</Label><Input value={editedUser.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} /></div></div>
-              <div className="grid grid-cols-2 gap-5"><div className="space-y-1.5"><Label>Alternate Email</Label><Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} /></div><div className="space-y-1.5"><Label>Alternate Mobile</Label><Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} /></div></div>
-            </div>
-            <DialogFooter className="p-5 bg-slate-50 border-t"><Button variant="outline" onClick={handleCancel}>Cancel</Button><Button onClick={handleSave} disabled={isSaving}>Save</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ========== LEGAL EDIT DIALOG ========== */}
+        {/* ========== LEGAL EDIT DIALOG (Amber Theme) ========== */}
         <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white"><div className="flex items-center gap-4"><div className="p-3 bg-amber-50 text-amber-600 rounded-2xl"><ShieldCheck className="h-6 w-6" /></div><div><DialogTitle>Identity & Legal</DialogTitle><DialogDescription>Update official identification numbers.</DialogDescription></div></div></DialogHeader>
-            <div className="p-6 space-y-5">
-              <div className="grid grid-cols-2 gap-5"><div className="space-y-1.5"><Label>Aadhaar Number</Label><Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} /></div><div className="space-y-1.5"><Label>PAN Number</Label><Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} /></div></div>
-              <div className="grid grid-cols-2 gap-5"><div className="space-y-1.5"><Label>KTU ID</Label><Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} /></div><div className="space-y-1.5"><Label>AICTE ID</Label><Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} /></div></div>
-            </div>
-            <DialogFooter className="p-5 bg-slate-50 border-t"><Button variant="outline" onClick={handleCancel}>Cancel</Button><Button onClick={handleSave} disabled={isSaving}>Save</Button></DialogFooter>
+          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-8 bg-amber-600 text-white relative"><DialogTitle className="text-2xl font-bold">Statutory Identities</DialogTitle><DialogDescription className="text-amber-100 mt-1">Update governmental and legal identification numbers.</DialogDescription><ShieldCheck className="absolute right-8 top-8 h-12 w-12 text-amber-300/30" /></DialogHeader>
+            <div className="p-8 space-y-6"><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Aadhaar Number (UIDAI)</Label><Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11" /></div><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">PAN Number (Income Tax)</Label><Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 uppercase" /></div><Separator /><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">KTU / AICTE Identifier</Label><Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11" /></div></div>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button onClick={handleSave} disabled={isSaving} className="bg-amber-600 hover:bg-amber-700 w-full rounded-xl h-12">{isSaving ? "Saving..." : "Commit IDs"}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* ========== ADDRESS EDIT DIALOG ========== */}
+        {/* ========== ADDRESS EDIT DIALOG (Improved Slate Theme) ========== */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-4xl max-h-[90vh] bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white"><div className="flex items-center gap-4"><div className="p-3 bg-slate-100 text-slate-700 rounded-2xl"><MapPin className="h-6 w-6" /></div><div><DialogTitle>Address Details</DialogTitle><DialogDescription>Update present and permanent addresses.</DialogDescription></div></div></DialogHeader>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-auto">
-              <div className="space-y-4"><h4 className="font-bold text-blue-600">Present Address</h4><div className="space-y-3"><Input placeholder="Address Line 1" value={editProfileData?.present_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} /><Input placeholder="City" value={editProfileData?.present_address_details?.city || ""} onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} /><Input placeholder="State" value={editProfileData?.present_address_details?.state || ""} onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} /><Input placeholder="Pincode" value={editProfileData?.present_address_details?.pincode || ""} onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} /></div></div>
-              <div className="space-y-4"><h4 className="font-bold text-indigo-600">Permanent Address</h4><div className="space-y-3"><Input placeholder="Address Line 1" value={editProfileData?.permanent_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} /><Input placeholder="City" value={editProfileData?.permanent_address_details?.city || ""} onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} /><Input placeholder="State" value={editProfileData?.permanent_address_details?.state || ""} onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} /><Input placeholder="Pincode" value={editProfileData?.permanent_address_details?.pincode || ""} onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} /></div></div>
+          <DialogContent className="max-w-4xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-8 bg-slate-800 text-white relative">
+              <DialogTitle className="text-2xl font-bold">Residence Data Protocol</DialogTitle>
+              <DialogDescription className="text-slate-300 mt-1">Update Present and Permanent Physical Coordinates.</DialogDescription>
+              <MapPin className="absolute right-8 top-8 h-12 w-12 text-slate-500/30" />
+            </DialogHeader>
+            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[70vh] overflow-y-auto">
+              {/* Present Address */}
+              <div className="space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2"><div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center"><MapPin className="h-4 w-4 text-blue-600" /></div><h4 className="text-sm font-bold uppercase text-blue-600 tracking-wider">Present Residence</h4></div>
+                <div className="space-y-4">
+                  <div><Label className="text-xs font-semibold text-gray-500">Address Line 1</Label><Input placeholder="House number, street" value={editProfileData?.present_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                  <div className="grid grid-cols-2 gap-4"><div><Label className="text-xs font-semibold text-gray-500">City</Label><Input placeholder="City" value={editProfileData?.present_address_details?.city || ""} onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-11 mt-1" /></div><div><Label className="text-xs font-semibold text-gray-500">Pincode</Label><Input placeholder="Pincode" value={editProfileData?.present_address_details?.pincode || ""} onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-11 mt-1" /></div></div>
+                  <div><Label className="text-xs font-semibold text-gray-500">State</Label><Input placeholder="State" value={editProfileData?.present_address_details?.state || ""} onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                  <div><Label className="text-xs font-semibold text-gray-500">Country</Label><Input placeholder="Country" value={editProfileData?.present_address_details?.country || "India"} onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                </div>
+              </div>
+              {/* Permanent Address */}
+              <div className="space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2"><div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center"><MapPin className="h-4 w-4 text-indigo-600" /></div><h4 className="text-sm font-bold uppercase text-indigo-600 tracking-wider">Permanent Landmark</h4></div>
+                <div className="space-y-4">
+                  <div><Label className="text-xs font-semibold text-gray-500">Address Line 1</Label><Input placeholder="House number, street" value={editProfileData?.permanent_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                  <div className="grid grid-cols-2 gap-4"><div><Label className="text-xs font-semibold text-gray-500">City</Label><Input placeholder="City" value={editProfileData?.permanent_address_details?.city || ""} onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-11 mt-1" /></div><div><Label className="text-xs font-semibold text-gray-500">Pincode</Label><Input placeholder="Pincode" value={editProfileData?.permanent_address_details?.pincode || ""} onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-11 mt-1" /></div></div>
+                  <div><Label className="text-xs font-semibold text-gray-500">State</Label><Input placeholder="State" value={editProfileData?.permanent_address_details?.state || ""} onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                  <div><Label className="text-xs font-semibold text-gray-500">Country</Label><Input placeholder="Country" value={editProfileData?.permanent_address_details?.country || "India"} onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} className="rounded-xl h-11 mt-1" /></div>
+                </div>
+              </div>
             </div>
-            <DialogFooter className="p-5 bg-slate-50 border-t"><Button variant="outline" onClick={handleCancel}>Cancel</Button><Button onClick={handleSave} disabled={isSaving}>Save Addresses</Button></DialogFooter>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-6">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-slate-800 hover:bg-slate-900 rounded-xl px-6">{isSaving ? "Saving..." : "Commit Physical Data"}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* ========== PREFERENCES EDIT DIALOG ========== */}
+        {/* ========== PREFERENCES EDIT DIALOG (Orange Theme) ========== */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-6 border-b border-slate-100 bg-white"><div className="flex items-center gap-4"><div className="p-3 bg-orange-50 text-orange-600 rounded-2xl"><Settings className="h-6 w-6" /></div><div><DialogTitle>System Preferences</DialogTitle><DialogDescription>Configure alert and work preferences.</DialogDescription></div></div></DialogHeader>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><MessageCircle className="h-4 w-4 text-green-500" /><span>WhatsApp Alerts</span></div><Switch checked={editedUser.is_whatsapp || false} onCheckedChange={(val) => handleInputChange("is_whatsapp", val)} /></div>
-              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><MessageSquare className="h-4 w-4 text-blue-500" /><span>SMS Notifications</span></div><Switch checked={editedUser.is_sms || false} onCheckedChange={(val) => handleInputChange("is_sms", val)} /></div>
-              <div className="flex items-center justify-between"><div className="flex items-center gap-3"><Home className="h-4 w-4 text-orange-500" /><span>Work From Home</span></div><Switch checked={editedUser.is_wfh || false} onCheckedChange={(val) => handleInputChange("is_wfh", val)} /></div>
-            </div>
-            <DialogFooter className="p-5 bg-slate-50 border-t"><Button variant="outline" onClick={handleCancel}>Cancel</Button><Button onClick={handleSave} disabled={isSaving}>Save Preferences</Button></DialogFooter>
+            <DialogHeader className="p-8 bg-orange-500 text-white relative"><DialogTitle className="text-2xl font-bold">System Configurations</DialogTitle><DialogDescription className="text-orange-100 mt-1">Manage Work-from-home and automated alert policies.</DialogDescription><Settings className="absolute right-8 top-8 h-12 w-12 text-orange-300/30" /></DialogHeader>
+            <div className="p-8 space-y-4">{[
+              { icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" },
+              { icon: MessageSquare, label: "Enable SMS Service Protocol", field: "is_sms" },
+              { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }
+            ].map((pref, i) => (<div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100"><div className="flex items-center gap-3"><div className="p-2 bg-white rounded-xl shadow-sm text-orange-500"><pref.icon className="h-4 w-4" /></div><span className="text-sm font-medium text-gray-700">{pref.label}</span></div><Switch checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} onCheckedChange={(val) => handleInputChange(pref.field, val)} /></div>))}</div>
+            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600 w-full rounded-xl h-12">{isSaving ? "Saving..." : "Sync Preferences"}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+
       </div>
     </div>
   );

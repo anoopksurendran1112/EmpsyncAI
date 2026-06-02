@@ -115,6 +115,9 @@ export default function EmployeeDetailsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [mobileError, setMobileError] = useState("");
+  
+  // Image upload states
+  const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Lookups
@@ -283,6 +286,61 @@ export default function EmployeeDetailsPage() {
       age--;
     }
     return age;
+  };
+
+  // --- Image Upload Handler ---
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only JPEG, PNG, or WEBP images are allowed');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) { // 2MB
+      toast.error('Image must be smaller than 2MB');
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const formDataUpload = new FormData();
+      // Field name must match what your Django backend expects (e.g., 'prof_img')
+      formDataUpload.append('prof_img', file);
+      formDataUpload.append('user_id', employeeId);
+
+      const response = await fetch('/api/employee-with-profile/', {
+        method: 'PUT',
+        // Do NOT set Content-Type header; browser will set it with multipart boundary
+        body: formDataUpload,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || result.error || 'Upload failed');
+      }
+
+      // Extract the updated user data (including new image URL)
+      const updatedUser = result.data?.user;
+      if (updatedUser) {
+        setFormData(updatedUser);
+        // Also update the employee data in the hook's cache if needed
+        refetch();
+      }
+
+      toast.success('Profile picture updated!');
+      await fetchProfile(); // refresh full profile data
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setUploadingImage(false);
+      // Clear file input so the same file can be selected again
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // --- Handlers ---
@@ -553,89 +611,98 @@ export default function EmployeeDetailsPage() {
           )}
         </div>
 
-        {/* Hero Profile Card */}
+        {/* Hero Profile Card with Image Upload */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <div className="relative group">
+              <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
+                {profileUrl ? (
+                  <Image src={profileUrl} alt="Employee Avatar" width={128} height={128} className="object-cover h-full w-full" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-blue-700">
+                    <span className="text-4xl font-bold tracking-tight">{initials}</span>
+                  </div>
+                )}
+              </div>
+              {/* Camera button overlay */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
+                aria-label="Change profile picture"
+              >
+                {uploadingImage ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                ) : (
+                  <Camera className="h-4 w-4 text-white" />
+                )}
+              </button>
+              {/* Hidden file input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageUpload}
+              />
+              <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${formData?.is_active ? "bg-green-500" : "bg-red-500"}`}>
+                {formData?.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
+              </div>
+            </div>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-              <div className="relative group">
-                <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
-                  {profileUrl ? (
-                      <Image src={profileUrl} alt="Employee Avatar" width={128} height={128} className="object-cover h-full w-full" />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-blue-700">
-                        <span className="text-4xl font-bold tracking-tight">{initials}</span>
-                      </div>
-                    )}
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-1">
+                    {formData?.first_name} {formData?.last_name}
+                  </h2>
+                  <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500">
+                    <Mail className="h-4 w-4" />
+                    <span>{formData?.email}</span>
+                  </div>
                 </div>
-                <div className={`absolute -bottom-2 -right-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${formData?.is_active ? "bg-green-500" : "bg-red-500"}`}>
-                  {formData?.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
+                <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
+                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1 font-bold">
+                    <Briefcase className="h-3 w-3 mr-1.5" />
+                    {formData?.role || "Staff Members"}
+                  </Badge>
+                  {formData?.is_active ? (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-bold">Active</Badge>
+                  ) : (
+                    <Badge variant="destructive" className="font-bold">Dormant</Badge>
+                  )}
                 </div>
               </div>
-  
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-3xl font-bold text-gray-900 mb-1">
-                      {formData?.first_name} {formData?.last_name}
-                    </h2>
-                    <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500">
-                      <Mail className="h-4 w-4" />
-                      <span>{formData?.email}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
-                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1 font-bold">
-                      <Briefcase className="h-3 w-3 mr-1.5" />
-                      {formData?.role || "Staff Members"}
-                    </Badge>
-                    {formData?.is_active ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 font-bold">Active</Badge>
-                    ) : (
-                      <Badge variant="destructive" className="font-bold">Dormant</Badge>
-                    )}
-                  </div>
+              
+              <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleViewPunch}
+                    className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 font-bold rounded-lg h-9 px-4"
+                  >
+                    <Activity className="h-4 w-4 mr-2" />
+                    View Punches
+                  </Button>
                 </div>
-                
-                <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleViewPunch}
-                      className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 font-bold rounded-lg h-9 px-4"
-                    >
-                      <Activity className="h-4 w-4 mr-2" />
-                      View Punches
-                    </Button>
-                  </div>
-                  {/* <div className="flex items-center gap-2">
-                    <Button 
-                     variant="outline" 
-                     size="sm" 
-                     onClick={() => setShowCalendar(!showCalendar)}
-                     className={`${showCalendar ? 'bg-gray-900 text-white' : 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100'} font-bold rounded-lg h-9 px-4 transition-all`}
-                   >
-                     <Calendar className="h-4 w-4 mr-2" />
-                     {showCalendar ? "Hide Calendar" : "Attendance Calendar"}
-                   </Button>
-                  </div> */}
-                  <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                    <span className="text-[10px] font-bold uppercase text-gray-400 ml-2">Account Status</span>
-                    <Switch 
-                      checked={formData?.is_active || false} 
-                      onCheckedChange={(val) => {
-                        handleInputChange("is_active", val);
-                        setEditingSection("hero");
-                      }}
-                    />
-                    {editingSection === "hero" && (
-                      <Button size="sm" onClick={handleSave} className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2">Apply</Button>
-                    )}
-                  </div>
+                <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                  <span className="text-[10px] font-bold uppercase text-gray-400 ml-2">Account Status</span>
+                  <Switch 
+                    checked={formData?.is_active || false} 
+                    onCheckedChange={(val) => {
+                      handleInputChange("is_active", val);
+                      setEditingSection("hero");
+                    }}
+                  />
+                  {editingSection === "hero" && (
+                    <Button size="sm" onClick={handleSave} className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2">Apply</Button>
+                  )}
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
         {/* Attendance Intelligence Dialog */}
         <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
@@ -658,7 +725,7 @@ export default function EmployeeDetailsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Stats Grid */}
+        {/* Stats Grid (unchanged) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[
             { label: "User ID", val: `#${formData?.id}`, icon: Hash, color: "blue" },
@@ -678,7 +745,7 @@ export default function EmployeeDetailsPage() {
           ))}
         </div>
 
-        {/* Detail Sections Matrix */}
+        {/* Detail Sections Matrix - unchanged */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
           {/* Personal Details Section */}
@@ -935,7 +1002,7 @@ export default function EmployeeDetailsPage() {
 
         </div>
 
-        {/* --- MODULAR DIALOGS --- */}
+        {/* --- EDIT DIALOGS (unchanged) --- */}
         
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
@@ -1093,7 +1160,7 @@ export default function EmployeeDetailsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ADDITIONAL DIALOGS (STATUTORY, ADDRESS, ETC) CAN BE ADDED HERE SIMILARLY */}
+        {/* LEGAL EDIT DIALOG */}
         <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
             <DialogHeader className="p-8 bg-amber-600 text-white">
@@ -1110,6 +1177,7 @@ export default function EmployeeDetailsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-3xl border-none p-0 shadow-2xl">
               <DialogHeader className="p-8 bg-slate-900 text-white">
@@ -1146,6 +1214,7 @@ export default function EmployeeDetailsPage() {
           </DialogContent>
         </Dialog>
         
+        {/* PREFERENCES EDIT DIALOG */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
             <DialogHeader className="p-8 bg-slate-100 text-slate-900">
