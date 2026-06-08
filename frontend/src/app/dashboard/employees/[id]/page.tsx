@@ -288,7 +288,7 @@ export default function EmployeeDetailsPage() {
     return age;
   };
 
-  // --- Image Upload Handler ---
+  // --- Image Upload Handler (unchanged logic, now using pencil icon) ---
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -308,13 +308,11 @@ export default function EmployeeDetailsPage() {
 
     try {
       const formDataUpload = new FormData();
-      // Field name must match what your Django backend expects (e.g., 'prof_img')
       formDataUpload.append('prof_img', file);
       formDataUpload.append('user_id', employeeId);
 
       const response = await fetch('/api/employee-with-profile/', {
         method: 'PUT',
-        // Do NOT set Content-Type header; browser will set it with multipart boundary
         body: formDataUpload,
       });
 
@@ -324,21 +322,18 @@ export default function EmployeeDetailsPage() {
         throw new Error(result.message || result.error || 'Upload failed');
       }
 
-      // Extract the updated user data (including new image URL)
       const updatedUser = result.data?.user;
       if (updatedUser) {
         setFormData(updatedUser);
-        // Also update the employee data in the hook's cache if needed
         refetch();
       }
 
       toast.success('Profile picture updated!');
-      await fetchProfile(); // refresh full profile data
+      await fetchProfile();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setUploadingImage(false);
-      // Clear file input so the same file can be selected again
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -347,7 +342,6 @@ export default function EmployeeDetailsPage() {
   const handleEdit = (section: string) => {
     if (!formData) return;
     
-    // Prepare extended profile data for editing
     let religionId = null;
     let casteId = null;
     
@@ -611,42 +605,56 @@ export default function EmployeeDetailsPage() {
           )}
         </div>
 
-        {/* Hero Profile Card with Image Upload */}
+        {/* Hero Profile Card with Image Upload (updated to match CompanyProfilePage style) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             <div className="relative group">
               <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
                 {profileUrl ? (
-                  <Image src={profileUrl} alt="Employee Avatar" width={128} height={128} className="object-cover h-full w-full" />
+                  <Image
+                    src={profileUrl}
+                    alt="Employee Avatar"
+                    width={128}
+                    height={128}
+                    className="object-cover h-full w-full"
+                  />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-blue-700">
                     <span className="text-4xl font-bold tracking-tight">{initials}</span>
                   </div>
                 )}
               </div>
-              {/* Camera button overlay */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
+
+              {/* Pencil icon upload button (copied from CompanyProfilePage) */}
+              <label
+                className="absolute -bottom-2 -right-2 h-10 w-10 bg-white rounded-full border-2 border-blue-100 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors"
                 aria-label="Change profile picture"
               >
                 {uploadingImage ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  <div className="animate-spin h-4 w-4 border-2 border-gray-600 border-t-transparent rounded-full" />
                 ) : (
-                  <Camera className="h-4 w-4 text-white" />
+                  <Edit3 className="h-4 w-4 text-gray-600" />
                 )}
-              </button>
-              {/* Hidden file input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleImageUpload}
-              />
-              <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${formData?.is_active ? "bg-green-500" : "bg-red-500"}`}>
-                {formData?.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                />
+              </label>
+
+              {/* Active status badge */}
+              <div
+                className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${
+                  formData?.is_active ? "bg-green-500" : "bg-red-500"
+                }`}
+              >
+                {formData?.is_active ? (
+                  <CheckCircle className="h-4 w-4 text-white" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-white" />
+                )}
               </div>
             </div>
 
@@ -725,7 +733,7 @@ export default function EmployeeDetailsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Stats Grid (unchanged) */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[
             { label: "User ID", val: `#${formData?.id}`, icon: Hash, color: "blue" },
@@ -745,14 +753,14 @@ export default function EmployeeDetailsPage() {
           ))}
         </div>
 
-        {/* Detail Sections Matrix - unchanged */}
+        {/* Detail Sections Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
           {/* Personal Details Section */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-pruple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
+                <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
                   <UserIcon className="h-5 w-5" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">Personal Details</h3>
@@ -1002,7 +1010,7 @@ export default function EmployeeDetailsPage() {
 
         </div>
 
-        {/* --- EDIT DIALOGS (unchanged) --- */}
+        {/* --- EDIT DIALOGS --- */}
         
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>

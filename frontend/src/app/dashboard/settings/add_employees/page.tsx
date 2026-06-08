@@ -146,7 +146,7 @@ export default function AddEmployeePage() {
 
   const addDesig = (expIdx: number) => {
     const updated = [...experiences];
-    updated[expIdx].designations.push({ designation: "", start_date: "", end_date: "", change_type: "Joined", description: "" }); // end_date & description already tracked
+    updated[expIdx].designations.push({ designation: "", start_date: "", end_date: "", change_type: "Joined", description: "" });
     setExperiences(updated);
   };
   const removeDesig = (expIdx: number, desIdx: number) => {
@@ -193,7 +193,7 @@ export default function AddEmployeePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ---------- Validation & Navigation ----------
+  // ---------- Enhanced Validation (step-by-step) ----------
   const validateStep = (step: number) => {
     const newErrors: Record<string, string> = {};
     
@@ -203,6 +203,7 @@ export default function AddEmployeePage() {
       if (!formData.email.trim()) newErrors.email = "Required";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Invalid email";
       if (!formData.mobile.trim()) newErrors.mobile = "Required";
+      else if (!/^\d{10}$/.test(formData.mobile.trim())) newErrors.mobile = "Mobile number must be exactly 10 digits";
       if (!formData.gender) newErrors.gender = "Required";
       if (!profileData.dob) newErrors.dob = "Required";
     } 
@@ -217,16 +218,40 @@ export default function AddEmployeePage() {
       if (!profileData.present_address.city) newErrors.present_city = "Required";
     }
     else if (step === 3) {
-      if (qualifications.length === 0) newErrors.general = "At least one qualification is required.";
+      if (qualifications.length === 0) {
+        newErrors.general = "At least one qualification is required.";
+      }
       qualifications.forEach((q, i) => {
         if (!q.qualification_level) newErrors[`qual_${i}_level`] = "Required";
+        if (!q.specialization) newErrors[`qual_${i}_specialization`] = "Required";
         if (!q.institution_name) newErrors[`qual_${i}_inst`] = "Required";
+        if (!q.university) newErrors[`qual_${i}_university`] = "Required";
+        if (!q.location) newErrors[`qual_${i}_location`] = "Required";
+        if (!q.start_year) newErrors[`qual_${i}_start`] = "Required";
+        if (!q.passing_year) newErrors[`qual_${i}_pass`] = "Required";
+        if (!q.percentage) newErrors[`qual_${i}_percentage`] = "Required";
+        if (!q.certificate) newErrors[`qual_${i}_certificate`] = "Certificate is required";
       });
     }
     else if (step === 4) {
-      // Experience is optional, but if entered, needs validation
-      experiences.forEach((e, i) => {
-        if (!e.company_name) newErrors[`exp_${i}_company`] = "Required";
+      experiences.forEach((exp, i) => {
+        if (!exp.company_name) newErrors[`exp_${i}_company`] = "Required";
+        if (!exp.location) newErrors[`exp_${i}_location`] = "Required";
+        if (!exp.start_year) newErrors[`exp_${i}_start`] = "Required";
+        if (!exp.end_year) newErrors[`exp_${i}_end`] = "Required";
+        if (!exp.description) newErrors[`exp_${i}_desc`] = "Required";
+        if (!exp.experience_letter) newErrors[`exp_${i}_letter`] = "Experience letter is required";
+        
+        if (exp.designations.length === 0) {
+          newErrors[`exp_${i}_desig_empty`] = "At least one designation is required";
+        }
+        exp.designations.forEach((des: any, d: number) => {
+          if (!des.designation) newErrors[`exp_${i}_des_${d}_title`] = "Required";
+          if (!des.start_date) newErrors[`exp_${i}_des_${d}_start`] = "Required";
+          if (!des.end_date) newErrors[`exp_${i}_des_${d}_end`] = "Required";
+          if (!des.change_type) newErrors[`exp_${i}_des_${d}_type`] = "Required";
+          if (!des.description) newErrors[`exp_${i}_des_${d}_desc`] = "Required";
+        });
       });
     }
     else if (step === 5) {
@@ -253,7 +278,6 @@ export default function AddEmployeePage() {
 
   // ---------- Submit ----------
   const handleSubmit = async () => {
-    // 1. Run your existing validation for the final step
     if (!validateStep(5)) return;
     
     setLoading(true); 
@@ -262,7 +286,6 @@ export default function AddEmployeePage() {
     try {
       const fd = new FormData();
 
-      // 2. Append all Top-Level Account Fields (from formData state)
       fd.append('first_name', formData.first_name);
       fd.append('last_name', formData.last_name);
       fd.append('email', formData.email);
@@ -272,27 +295,20 @@ export default function AddEmployeePage() {
       fd.append('biometric_id', formData.biometric_id);
       fd.append('company_id', formData.company_id.toString());
       
-      if (formData.group_id) {
-        fd.append('group_id', formData.group_id.toString());
-      }
-      if (formData.role_id) {
-        fd.append('role_id', formData.role_id.toString());
-      }
+      if (formData.group_id) fd.append('group_id', formData.group_id.toString());
+      if (formData.role_id) fd.append('role_id', formData.role_id.toString());
 
-      // Append your UI feature switches / booleans correctly
       fd.append('is_whatsapp', formData.is_whatsapp.toString());
       fd.append('is_sms', formData.is_sms.toString());
       fd.append('is_wfh', formData.is_wfh.toString());
       fd.append('is_active', formData.is_active.toString());
       fd.append('team_lead', formData.team_lead.toString());
 
-      // 3. Append Profile Metadata & References (from profileData state)
       if (profileData.religion_id) fd.append('religion_id', profileData.religion_id);
       if (profileData.caste_id) fd.append('caste_id', profileData.caste_id);
       if (profileData.staff_type_id) fd.append('staff_type_id', profileData.staff_type_id);
       if (profileData.staff_category_id) fd.append('staff_category_id', profileData.staff_category_id);
 
-      // Append standard profile details
       fd.append('dob', profileData.dob || '');
       fd.append('guardian_name', profileData.guardian_name || '');
       fd.append('guardian_phone', profileData.guardian_phone || '');
@@ -304,14 +320,10 @@ export default function AddEmployeePage() {
       fd.append('alternate_mobile', profileData.alternate_mobile || '');
       fd.append('alternate_email', profileData.alternate_email || '');
 
-      // 4. Append Profile Binary Profile Photo (if present)
-      if (profileImage) {
-        fd.append('prof_img', profileImage); 
-      }
+      if (profileImage) fd.append('prof_img', profileImage);
 
-      // 5. Stringify Objects & Arrays (mapping to backend key names)
       const mappedBankDetails = bankDetails.map(bank => ({
-        acc_holder_fname: formData.first_name, // Defaulting to the employee's name
+        acc_holder_fname: formData.first_name,
         acc_holder_mname: "",
         acc_holder_lname: formData.last_name,
         bank_name: bank.bank_name,
@@ -322,68 +334,57 @@ export default function AddEmployeePage() {
       }));
 
       const mappedQualifications = qualifications.map(q => ({
-        qualification_level: q.qualification_level || q.degree, // Fallback safety
-        specialization: q.specialization || "",
-        institution_name: q.institution_name || q.institution,
-        university: q.university || "",
-        passing_year: q.passing_year || q.year_of_passing,
-        percentage: q.percentage || ""
+        qualification_level: q.qualification_level,
+        specialization: q.specialization,
+        institution_name: q.institution_name,
+        university: q.university,
+        location: q.location,
+        start_year: q.start_year,
+        passing_year: q.passing_year,
+        percentage: q.percentage,
+        certificate: q.certificate // will be appended as file separately
       }));
 
       const mappedExperiences = experiences.map(exp => ({
         company_name: exp.company_name,
-        location: exp.location || "",
-        start_year: exp.start_year || "",
-        end_year: exp.end_year || "",
-        description: exp.description || "",
+        location: exp.location,
+        start_year: exp.start_year,
+        end_year: exp.end_year,
+        description: exp.description,
+        experience_letter: exp.experience_letter, // file
         designations: (exp.designations || []).map((des: any) => ({
-          designation: des.designation || des.title,
+          designation: des.designation,
           start_date: des.start_date,
           end_date: des.end_date,
-          change_type: des.change_type || "Joined",
-          description: des.description || ""
+          change_type: des.change_type,
+          description: des.description
         }))
       }));
 
-      // Append the cleanly structured JSON strings to FormData
       fd.append('present_address', JSON.stringify(profileData.present_address));
       fd.append('permanent_address', JSON.stringify(profileData.permanent_address));
       fd.append('bank_details', JSON.stringify(mappedBankDetails));
-      fd.append('qualifications', JSON.stringify(mappedQualifications));
-      fd.append('experiences', JSON.stringify(mappedExperiences));
+      fd.append('qualifications', JSON.stringify(mappedQualifications.map(({ certificate, ...rest }) => rest))); // exclude file from JSON
+      fd.append('experiences', JSON.stringify(mappedExperiences.map(({ experience_letter, ...rest }) => rest)));
 
-      // Append qualification and experience files using keys backend expects
+      // Append qualification certificate files
       for (let i = 0; i < qualifications.length; i++) {
         const cert = qualifications[i]?.certificate;
-        if (cert) {
-          fd.append(`qualifications[${i}][certificate]`, cert);
-        }
+        if (cert) fd.append(`qualifications[${i}][certificate]`, cert);
       }
-
+      // Append experience letter files
       for (let i = 0; i < experiences.length; i++) {
         const letter = experiences[i]?.experience_letter;
-        if (letter) {
-          fd.append(`experiences[${i}][experience_letter]`, letter);
-        }
-        // Also append any designation files in future if needed
+        if (letter) fd.append(`experiences[${i}][experience_letter]`, letter);
       }
 
-      // 6. Send the unified payload to your single backend route
-      const response = await fetch('/api/employee-with-profile/', { 
-        method: "POST", 
-        body: fd 
-      });
-      
+      const response = await fetch('/api/employee-with-profile/', { method: "POST", body: fd });
       const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData.message || "Failed to create complete employee profile");
-      }
+      if (!response.ok) throw new Error(resData.message || "Failed to create complete employee profile");
 
-      // 7. Handle Unified Success Response
       setMessage("Employee and complete profile created successfully!");
       queryClient.invalidateQueries({ queryKey: ["employees", companyId] });
       
-      // Reset wizard form steps and state variables
       setCurrentStep(0);
       setBankDetails([]); 
       setQualifications([]); 
@@ -865,7 +866,6 @@ export default function AddEmployeePage() {
       <div className="space-y-6">
         {qualifications.map((q, idx) => (
           <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
-            {/* Delete button absolutely positioned */}
             <Button 
               type="button"
               variant="destructive" 
@@ -889,12 +889,13 @@ export default function AddEmployeePage() {
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Specialization</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Specialization <span className="text-[#c9962a] ml-1">*</span></Label>
                 <Input 
                   value={q.specialization} 
                   onChange={e => updateQual(idx, 'specialization', e.target.value)} 
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
+                {errors[`qual_${idx}_specialization`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_specialization`]}</p>}
               </div>
 
               <div>
@@ -908,26 +909,50 @@ export default function AddEmployeePage() {
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">University / Board</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">University / Board <span className="text-[#c9962a] ml-1">*</span></Label>
                 <Input 
                   value={q.university} 
                   onChange={e => updateQual(idx, 'university', e.target.value)} 
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
+                {errors[`qual_${idx}_university`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_university`]}</p>}
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Institution Location</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location <span className="text-[#c9962a] ml-1">*</span></Label>
                 <Input 
                   placeholder="e.g. Kochi, Kerala" 
                   value={q.location} 
                   onChange={e => updateQual(idx, 'location', e.target.value)} 
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
+                {errors[`qual_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_location`]}</p>}
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Percentage / CGPA</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
+                <Input 
+                  type="date" 
+                  value={q.start_year} 
+                  onChange={e => updateQual(idx, 'start_year', e.target.value)} 
+                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+                {errors[`qual_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_start`]}</p>}
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Pass Date <span className="text-[#c9962a] ml-1">*</span></Label>
+                <Input 
+                  type="date" 
+                  value={q.passing_year} 
+                  onChange={e => updateQual(idx, 'passing_year', e.target.value)} 
+                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+                {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA <span className="text-[#c9962a] ml-1">*</span></Label>
                 <Input 
                   type="number" 
                   step="0.01" 
@@ -935,30 +960,11 @@ export default function AddEmployeePage() {
                   onChange={e => updateQual(idx, 'percentage', e.target.value)} 
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Start Date</Label>
-                <Input 
-                  type="date" 
-                  value={q.start_year} 
-                  onChange={e => updateQual(idx, 'start_year', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Pass Date</Label>
-                <Input 
-                  type="date" 
-                  value={q.passing_year} 
-                  onChange={e => updateQual(idx, 'passing_year', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
+                {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
               </div>
 
               <div className="col-span-1 md:col-span-3">
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Certificate (optional)</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Certificate <span className="text-[#c9962a] ml-1">*</span></Label>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
                     <Upload className="w-4 h-4" />
@@ -976,6 +982,7 @@ export default function AddEmployeePage() {
                     </button>
                   )}
                 </div>
+                {errors[`qual_${idx}_certificate`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_certificate`]}</p>}
               </div>
             </CardContent>
           </Card>
@@ -1030,35 +1037,38 @@ export default function AddEmployeePage() {
                   {errors[`exp_${idx}_company`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">Location</Label>
+                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location <span className="text-[#c9962a] ml-1">*</span></Label>
                   <Input 
                     value={exp.location} 
                     onChange={e => updateExp(idx, 'location', e.target.value)} 
                     className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                   />
+                  {errors[`exp_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">Start Date</Label>
+                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
                   <Input 
                     type="date" 
                     value={exp.start_year} 
                     onChange={e => updateExp(idx, 'start_year', e.target.value)} 
                     className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                   />
+                  {errors[`exp_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_start`]}</p>}
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">End Date</Label>
+                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
                   <Input 
                     type="date" 
                     value={exp.end_year} 
                     onChange={e => updateExp(idx, 'end_year', e.target.value)} 
                     className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                   />
+                  {errors[`exp_${idx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_end`]}</p>}
                 </div>
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Description / Notes <span className="text-[#c9962a] ml-1">*</span></Label>
                 <textarea 
                   rows={2}
                   value={exp.description} 
@@ -1066,10 +1076,11 @@ export default function AddEmployeePage() {
                   placeholder="Brief description of role or responsibilities..."
                   className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
                 />
+                {errors[`exp_${idx}_desc`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desc`]}</p>}
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Experience Letter (optional)</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Experience Letter <span className="text-[#c9962a] ml-1">*</span></Label>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
                     <Upload className="w-4 h-4" />
@@ -1087,6 +1098,7 @@ export default function AddEmployeePage() {
                     </button>
                   )}
                 </div>
+                {errors[`exp_${idx}_letter`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_letter`]}</p>}
               </div>
                
               <div className="bg-white p-5 rounded-lg border border-[#dde3ec] space-y-4">
@@ -1102,41 +1114,45 @@ export default function AddEmployeePage() {
                     <Plus className="w-3 h-3"/> Add Designation
                   </Button>
                 </div>
+                {errors[`exp_${idx}_desig_empty`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desig_empty`]}</p>}
                 
                 {exp.designations.map((des: any, didx: number) => (
                   <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
                     {/* Row 1: Title (Full Width) */}
                     <div className="w-full">
-                      <Label className="text-xs font-medium text-[#445069] mb-1 block">Title</Label>
+                      <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Title <span className="text-[#c9962a] ml-1">*</span></Label>
                       <Input 
                         className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
                         value={des.designation} 
                         onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
                       />
+                      {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
                     </div>
 
                     {/* Row 2: Start Date, End Date, Type (Shared Row) */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Start Date</Label>
+                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
                         <Input 
                           type="date" 
                           className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
                           value={des.start_date} 
                           onChange={e => updateDesig(idx, didx, 'start_date', e.target.value)}
                         />
+                        {errors[`exp_${idx}_des_${didx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_start`]}</p>}
                       </div>
                       <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">End Date</Label>
+                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
                         <Input 
                           type="date" 
                           className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
                           value={des.end_date} 
                           onChange={e => updateDesig(idx, didx, 'end_date', e.target.value)}
                         />
+                        {errors[`exp_${idx}_des_${didx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_end`]}</p>}
                       </div>
                       <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Type</Label>
+                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Type <span className="text-[#c9962a] ml-1">*</span></Label>
                         <select 
                           className="h-8 text-xs w-full border border-[#dde3ec] bg-white rounded-md px-2 focus:outline-none cursor-pointer" 
                           value={des.change_type} 
@@ -1146,19 +1162,21 @@ export default function AddEmployeePage() {
                           <option value="Promotion">Promotion</option>
                           <option value="Demotion">Demotion</option>
                         </select>
+                        {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
                       </div>
                     </div>
 
                     {/* Row 3: Description and Action Button (Shared Row) */}
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Description</Label>
+                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Description <span className="text-[#c9962a] ml-1">*</span></Label>
                         <Input 
                           className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
                           placeholder="Notes about this change..."
                           value={des.description} 
                           onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
                         />
+                        {errors[`exp_${idx}_des_${didx}_desc`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_desc`]}</p>}
                       </div>
                       <Button 
                         type="button"
@@ -1334,7 +1352,6 @@ export default function AddEmployeePage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
-
         {/* Page Title Header */}
         <div className="flex items-center gap-4 mb-8">
           <div className="p-3 bg-[#eff6ff] rounded-lg text-[#2563eb] shadow-sm"><UserPlus className="h-6 w-6" /></div>
