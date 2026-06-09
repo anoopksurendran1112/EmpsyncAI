@@ -40,11 +40,11 @@ from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
-    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer
+    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer, EmployeeGuardianSerializer
 )
 
 
@@ -2459,6 +2459,30 @@ def token_refresh(request):
         }, status=status.HTTP_401_UNAUTHORIZED)
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def available_id(request):
+    company_id = request.query_params.get('company_id')
+    biometric_id = request.query_params.get('biometric_id')
+    staff_id = request.query_params.get('staff_id')
+
+    if not company_id:
+        return Response({"error": "company_id query parameters are required."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    already_exists = False
+
+    if biometric_id:
+        already_exists = CustomUser.objects.filter( biometric_id=biometric_id, company__id=company_id).exists()
+    elif staff_id:
+        already_exists = EmployeeProfile.objects.filter(staff_id=staff_id, user__company__id=company_id).exists()
+    else:
+        return Response({"error": "Either biometric_id or staff_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    is_available = not already_exists
+    
+    return Response({"available": is_available}, status=status.HTTP_200_OK)
+
+
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def employee_with_profile(request):
@@ -2518,6 +2542,7 @@ def employee_with_profile(request):
         payload = {
             'user': serialize_user_for_response(user),
             'profile': None,
+            'guardians': [],
             'bank_details': [],
             'qualifications': [],
             'experiences': []
@@ -2527,13 +2552,14 @@ def employee_with_profile(request):
         if profile:
             payload['profile'] = EmployeeProfileSerializer(profile).data
 
+        payload['guardians'] = EmployeeGuardianSerializer(EmployeeGuardian.objects.filter(employee=user), many=True).data
+
         payload['bank_details'] = BankDetailSerializer(BankDetail.objects.filter(user=user), many=True).data
         payload['qualifications'] = EmployeeQualificationSerializer(EmployeeQualification.objects.filter(user=user), many=True).data
 
         experience_data = []
         for exp in EmployeeExperience.objects.filter(user=user):
             exp_payload = EmployeeExperienceSerializer(exp).data
-            exp_payload['designations'] = ExperienceDesignationSerializer(exp.designations.all(), many=True).data
             experience_data.append(exp_payload)
         payload['experiences'] = experience_data
 
@@ -2590,6 +2616,8 @@ def employee_with_profile(request):
 
         present_address_data = safe_parse_json('present_address', dict)
         permanent_address_data = safe_parse_json('permanent_address', dict)
+        profile_payload = safe_parse_json('profile', dict)
+        guardians = safe_parse_json('guardians', list)
         bank_details = safe_parse_json('bank_details', list)
         qualifications = safe_parse_json('qualifications', list)
         experiences = safe_parse_json('experiences', list)
@@ -2638,31 +2666,53 @@ def employee_with_profile(request):
                 present_addr_obj = save_address(present_address_data, 'present address')
                 permanent_addr_obj = save_address(permanent_address_data, 'permanent address')
 
+                def extract_profile_val(key, is_id=False):
+                    val = profile_payload.get(key) if profile_payload and key in profile_payload else request.data.get(key)
+                    if is_id:
+                        return _parse_int(val)
+                    return None if val in ('', 'null', 'undefined') else val
+
                 profile_data = {
                     'user': user.id,
                     'present_address': present_addr_obj.id if present_addr_obj else None,
                     'permanent_address': permanent_addr_obj.id if permanent_addr_obj else None,
-                    'religion': clean_optional_id('religion_id'),
-                    'caste': clean_optional_id('caste_id'),
-                    'staff_type': clean_optional_id('staff_type_id'),
-                    'staff_category': clean_optional_id('staff_category_id'),
+                    'religion': extract_profile_val('religion_id', is_id=True),
+                    'caste': extract_profile_val('caste_id', is_id=True),
+                    'staff_type': extract_profile_val('staff_type_id', is_id=True),
+                    'staff_category': extract_profile_val('staff_category_id', is_id=True),
                 }
 
                 profile_fields = [
-                    'dob', 'guardian_name', 'guardian_phone', 'blood_group',
+                    'dob', 'blood_group',
                     'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id',
-                    'alternate_mobile', 'alternate_email'
+                    'alternate_mobile', 'alternate_email', 'date_of_joining',
+                    'staff_id', 'date_of_relieving', 'date_of_contract_completion'
                 ]
+                
+                source_dict = profile_payload if profile_payload else request.data
                 for field in profile_fields:
-                    if field in request.data:
-                        raw = request.data.get(field)
+                    if field in source_dict:
+                        raw = source_dict.get(field)
                         profile_data[field] = None if raw in ('', 'null', 'undefined') else raw
 
-                profile_serializer = EmployeeProfileSerializer(data=profile_data)
+                profile_instance = EmployeeProfile.objects.filter(user=user).first()
+                if profile_instance:
+                    profile_serializer = EmployeeProfileSerializer(profile_instance, data=profile_data, partial=True)
+                else:
+                    profile_serializer = EmployeeProfileSerializer(data=profile_data)
                 if not profile_serializer.is_valid():
                     raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
                 profile_serializer.save()
-                final_response_data = profile_serializer.data
+
+                if guardians:
+                    for g_data in guardians:
+                        g_data['employee'] = user.id
+                        if 'is_guardian' in g_data:
+                            g_data['is_guardian'] = _parse_bool(g_data.get('is_guardian'))
+                    g_serializer = EmployeeGuardianSerializer(data=guardians, many=True)
+                    if not g_serializer.is_valid():
+                        raise ValueError(f"Guardians validation failed: {g_serializer.errors}")
+                    g_serializer.save()
 
                 if bank_details:
                     for b_data in bank_details:
@@ -2671,7 +2721,6 @@ def employee_with_profile(request):
                     if not b_serializer.is_valid():
                         raise ValueError(f"Bank validation failed: {b_serializer.errors}")
                     b_serializer.save()
-                    final_response_data['bank_details'] = b_serializer.data
 
                 if qualifications:
                     for idx, q_data in enumerate(qualifications):
@@ -2683,12 +2732,13 @@ def employee_with_profile(request):
                     if not q_serializer.is_valid():
                         raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
                     q_serializer.save()
-                    final_response_data['qualifications'] = q_serializer.data
 
                 if experiences:
                     final_experiences_response = []
                     for idx, e_data in enumerate(experiences):
                         e_data['user'] = user.id
+                        if 'is_internal' in e_data:
+                            e_data['is_internal'] = _parse_bool(e_data.get('is_internal'))
                         exp_letter_key = f'experiences[{idx}][experience_letter]'
                         if exp_letter_key in request.FILES:
                             e_data['experience_letter'] = request.FILES[exp_letter_key]
@@ -2700,6 +2750,10 @@ def employee_with_profile(request):
                         created_designations = []
                         for des_data in designations:
                             des_data['experience'] = experience_obj.id
+                            if 'company_role' in des_data:
+                                des_data['company_role'] = _parse_int(des_data.get('company_role'))
+                            if 'company_group' in des_data:
+                                des_data['company_group'] = _parse_int(des_data.get('company_group'))
                             des_serializer = ExperienceDesignationSerializer(data=des_data)
                             if not des_serializer.is_valid():
                                 raise ValueError(f"Designation validation failed: {des_serializer.errors}")
@@ -2709,7 +2763,6 @@ def employee_with_profile(request):
                             **e_serializer.data,
                             'designations': created_designations
                         })
-                    final_response_data['experiences'] = final_experiences_response
 
                 return Response({
                     'success': True,
@@ -2766,6 +2819,7 @@ def employee_with_profile(request):
         present_address_data = safe_parse_json('present_address', dict)
         permanent_address_data = safe_parse_json('permanent_address', dict)
         profile_payload = safe_parse_json('profile', dict)
+        guardians = safe_parse_json('guardians', list)
         bank_details = safe_parse_json('bank_details', list)
         qualifications = safe_parse_json('qualifications', list)
         experiences = safe_parse_json('experiences', list)
@@ -2773,7 +2827,7 @@ def employee_with_profile(request):
         with transaction.atomic():
             try:
                 user_payload = {}
-                for key in ['first_name', 'last_name', 'email', 'mobile', 'gender', 'biometric_id', 'is_whatsapp', 'is_sms', 'is_wfh', 'is_active', 'role_id']:
+                for key in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion']:
                     if key in request.data:
                         if key in ['is_whatsapp', 'is_sms', 'is_wfh', 'is_active']:
                             user_payload[key] = _parse_bool(request.data.get(key))
@@ -2828,7 +2882,7 @@ def employee_with_profile(request):
                     profile_updates = {}
                     if profile_payload:
                         profile_updates.update(profile_payload)
-                    for key in ['dob', 'guardian_name', 'guardian_phone', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email']:
+                    for key in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining']:
                         if key in request.data:
                             raw_value = request.data.get(key)
                             profile_updates[key] = None if raw_value in ('', 'null', 'undefined') else raw_value
@@ -2850,6 +2904,23 @@ def employee_with_profile(request):
                         if not profile_serializer.is_valid():
                             raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
                         profile = profile_serializer.save()
+
+                def upsert_guardians(guardian_items):
+                    saved = []
+                    for item in guardian_items:
+                        item['employee'] = user.id
+                        if 'is_guardian' in item:
+                            item['is_guardian'] = _parse_bool(item.get('is_guardian'))
+                        g_id = _parse_int(item.get('id'))
+                        if g_id:
+                            g_obj = EmployeeGuardian.objects.filter(id=g_id, employee=user).first()
+                            serializer = EmployeeGuardianSerializer(g_obj, data=item, partial=True) if g_obj else EmployeeGuardianSerializer(data=item)
+                        else:
+                            serializer = EmployeeGuardianSerializer(data=item)
+                        if not serializer.is_valid():
+                            raise ValueError(f"Guardian validation failed: {serializer.errors}")
+                        saved.append(serializer.save())
+                    return saved
 
                 def upsert_bank_details(bank_items):
                     saved = []
@@ -2888,6 +2959,8 @@ def employee_with_profile(request):
                     saved = []
                     for idx, item in enumerate(experience_items):
                         item['user'] = user.id
+                        if 'is_internal' in item:
+                            item['is_internal'] = _parse_bool(item.get('is_internal'))
                         exp_letter_key = f'experiences[{idx}][experience_letter]'
                         if exp_letter_key in request.FILES:
                             item['experience_letter'] = request.FILES[exp_letter_key]
@@ -2904,6 +2977,10 @@ def employee_with_profile(request):
                         des_list = []
                         for des in designations:
                             des['experience'] = exp_obj.id
+                            if 'company_role' in des:
+                                des['company_role'] = _parse_int(des.get('company_role'))
+                            if 'company_group' in des:
+                                des['company_group'] = _parse_int(des.get('company_group'))
                             des_id = _parse_int(des.get('id'))
                             if des_id:
                                 des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
@@ -2917,6 +2994,8 @@ def employee_with_profile(request):
                         saved.append((exp_obj, des_list))
                     return saved
 
+                if guardians:
+                    upsert_guardians(guardians)
                 if bank_details:
                     upsert_bank_details(bank_details)
                 if qualifications:

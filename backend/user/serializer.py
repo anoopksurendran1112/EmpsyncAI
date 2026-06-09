@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser
 from company.models import CompanyRole,CompanyGroup, CompanyUser
-from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation
+from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -63,7 +63,6 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
         
-
 class OTPResetSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=6)
@@ -92,7 +91,6 @@ class ReligionSerializer(serializers.ModelSerializer):
 
 
 class CasteSerializer(serializers.ModelSerializer):
-    # This read-only field is handy for the frontend dropdowns/tables
     religion_name = serializers.CharField(source='religion.name', read_only=True)
 
     class Meta:
@@ -107,44 +105,62 @@ class EmployeeAddressSerializer(serializers.ModelSerializer):
 
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
-    # Read-only text fields to aid frontend displaying
     religion_name = serializers.CharField(source='religion.name', read_only=True)
     caste_name = serializers.CharField(source='caste.name', read_only=True)
     staff_type_name = serializers.CharField(source='staff_type.name', read_only=True)
     staff_category_name = serializers.CharField(source='staff_category.name', read_only=True)
     
-    # Read-only nested serializers so you get full address details on GET requests
     present_address_details = EmployeeAddressSerializer(source='present_address', read_only=True)
     permanent_address_details = EmployeeAddressSerializer(source='permanent_address', read_only=True)
 
     class Meta:
         model = EmployeeProfile
-        # We explicitly list fields here so we can include our custom read-only fields above.
         fields = [
-            'id', 'user', 'dob', 'guardian_name', 'guardian_phone',
+            'id', 'user', 'dob',
             'religion', 'religion_name', 'caste', 'caste_name',
             'staff_type', 'staff_type_name', 'staff_category', 'staff_category_name',
             'present_address', 'present_address_details',
             'permanent_address', 'permanent_address_details',
             'ktu_id', 'aicte_id', 'pan_no', 'aadhar_no', 
             'blood_group', 'alternate_mobile', 'alternate_email',
+            'date_of_joining', 'date_of_relieving', 'date_of_contract_completion', 'staff_id',
             'created_at', 'updated_at'
         ]
         
     def validate(self, data):
-        """
-        Serializer-level validation to ensure caste belongs to religion before it hits the database.
-        """
-        # Handle cases where this might be a partial update (PATCH)
         religion = data.get('religion', getattr(self.instance, 'religion', None))
         caste = data.get('caste', getattr(self.instance, 'caste', None))
+        staff_id = data.get('staff_id', getattr(self.instance, 'staff_id', None))
+        user = data.get('user', getattr(self.instance, 'user', None))
 
         if caste and religion and caste.religion != religion:
             raise serializers.ValidationError({
                 "caste": "The selected caste does not belong to the selected religion."
             })
             
+        if staff_id and user:
+            user_companies = user.company.all()
+            
+            duplicate_query = EmployeeProfile.objects.filter( staff_id=staff_id, user__company__in=user_companies)
+            
+            if self.instance:
+                duplicate_query = duplicate_query.exclude(pk=self.instance.pk)
+                
+            if duplicate_query.exists():
+                raise serializers.ValidationError({"staff_id": "This Staff ID is already assigned to an employee within this company."})
         return data
+
+        
+class EmployeeGuardianSerializer(serializers.ModelSerializer):
+    relationship_type_display = serializers.CharField(source='get_relationship_type_display', read_only=True)
+
+    class Meta:
+        model = EmployeeGuardian
+        fields = [
+            'id', 'employee', 'name', 'phone', 
+            'relationship_type', 'relationship_type_display', 
+            'is_guardian', 'created_at', 'updated_at'
+        ]
 
 
 class BankDetailSerializer(serializers.ModelSerializer):
@@ -154,15 +170,63 @@ class BankDetailSerializer(serializers.ModelSerializer):
 
 
 class EmployeeQualificationSerializer(serializers.ModelSerializer):
+    qualification_level_display = serializers.CharField(source='get_qualification_level_display', read_only=True)
+    period_of_research = serializers.ReadOnlyField()
+
     class Meta:
         model = EmployeeQualification
-        fields = '__all__'
+        fields = ['id', 'user', 'qualification_level', 'qualification_level_display','specialization', 
+                    'institution_name', 'university', 'location','start_date', 'completion_date', 
+                    'period_of_research', 'percentage', 'certificate', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        """
+        Serializer-level validation to handle timeline sanity checks.
+        Supports both full creations and partial/PATCH updates cleanly.
+        """
+        start_date = data.get('start_date', getattr(self.instance, 'start_date', None))
+        completion_date = data.get('completion_date', getattr(self.instance, 'completion_date', None))
+
+        if start_date and completion_date and start_date > completion_date:
+            raise serializers.ValidationError({
+                "completion_date": "Completion / Certification date cannot be earlier than the Start / Enrollment date."
+            })
+        return data
 
 
 class ExperienceDesignationSerializer(serializers.ModelSerializer):
+    change_type_display = serializers.CharField(source='get_change_type_display', read_only=True)
+    company_role_name = serializers.CharField(source='company_role.role', read_only=True)
+    company_group_name = serializers.CharField(source='company_group.short_name', read_only=True)
+    
     class Meta:
         model = ExperienceDesignation
-        fields = '__all__'
+        fields = [
+            'id', 'experience', 'designation', 
+            'company_role', 'company_role_name', 
+            'company_group', 'company_group_name',
+            'start_date', 'end_date', 'change_type', 'change_type_display', 'description'
+        ]
+
+    def validate(self, data):
+        experience = data.get('experience', getattr(self.instance, 'experience', None))
+        
+        if experience:
+            if experience.is_internal:
+                company_role = data.get('company_role', getattr(self.instance, 'company_role', None))
+                company_group = data.get('company_group', getattr(self.instance, 'company_group', None))
+                
+                if not company_role or not company_group:
+                    raise serializers.ValidationError({
+                        "company_role": "Both structural Company Group and Company Role are required for internal designations."
+                    })
+            else:
+                designation = data.get('designation', getattr(self.instance, 'designation', None))
+                if not designation:
+                    raise serializers.ValidationError({
+                        "designation": "Designation text title is required for external employment history entries."
+                    })
+        return data
 
 
 class EmployeeExperienceSerializer(serializers.ModelSerializer):
@@ -170,4 +234,15 @@ class EmployeeExperienceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmployeeExperience
-        fields = '__all__'
+        fields = [
+            'id', 'user', 'company_name', 'location', 
+            'start_year', 'end_year', 'experience_letter', 
+            'is_internal', 'designations', 'created_at', 'updated_at'
+        ]
+        
+    def validate(self, data):
+        is_internal = data.get('is_internal', getattr(self.instance, 'is_internal', False))
+        if is_internal and not data.get('company_name'):
+            data['company_name'] = "Internal Organization"
+            
+        return data
