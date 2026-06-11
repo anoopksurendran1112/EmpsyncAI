@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.exceptions import ValidationError
 from company import models as c
+from dateutil.relativedelta import relativedelta
 
 
 class Religion(models.Model):
@@ -124,31 +125,25 @@ class EmployeeProfile(models.Model):
         ('O-', 'O Negative'),
     ]
 
-    # One-to-One link back to your CustomUser model
     user = models.OneToOneField('CustomUser', on_delete=models.CASCADE, related_name='profile')
-    
-    dob = models.DateField()
-    guardian_name = models.CharField(max_length=255, null=True, blank=True)
-    guardian_phone = models.CharField(max_length=20, null=True, blank=True)
-    
-    religion = models.ForeignKey(Religion, on_delete=models.SET_NULL, null=True, blank=True)
-    caste = models.ForeignKey(Caste, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    # Connecting to StaffType and StaffCategory in your company app
-    staff_type = models.ForeignKey(c.StaffType, on_delete=models.SET_NULL, null=True, blank=True)
-    staff_category = models.ForeignKey(c.StaffCategory, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    # Using specific related_names because they both point to the same model
-    present_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='present_in_profiles')
-    permanent_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='permanent_in_profiles')
-    
-    ktu_id = models.CharField(max_length=100, null=True, blank=True)
-    aicte_id = models.CharField(max_length=100, null=True, blank=True)
-    pan_no = models.CharField(max_length=20, null=True, blank=True)
-    aadhar_no = models.CharField(max_length=20, null=True, blank=True)
     blood_group = models.CharField(max_length=5, choices=BLOOD_GROUP_CHOICES, null=True, blank=True)
     alternate_mobile = models.CharField(max_length=20, null=True, blank=True)
     alternate_email = models.EmailField(null=True, blank=True)
+    present_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='present_in_profiles')
+    permanent_address = models.ForeignKey(EmployeeAddress, on_delete=models.SET_NULL, null=True, blank=True, related_name='permanent_in_profiles')
+    religion = models.ForeignKey(Religion, on_delete=models.SET_NULL, null=True, blank=True)
+    caste = models.ForeignKey(Caste, on_delete=models.SET_NULL, null=True, blank=True)
+    pan_no = models.CharField(max_length=20, null=True, blank=True)
+    aadhar_no = models.CharField(max_length=20, null=True, blank=True)
+    staff_type = models.ForeignKey(c.StaffType, on_delete=models.SET_NULL, null=True, blank=True)
+    staff_category = models.ForeignKey(c.StaffCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    dob = models.DateField(null=True, blank=True)
+    date_of_joining = models.DateField(null=True, blank=True)
+    date_of_relieving = models.DateField(null=True, blank=True, help_text="Date of Relieving / Termination / Retirement")
+    date_of_contract_completion = models.DateField(null=True, blank=True)
+    staff_id = models.CharField(max_length=50, null=True, blank=True)
+    ktu_id = models.CharField(max_length=100, null=True, blank=True)
+    aicte_id = models.CharField(max_length=100, null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -157,46 +152,106 @@ class EmployeeProfile(models.Model):
         return f"{self.user.first_name} {self.user.last_name} Profile"
 
     def clean(self):
-        """
-        Model validation to ensure the assigned caste belongs to the assigned religion.
-        """
         super().clean()
+
         if self.caste and self.religion and self.caste.religion != self.religion:
-            raise ValidationError({
-                'caste': 'The selected caste does not belong to the selected religion.'
-            })
+            raise ValidationError({'caste': 'The selected caste does not belong to the selected religion.'})
+            
+        if self.staff_id and self.user:
+            user_companies = self.user.company.all()
+            duplicate_exists = EmployeeProfile.objects.filter(staff_id=self.staff_id, user__company__in=user_companies).exclude(pk=self.pk).exists()
+            
+            if duplicate_exists:
+                raise ValidationError({'staff_id': 'This Staff ID is already assigned to an employee in this company.'})
+
+
+class EmployeeGuardian(models.Model):
+    TYPE_CHOICES = [
+        ('father', 'Father'),
+        ('mother', 'Mother'),
+        ('spouse', 'Spouse'),
+        ('other', 'Other'),
+    ]
+
+    employee = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='guardians')
+    name = models.CharField(max_length=255)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    relationship_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='other')
+    is_guardian = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.get_relationship_type_display()}) - Employee: {self.employee.first_name}"
+
+    def save(self, *args, **kwargs):
+        if self.is_guardian:
+            EmployeeGuardian.objects.filter(employee=self.employee, is_guardian=True).exclude(pk=self.pk).update(is_guardian=False)
+            
+        super().save(*args, **kwargs)
 
 
 class EmployeeQualification(models.Model):
+    QUALIFICATION_LEVEL_CHOICES = [
+        ('UG', 'Undergraduate (UG)'),
+        ('PG', 'Postgraduate (PG)'),
+        ('MPHIL', 'M.Phil.'),
+        ('PHD', 'Ph.D.'),
+        ('POSTDOC', 'Post Doctoral (Post.Doc)'),
+        ('RESEARCH_OTHERS', 'Research (Others)'),
+        ('OTHERS', 'Others'),
+    ]
+
     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='qualifications')
-    qualification_level = models.CharField(max_length=100)
-    specialization = models.CharField(max_length=100)
-    institution_name = models.CharField(max_length=100)
-    university = models.CharField(max_length=100)
-    location = models.CharField(max_length=100, null=True, blank=True)
-    start_year = models.DateField(null=True)
-    passing_year = models.DateField(null=True)
-    percentage = models.FloatField()
+    qualification_level = models.CharField(max_length=100, choices=QUALIFICATION_LEVEL_CHOICES)
+    specialization = models.CharField(max_length=150, help_text="Degree/Course name")
+    institution_name = models.CharField(max_length=255)
+    university = models.CharField(max_length=255)
+    location = models.CharField(max_length=255, null=True, blank=True)
+    start_date = models.DateField(null=True, blank=True, help_text="Course Start Date / Enrollment Date")
+    completion_date = models.DateField(null=True, blank=True, help_text="Passing Year / Certification / Completion Date")
+    percentage = models.FloatField(null=True, blank=True, help_text="Percentage or CGPA (Leave blank for Research/Ph.D.)")
     certificate = models.FileField(upload_to='qualifications/', null=True, blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    class Meta:
+        ordering = ['-completion_date']
+
     def __str__(self):
-        return f"{self.user.first_name} {self.user.last_name} Qualification"
+        return f"{self.user.first_name} - {self.get_qualification_level_display()} ({self.specialization})"
+
+    @property
+    def period_of_research(self):
+        if self.start_date and self.completion_date:
+            delta = relativedelta(self.completion_date, self.start_date)
+            parts = []
+            if delta.years > 0:
+                parts.append(f"{delta.years} year{'s' if delta.years > 1 else ''}")
+            if delta.months > 0:
+                parts.append(f"{delta.months} month{'s' if delta.months > 1 else ''}")
+            return ", ".join(parts) if parts else "0 months"
+        return None
 
 
 class EmployeeExperience(models.Model):
     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='experiences')
-    company_name = models.CharField(max_length=200)
+    company_name = models.CharField(max_length=200, null=True, blank=True, help_text="Leave blank or fill if external")
+    is_internal = models.BooleanField(default=False, help_text="Designates if this career timeline experience is within the current company")
+    
     location = models.CharField(max_length=100, null=True, blank=True)
     start_year = models.DateField()
-    end_year = models.DateField(null=True)
+    end_year = models.DateField(null=True, blank=True)
     experience_letter = models.FileField(upload_to='experience_letters/', null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.first_name} at {self.company_name}"
+        comp = self.company_name if not self.is_internal else "Internal Organization"
+        return f"{self.user.first_name} at {comp}"
 
 
 class ExperienceDesignation(models.Model):
@@ -204,25 +259,43 @@ class ExperienceDesignation(models.Model):
         ('Joined', 'Joined'),
         ('Promotion', 'Promotion'),
         ('Demotion', 'Demotion'),
+        ('Re-designation', 'Re-designation'),
     ]
 
     experience = models.ForeignKey(EmployeeExperience, on_delete=models.CASCADE, related_name='designations')
-    designation = models.CharField(max_length=100)
-    start_date = models.DateField()
+    designation = models.CharField(max_length=100, null=True, blank=True, help_text="Raw text entry for external history")
+    company_role = models.ForeignKey('company.CompanyRole', on_delete=models.SET_NULL, null=True, blank=True, related_name='experience_designations')
+    company_group = models.ForeignKey('company.CompanyGroup', on_delete=models.SET_NULL, null=True, blank=True, related_name='experience_designations')
+
+    start_date = models.DateField(help_text="Effective date of this designation state")
     end_date = models.DateField(null=True, blank=True)
     change_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Joined')
     description = models.TextField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.designation} ({self.experience.company_name})"
+        title = self.company_role.role if self.company_role else self.designation
+        return f"{title} ({self.change_type})"
 
+    def clean(self):
+        """
+        Validates structure integrity based on internal/external scopes.
+        """
+        super().clean()
+        if self.experience.is_internal:
+            if not self.company_role or not self.company_group:
+                raise ValidationError({
+                    'company_role': 'Internal experiences must select a valid company Group and Role configuration.'
+                })
+        else:
+            if not self.designation:
+                raise ValidationError({
+                    'designation': 'External experiences require a text-based designation name.'
+                })
 
 
 class BankDetail(models.Model):
     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='bank_details')
-    acc_holder_fname = models.CharField(max_length=255)
-    acc_holder_mname = models.CharField(max_length=255, null=True, blank=True)
-    acc_holder_lname = models.CharField(max_length=255)
+    acc_holder_name = models.CharField(max_length=255)
 
     bank_name = models.CharField(max_length=255)
     account_number = models.CharField(max_length=50)
@@ -237,11 +310,9 @@ class BankDetail(models.Model):
         return f"{self.bank_name} - {self.account_number} ({self.user.first_name})"
 
     def save(self, *args, **kwargs):
-        # 1. If this is the first bank account for the user, force it to be primary
         if not self.pk and not BankDetail.objects.filter(user=self.user).exists():
             self.is_primary = True
         
-        # 2. If this account is being set as primary, unset any other primary accounts for this user
         if self.is_primary:
             BankDetail.objects.filter(user=self.user, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
             

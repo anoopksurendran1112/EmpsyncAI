@@ -47,7 +47,7 @@ export default function AddEmployeePage() {
   const [formData, setFormData] = useState({
     first_name: "", last_name: "", email: "", mobile: "", gender: "",
     role_id: "", group_id: "", company_id: companyId, password: "empsyncai123@",
-    biometric_id: "", is_whatsapp: true, is_sms: true, is_wfh: true, is_active: true,
+    biometric_id: "", is_whatsapp: false, is_sms: false, is_wfh: false, is_active: true,
     team_lead: false,
   });
 
@@ -56,6 +56,7 @@ export default function AddEmployeePage() {
     dob: "", guardian_name: "", guardian_phone: "", religion_id: "", caste_id: "",
     staff_type_id: "", staff_category_id: "", ktu_id: "", aicte_id: "", pan_no: "",
     aadhar_no: "", blood_group: "", alternate_mobile: "", alternate_email: "",
+    staff_id: "", date_of_joining: "", date_of_contract_completion: "", date_of_relieving: "",
     present_address: { address_line_1: "", address_line_2: "", city: "", district: "", state: "", country: "India", pincode: "" },
     permanent_address: { address_line_1: "", address_line_2: "", city: "", district: "", state: "", country: "India", pincode: "" },
   });
@@ -120,7 +121,7 @@ export default function AddEmployeePage() {
   }, [companyId]);
 
   // ---------- Dynamic Array Helpers ----------
-  const addBank = () => setBankDetails([...bankDetails, { acc_holder_fname: "", acc_holder_mname: "", acc_holder_lname: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "", is_primary: false }]);
+  const addBank = () => setBankDetails([...bankDetails, { acc_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "", is_primary: false }]);
   const removeBank = (idx: number) => setBankDetails(bankDetails.filter((_, i) => i !== idx));
   const updateBank = (idx: number, field: string, val: any) => {
     const updated = [...bankDetails];
@@ -136,7 +137,7 @@ export default function AddEmployeePage() {
     setQualifications(updated);
   };
 
-  const addExp = () => setExperiences([...experiences, { company_name: "", location: "", start_year: "", end_year: "", description: "", experience_letter: null, designations: [] }]);
+  const addExp = () => setExperiences([...experiences, { company_name: "", location: "", is_internal: false, start_year: "", end_year: "", description: "", experience_letter: null, designations: [] }]);
   const removeExp = (idx: number) => setExperiences(experiences.filter((_, i) => i !== idx));
   const updateExp = (idx: number, field: string, val: any) => {
     const updated = [...experiences];
@@ -146,7 +147,7 @@ export default function AddEmployeePage() {
 
   const addDesig = (expIdx: number) => {
     const updated = [...experiences];
-    updated[expIdx].designations.push({ designation: "", start_date: "", end_date: "", change_type: "Joined", description: "" });
+    updated[expIdx].designations.push({ designation: "", company_role_id: "", company_group_id: "", start_date: "", end_date: "", change_type: "Joined", description: "" });
     setExperiences(updated);
   };
   const removeDesig = (expIdx: number, desIdx: number) => {
@@ -210,6 +211,7 @@ export default function AddEmployeePage() {
     else if (step === 1) {
       if (!formData.role_id) newErrors.role_id = "Required";
       if (!formData.biometric_id.trim()) newErrors.biometric_id = "Required";
+      if (!profileData.staff_id?.trim()) newErrors.staff_id = "Required";
       if (!profileData.staff_type_id) newErrors.staff_type_id = "Required";
       if (!profileData.staff_category_id) newErrors.staff_category_id = "Required";
     }
@@ -304,28 +306,43 @@ export default function AddEmployeePage() {
       fd.append('is_active', formData.is_active.toString());
       fd.append('team_lead', formData.team_lead.toString());
 
-      if (profileData.religion_id) fd.append('religion_id', profileData.religion_id);
-      if (profileData.caste_id) fd.append('caste_id', profileData.caste_id);
-      if (profileData.staff_type_id) fd.append('staff_type_id', profileData.staff_type_id);
-      if (profileData.staff_category_id) fd.append('staff_category_id', profileData.staff_category_id);
+      const profileObj = {
+        staff_type_id: profileData.staff_type_id ? Number(profileData.staff_type_id) : null,
+        staff_category_id: profileData.staff_category_id ? Number(profileData.staff_category_id) : null,
+        staff_id: profileData.staff_id || null,
+        ktu_id: profileData.ktu_id || null,
+        aicte_id: profileData.aicte_id || null,
+        dob: profileData.dob || null,
+        religion_id: profileData.religion_id ? Number(profileData.religion_id) : null,
+        caste_id: profileData.caste_id ? Number(profileData.caste_id) : null,
+        blood_group: profileData.blood_group || null,
+        alternate_mobile: profileData.alternate_mobile || null,
+        alternate_email: profileData.alternate_email || null,
+        aadhar_no: profileData.aadhar_no || null,
+        pan_no: profileData.pan_no || null,
+        date_of_joining: profileData.date_of_joining || null,
+        date_of_contract_completion: profileData.date_of_contract_completion || null,
+        date_of_relieving: profileData.date_of_relieving || null
+      };
 
-      fd.append('dob', profileData.dob || '');
-      fd.append('guardian_name', profileData.guardian_name || '');
-      fd.append('guardian_phone', profileData.guardian_phone || '');
-      fd.append('blood_group', profileData.blood_group || '');
-      fd.append('aadhar_no', profileData.aadhar_no || '');
-      fd.append('pan_no', profileData.pan_no || '');
-      fd.append('ktu_id', profileData.ktu_id || '');
-      fd.append('aicte_id', profileData.aicte_id || '');
-      fd.append('alternate_mobile', profileData.alternate_mobile || '');
-      fd.append('alternate_email', profileData.alternate_email || '');
+      fd.append('profile', JSON.stringify(profileObj));
+
+      const mappedGuardians = [];
+      if (profileData.guardian_name || profileData.guardian_phone) {
+        mappedGuardians.push({
+          name: profileData.guardian_name || "",
+          phone: profileData.guardian_phone || "",
+          relationship_type: "father",
+          is_guardian: true
+        });
+      }
+      fd.append('guardians', JSON.stringify(mappedGuardians));
+
 
       if (profileImage) fd.append('prof_img', profileImage);
 
       const mappedBankDetails = bankDetails.map(bank => ({
-        acc_holder_fname: formData.first_name,
-        acc_holder_mname: "",
-        acc_holder_lname: formData.last_name,
+        acc_holder_name: bank.acc_holder_name || `${formData.first_name} ${formData.last_name}`.trim(),
         bank_name: bank.bank_name,
         account_number: bank.account_number,
         ifsc_code: bank.ifsc_code,
@@ -347,6 +364,7 @@ export default function AddEmployeePage() {
 
       const mappedExperiences = experiences.map(exp => ({
         company_name: exp.company_name,
+        is_internal: exp.is_internal,
         location: exp.location,
         start_year: exp.start_year,
         end_year: exp.end_year,
@@ -354,6 +372,8 @@ export default function AddEmployeePage() {
         experience_letter: exp.experience_letter, // file
         designations: (exp.designations || []).map((des: any) => ({
           designation: des.designation,
+          company_role_id: des.company_role_id ? Number(des.company_role_id) : null,
+          company_group_id: des.company_group_id ? Number(des.company_group_id) : null,
           start_date: des.start_date,
           end_date: des.end_date,
           change_type: des.change_type,
@@ -480,20 +500,23 @@ export default function AddEmployeePage() {
           </div>
 
           <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Gender <span className="text-[#c9962a] ml-1">*</span></Label>
-            <select 
-              name="gender" 
-              value={formData.gender} 
-              onChange={handleChange} 
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select Gender</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-              <option value="O">Other</option>
-              <option value="N">Prefer not to say</option>
-            </select>
-            {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
+            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Email</Label>
+            <Input 
+              name="alternate_email" 
+              value={profileData.alternate_email} 
+              onChange={handleProfileChange} 
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Mobile</Label>
+            <Input 
+              name="alternate_mobile" 
+              value={profileData.alternate_mobile} 
+              onChange={handleProfileChange} 
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
           </div>
 
           <div>
@@ -509,33 +532,20 @@ export default function AddEmployeePage() {
           </div>
 
           <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Blood Group</Label>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Gender <span className="text-[#c9962a] ml-1">*</span></Label>
             <select 
-              name="blood_group" 
-              value={profileData.blood_group} 
-              onChange={handleProfileChange} 
+              name="gender" 
+              value={formData.gender} 
+              onChange={handleChange} 
               className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
             >
-              <option value="">Select</option>
-              <option value="A+">A+</option>
-              <option value="B+">B+</option>
-              <option value="O+">O+</option>
-              <option value="AB+">AB+</option>
-              <option value="A-">A-</option>
-              <option value="B-">B-</option>
-              <option value="O-">O-</option>
-              <option value="AB-">AB-</option>
+              <option value="">Select Gender</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+              <option value="O">Other</option>
+              <option value="N">Prefer not to say</option>
             </select>
-          </div>
-
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Mobile</Label>
-            <Input 
-              name="alternate_mobile" 
-              value={profileData.alternate_mobile} 
-              onChange={handleProfileChange} 
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
+            {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
           </div>
 
           <div>
@@ -562,6 +572,26 @@ export default function AddEmployeePage() {
             >
               <option value="">Select</option>
               {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5">Blood Group</Label>
+            <select 
+              name="blood_group" 
+              value={profileData.blood_group} 
+              onChange={handleProfileChange} 
+              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+            >
+              <option value="">Select</option>
+              <option value="A+">A+</option>
+              <option value="B+">B+</option>
+              <option value="O+">O+</option>
+              <option value="AB+">AB+</option>
+              <option value="A-">A-</option>
+              <option value="B-">B-</option>
+              <option value="O-">O-</option>
+              <option value="AB-">AB-</option>
             </select>
           </div>
         </div>
@@ -649,13 +679,52 @@ export default function AddEmployeePage() {
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Biometric ID <span className="text-[#c9962a] ml-1">*</span></Label>
+          <div className="flex">
           <Input 
             name="biometric_id" 
             value={formData.biometric_id} 
             onChange={handleChange} 
             className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
           />
+          <Button className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer">Check Availability</Button>
+          </div>
           {errors.biometric_id && <p className="text-xs text-red-500 mt-1">{errors.biometric_id}</p>}
+        </div>
+
+        <div>
+          <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Staff ID <span className="text-[#c9962a] ml-1">*</span></Label>
+          <div className="flex">
+            <Input 
+              name="staff_id" 
+              value={profileData.staff_id} 
+              onChange={handleProfileChange} 
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+            <Button className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer">Check Availability</Button>
+          </div>
+          {errors.staff_id && <p className="text-xs text-red-500 mt-1">{errors.staff_id}</p>}
+        </div>
+
+        <div>
+          <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Date of Joining<span className="text-[#c9962a] ml-1"> (Ignore if Date of Joining is today)</span></Label>
+          <Input 
+            type="date"
+            name="date_of_joining" 
+            value={profileData.date_of_joining} 
+            onChange={handleProfileChange} 
+            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+          />
+        </div>
+
+        <div>
+          <Label className="text-xs font-medium text-[#445069] mb-1.5">Contract Completion Date</Label>
+          <Input 
+            type="date"
+            name="date_of_contract_completion" 
+            value={profileData.date_of_contract_completion} 
+            onChange={handleProfileChange} 
+            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+          />
         </div>
 
         <div className="flex items-center gap-3 mt-1 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60">
@@ -878,13 +947,21 @@ export default function AddEmployeePage() {
             
             <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Level <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input 
-                  placeholder="e.g. B.Tech" 
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Academic Level <span className="text-[#c9962a] ml-1">*</span></Label>
+                <select 
                   value={q.qualification_level} 
                   onChange={e => updateQual(idx, 'qualification_level', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+                >
+                  <option value="">Select Level</option>
+                  <option value="UG">Undergraduate (UG)</option>
+                  <option value="PG">Postgraduate (PG)</option>
+                  <option value="MPHIL">M.Phil.</option>
+                  <option value="PHD">Ph.D.</option>
+                  <option value="POSTDOC">Post Doctoral (Post.Doc)</option>
+                  <option value="RESEARCH_OTHERS">Research (Others)</option>
+                  <option value="OTHERS">Others</option>
+                </select>
                 {errors[`qual_${idx}_level`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_level`]}</p>}
               </div>
 
@@ -930,6 +1007,18 @@ export default function AddEmployeePage() {
               </div>
 
               <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA <span className="text-[#c9962a] ml-1">*</span></Label>
+                <Input 
+                  type="number" 
+                  step="0.01" 
+                  value={q.percentage} 
+                  onChange={e => updateQual(idx, 'percentage', e.target.value)} 
+                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+                {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
+              </div>
+
+              <div>
                 <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
                 <Input 
                   type="date" 
@@ -949,18 +1038,6 @@ export default function AddEmployeePage() {
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
                 {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  value={q.percentage} 
-                  onChange={e => updateQual(idx, 'percentage', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
               </div>
 
               <div className="col-span-1 md:col-span-3">
@@ -1026,24 +1103,33 @@ export default function AddEmployeePage() {
             </Button>
             
             <CardContent className="p-0 space-y-4">
+              <div className="flex items-center gap-3 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60 w-fit">
+                <Switch checked={exp.is_internal} onCheckedChange={v => updateExp(idx, 'is_internal', v)} />
+                <div>
+                  <Label className="text-sm font-medium text-[#445069] cursor-pointer">Internal Experience</Label>
+                  <p className="text-[10px] text-[#7a8ba0] mt-0.5">Check if this was an internal position within our company</p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Company Name <span className="text-[#c9962a] ml-1">*</span></Label>
+                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Company Name {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
                   <Input 
                     value={exp.company_name} 
                     onChange={e => updateExp(idx, 'company_name', e.target.value)} 
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    disabled={exp.is_internal}
+                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
                   />
-                  {errors[`exp_${idx}_company`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
+                  {errors[`exp_${idx}_company`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location <span className="text-[#c9962a] ml-1">*</span></Label>
+                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
                   <Input 
                     value={exp.location} 
                     onChange={e => updateExp(idx, 'location', e.target.value)} 
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    disabled={exp.is_internal}
+                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
                   />
-                  {errors[`exp_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
+                  {errors[`exp_${idx}_location`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
                 </div>
                 <div>
                   <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
@@ -1120,13 +1206,42 @@ export default function AddEmployeePage() {
                   <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
                     {/* Row 1: Title (Full Width) */}
                     <div className="w-full">
-                      <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Title <span className="text-[#c9962a] ml-1">*</span></Label>
-                      <Input 
-                        className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
-                        value={des.designation} 
-                        onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
-                      />
-                      {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
+                      {exp.is_internal ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Role <span className="text-[#c9962a] ml-1">*</span></Label>
+                            <select 
+                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer" 
+                              value={des.company_role_id || ""} 
+                              onChange={e => updateDesig(idx, didx, 'company_role_id', e.target.value)}
+                            >
+                              <option value="">Select Role</option>
+                              {roles.map(r => <option key={r.id} value={r.id}>{r.role || r.name}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Group <span className="text-[#c9962a] ml-1">*</span></Label>
+                            <select 
+                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer" 
+                              value={des.company_group_id || ""} 
+                              onChange={e => updateDesig(idx, didx, 'company_group_id', e.target.value)}
+                            >
+                              <option value="">Select Group</option>
+                              {groups.map(g => <option key={g.id} value={g.id}>{g.group}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Title <span className="text-[#c9962a] ml-1">*</span></Label>
+                          <Input 
+                            className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
+                            value={des.designation} 
+                            onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
+                          />
+                          {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
+                        </div>
+                      )}
                     </div>
 
                     {/* Row 2: Start Date, End Date, Type (Shared Row) */}
@@ -1161,6 +1276,7 @@ export default function AddEmployeePage() {
                           <option value="Joined">Joined</option>
                           <option value="Promotion">Promotion</option>
                           <option value="Demotion">Demotion</option>
+                          <option value="Re-designation">Re-designation</option>
                         </select>
                         {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
                       </div>
@@ -1293,30 +1409,12 @@ export default function AddEmployeePage() {
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Holder First Name</Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">Account Holder Name</Label>
                 <Input 
-                  value={b.acc_holder_fname} 
-                  onChange={e => updateBank(idx, 'acc_holder_fname', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Holder Middle Name</Label>
-                <Input 
-                  value={b.acc_holder_mname} 
-                  onChange={e => updateBank(idx, 'acc_holder_mname', e.target.value)} 
-                  placeholder="Optional"
+                  value={b.acc_holder_name} 
+                  onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)} 
+                  placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
                   className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Holder Last Name</Label>
-                <Input 
-                  value={b.acc_holder_lname} 
-                  onChange={e => updateBank(idx, 'acc_holder_lname', e.target.value)} 
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                 />
               </div>
 

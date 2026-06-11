@@ -2,7 +2,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from user.models import CustomUser
+from user.models import CustomUser, EmployeeProfile
 from leave.models import LeaveType, LeaveCredit
 
 @receiver(post_save, sender=CustomUser)
@@ -19,6 +19,13 @@ def create_leave_credits(sender, instance, created, **kwargs):
                     year=current_year,
                     defaults={"credits": leave_type.initial_credit}
                 )
+
+        EmployeeProfile.objects.get_or_create(
+            user=instance,
+            defaults={
+                'date_of_joining': timezone.now().date()
+            }
+        )
 
 # apps.py (in user app)
 from django.apps import AppConfig
