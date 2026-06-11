@@ -2553,7 +2553,6 @@ def employee_with_profile(request):
             payload['profile'] = EmployeeProfileSerializer(profile).data
 
         payload['guardians'] = EmployeeGuardianSerializer(EmployeeGuardian.objects.filter(employee=user), many=True).data
-
         payload['bank_details'] = BankDetailSerializer(BankDetail.objects.filter(user=user), many=True).data
         payload['qualifications'] = EmployeeQualificationSerializer(EmployeeQualification.objects.filter(user=user), many=True).data
 
@@ -2568,13 +2567,11 @@ def employee_with_profile(request):
     if request.method == 'GET':
         user_id = _parse_int(request.query_params.get('user_id'))
         if not user_id:
-            return Response({ 'success': False, 'message': 'user_id query parameter is required'
-                            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({ 'success': False, 'message': 'user_id query parameter is required' }, status=status.HTTP_400_BAD_REQUEST)
 
         user = CustomUser.objects.filter(id=user_id).first()
         if not user:
-            return Response({ 'success': False, 'message': 'User not found'
-                            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({ 'success': False, 'message': 'User not found' }, status=status.HTTP_404_NOT_FOUND)
 
         return Response({
             'success': True,
@@ -2772,35 +2769,20 @@ def employee_with_profile(request):
 
             except ValueError as err:
                 transaction.set_rollback(True)
-                return Response({
-                    'success': False,
-                    'message': 'Validation Error inside Employee Creation sequence',
-                    'errors': str(err)
-                }, status=status.HTTP_400_BAD_REQUEST)
-
+                return Response({ 'success': False, 'message': 'Validation Error inside Employee Creation sequence', 'errors': str(err) }, status=status.HTTP_400_BAD_REQUEST)
             except Exception as exc:
                 transaction.set_rollback(True)
-                return Response({
-                    'success': False,
-                    'message': 'Internal Server Error occurred during transaction workflow',
-                    'debug_error': str(exc)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
     if request.method == 'PUT':
         user_id = _parse_int(request.data.get('user_id') or request.query_params.get('user_id'))
         if not user_id:
-            return Response({
-                'success': False,
-                'message': 'user_id is required for update'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({ 'success': False, 'message': 'user_id is required for update' }, status=status.HTTP_400_BAD_REQUEST)
 
         user = CustomUser.objects.filter(id=user_id).first()
         if not user:
-            return Response({
-                'success': False,
-                'message': 'User not found'
-            }, status=status.HTTP_404_NOT_FOUND)
+            return Response({ 'success': False, 'message': 'User not found' }, status=status.HTTP_404_NOT_FOUND)
 
         company_id = _parse_int(request.data.get('company_id'))
         role_id = _parse_int(request.data.get('role_id'))
@@ -2827,7 +2809,9 @@ def employee_with_profile(request):
         with transaction.atomic():
             try:
                 user_payload = {}
-                for key in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion']:
+                # FIX 1: Use actual user fields for user_payload extraction
+                user_fields = ['first_name', 'last_name', 'email', 'mobile', 'gender', 'biometric_id', 'is_whatsapp', 'is_sms', 'is_wfh', 'is_active', 'role_id']
+                for key in user_fields:
                     if key in request.data:
                         if key in ['is_whatsapp', 'is_sms', 'is_wfh', 'is_active']:
                             user_payload[key] = _parse_bool(request.data.get(key))
@@ -2866,7 +2850,7 @@ def employee_with_profile(request):
                 user.save()
 
                 profile = getattr(user, 'profile', None)
-                if profile is None and (present_address_data or permanent_address_data or profile_payload):
+                if profile is None and (present_address_data or permanent_address_data or profile_payload or any(k in request.data for k in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion', 'religion_id', 'caste_id', 'staff_type_id', 'staff_category_id'])):
                     profile = EmployeeProfile(user=user)
 
                 if profile:
@@ -2882,7 +2866,10 @@ def employee_with_profile(request):
                     profile_updates = {}
                     if profile_payload:
                         profile_updates.update(profile_payload)
-                    for key in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining']:
+                    
+                    # FIX 2: Corrected complete list of profile fields for profile_updates extraction
+                    profile_fields = ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion']
+                    for key in profile_fields:
                         if key in request.data:
                             raw_value = request.data.get(key)
                             profile_updates[key] = None if raw_value in ('', 'null', 'undefined') else raw_value
@@ -2905,7 +2892,14 @@ def employee_with_profile(request):
                             raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
                         profile = profile_serializer.save()
 
-                def upsert_guardians(guardian_items):
+                def upsert_guardians(guardian_items, user):
+                    incoming_ids = [
+                        _parse_int(item.get('id')) 
+                        for item in guardian_items 
+                        if _parse_int(item.get('id')) is not None
+                    ]
+                    EmployeeGuardian.objects.filter(employee=user).exclude(id__in=incoming_ids).delete()
+
                     saved = []
                     for item in guardian_items:
                         item['employee'] = user.id
@@ -2922,58 +2916,127 @@ def employee_with_profile(request):
                         saved.append(serializer.save())
                     return saved
 
-                def upsert_bank_details(bank_items):
+                def upsert_bank_details(bank_items, user):
+                    incoming_ids = [_parse_int(item.get('id')) for item in bank_items if _parse_int(item.get('id')) is not None]
+                    has_primary_in_input = any(item.get('is_primary') for item in bank_items)
+                    
+                    deleted_accounts = BankDetail.objects.filter(user=user).exclude(id__in=incoming_ids)
+                    was_primary_deleted = deleted_accounts.filter(is_primary=True).exists()
+                    deleted_accounts.delete()
+
                     saved = []
                     for item in bank_items:
                         item['user'] = user.id
                         bank_id = _parse_int(item.get('id'))
-                        if bank_id:
-                            bank = BankDetail.objects.filter(id=bank_id, user=user).first()
-                            serializer = BankDetailSerializer(bank, data=item, partial=True) if bank else BankDetailSerializer(data=item)
-                        else:
-                            serializer = BankDetailSerializer(data=item)
+                        
+                        if not has_primary_in_input and not saved:
+                            item['is_primary'] = True
+                        
+                        bank = BankDetail.objects.filter(id=bank_id, user=user).first() if bank_id else None
+                        serializer = BankDetailSerializer(bank, data=item, partial=True) if bank else BankDetailSerializer(data=item)
+                        
                         if not serializer.is_valid():
                             raise ValueError(f"Bank validation failed: {serializer.errors}")
                         saved.append(serializer.save())
                     return saved
 
-                def upsert_qualifications(qualification_items):
+                def upsert_qualifications(qual_list, user):
+                    incoming_ids = [
+                        _parse_int(item.get('id')) 
+                        for item in qual_list 
+                        if _parse_int(item.get('id')) is not None
+                    ]
+                    EmployeeQualification.objects.filter(user=user).exclude(id__in=incoming_ids).delete()
+
                     saved = []
-                    for idx, item in enumerate(qualification_items):
-                        item['user'] = user.id
-                        cert_key = f'qualifications[{idx}][certificate]'
-                        if cert_key in request.FILES:
-                            item['certificate'] = request.FILES[cert_key]
+                    for idx, item in enumerate(qual_list):
                         qual_id = _parse_int(item.get('id'))
+                        certificate_file = request.FILES.get(f'certificate_{idx}')
+                        
+                        # Enforce business rules
+                        if item.get('qualification_level') == "B.Tech":
+                            item['qualification_level'] = "UG"
+
+                        # 3. Handle Update or Create
                         if qual_id:
-                            qual = EmployeeQualification.objects.filter(id=qual_id, user=user).first()
-                            serializer = EmployeeQualificationSerializer(qual, data=item, partial=True) if qual else EmployeeQualificationSerializer(data=item)
+                            instance = EmployeeQualification.objects.filter(id=qual_id, user=user).first()
+                            if instance:
+                                serializer = EmployeeQualificationSerializer(instance, data=item, partial=True)
+                            else:
+                                # Handle edge case where ID is sent but record doesn't exist/doesn't belong to user
+                                serializer = EmployeeQualificationSerializer(data=item)
                         else:
                             serializer = EmployeeQualificationSerializer(data=item)
-                        if not serializer.is_valid():
-                            raise ValueError(f"Qualifications validation failed: {serializer.errors}")
-                        saved.append(serializer.save())
-                    return saved
 
-                def upsert_experiences(experience_items):
+                        if serializer.is_valid():
+                            # Save only once
+                            saved_instance = serializer.save(user=user) if not qual_id else serializer.save()
+                            
+                            # Apply file if present
+                            if certificate_file:
+                                saved_instance.certificate = certificate_file
+                                saved_instance.save()
+                            
+                            saved.append(saved_instance)
+                        else:
+                            raise ValueError(f"Validation failed for qualification: {serializer.errors}")
+
+                    return saved
+                    
+                def upsert_experiences(experience_items, user):
+                    # 1. Track incoming IDs for bulk deletion
+                    incoming_exp_ids = []
+                    incoming_des_ids = []
+
+                    for item in experience_items:
+                        exp_id = _parse_int(item.get('id'))
+                        if exp_id:
+                            incoming_exp_ids.append(exp_id)
+                        
+                        # Track nested designation IDs
+                        for des in item.get('designations', []):
+                            des_id = _parse_int(des.get('id'))
+                            if des_id:
+                                incoming_des_ids.append(des_id)
+
+                    # 2. Perform deletions
+                    # Delete designations first (or use CASCADE), then experiences
+                    ExperienceDesignation.objects.filter(
+                        experience__user=user
+                    ).exclude(id__in=incoming_des_ids).delete()
+                    
+                    EmployeeExperience.objects.filter(
+                        user=user
+                    ).exclude(id__in=incoming_exp_ids).delete()
+
+                    # 3. Process Upserts
                     saved = []
                     for idx, item in enumerate(experience_items):
                         item['user'] = user.id
                         if 'is_internal' in item:
                             item['is_internal'] = _parse_bool(item.get('is_internal'))
+                        
+                        # Handle file upload
                         exp_letter_key = f'experiences[{idx}][experience_letter]'
                         if exp_letter_key in request.FILES:
                             item['experience_letter'] = request.FILES[exp_letter_key]
+                        
                         designations = item.pop('designations', [])
                         exp_id = _parse_int(item.get('id'))
+                        
+                        # Experience Upsert
                         if exp_id:
                             exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
                             exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
                         else:
                             exp_serializer = EmployeeExperienceSerializer(data=item)
+                            
                         if not exp_serializer.is_valid():
                             raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
+                        
                         exp_obj = exp_serializer.save()
+                        
+                        # Designation Upsert
                         des_list = []
                         for des in designations:
                             des['experience'] = exp_obj.id
@@ -2981,27 +3044,31 @@ def employee_with_profile(request):
                                 des['company_role'] = _parse_int(des.get('company_role'))
                             if 'company_group' in des:
                                 des['company_group'] = _parse_int(des.get('company_group'))
+                            
                             des_id = _parse_int(des.get('id'))
                             if des_id:
                                 des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
                                 des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
                             else:
                                 des_serializer = ExperienceDesignationSerializer(data=des)
+                                
                             if not des_serializer.is_valid():
                                 raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                            
                             des_obj = des_serializer.save()
                             des_list.append(des_obj)
+                            
                         saved.append((exp_obj, des_list))
+                        
                     return saved
-
                 if guardians:
-                    upsert_guardians(guardians)
+                    upsert_guardians(guardians, user)
                 if bank_details:
-                    upsert_bank_details(bank_details)
+                    upsert_bank_details(bank_details, user)
                 if qualifications:
-                    upsert_qualifications(qualifications)
+                    upsert_qualifications(qualifications, user)
                 if experiences:
-                    upsert_experiences(experiences)
+                    upsert_experiences(experiences, user)
 
                 return Response({
                     'success': True,
@@ -3011,24 +3078,12 @@ def employee_with_profile(request):
 
             except ValueError as err:
                 transaction.set_rollback(True)
-                return Response({
-                    'success': False,
-                    'message': 'Validation Error inside Employee Update sequence',
-                    'errors': str(err)
-                }, status=status.HTTP_400_BAD_REQUEST)
-
+                return Response({ 'success': False, 'message': 'Validation Error inside Employee Update sequence', 'errors': str(err) }, status=status.HTTP_400_BAD_REQUEST)
             except Exception as exc:
                 transaction.set_rollback(True)
-                return Response({
-                    'success': False,
-                    'message': 'Internal Server Error occurred during transaction workflow',
-                    'debug_error': str(exc)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return Response({
-        'success': False,
-        'message': 'Method not allowed'
-    }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
