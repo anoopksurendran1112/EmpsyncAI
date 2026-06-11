@@ -736,7 +736,7 @@ export default function ProfilePage() {
     if (!user || !company) return;
     setIsSaving(true);
     try {
-      const guardiansToSend = guardians
+      let guardiansToSend = guardians
         .filter((g: any) => g.name?.trim())
         .map((g: any) => ({
           ...(g.id ? { id: g.id } : {}),
@@ -746,6 +746,12 @@ export default function ProfilePage() {
           relationship_type: g.relationship_type,
           is_guardian: !!g.is_guardian,
         }));
+
+      // If not married, remove spouse from the payload
+      if (!familyIsMarried) {
+        guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
+      }
+
       const payload = { user_id: user.id, guardians: guardiansToSend };
       const res = await fetch("/api/employee-with-profile/", {
         method: "PUT",
@@ -921,8 +927,6 @@ export default function ProfilePage() {
       return updated;
     });
   };
-
-  
 
   // --- Render guard ---
   if (!user) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
@@ -1889,11 +1893,8 @@ export default function ProfilePage() {
                   onCheckedChange={(checked) => {
                     const isMarried = !!checked;
                     setFamilyIsMarried(isMarried);
-                    
-                    // If unchecked, remove the spouse record from the guardians array
-                    if (!isMarried) {
-                      setGuardians((prev) => prev.filter((g: any) => g.relationship_type !== 'spouse'));
-                    }
+                    // Do NOT delete spouse record from guardians
+                    // Spouse data will stay in state and be hidden when isMarried is false
                   }}
                   className="h-5 w-5 rounded-md border-gray-300 text-teal-600 focus:ring-teal-500"
                 />

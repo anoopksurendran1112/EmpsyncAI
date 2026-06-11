@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Save, Upload, X, Camera, User, UserMinus, Plus, Trash2, ArrowRight, ArrowLeft, ChevronRight, Check } from "lucide-react";
+import { UserPlus, Save, Upload, X, Plus, Trash2, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 // Type definitions for dropdowns
@@ -72,8 +72,12 @@ export default function AddEmployeePage() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Availability check error states
+  const [biometricAvailabilityError, setBiometricAvailabilityError] = useState("");
+  const [staffIdAvailabilityError, setStaffIdAvailabilityError] = useState("");
+
   // ---------- Generic fetch function ----------
-  const fetchData = async (url: string, setter: (data: any[]) => void, label: string) => {
+  const fetchData = async (url: string, setter: (data: any[]) => void) => {
     try {
       const res = await fetch(url);
       const text = await res.text();
@@ -81,9 +85,8 @@ export default function AddEmployeePage() {
       try { json = JSON.parse(text); } catch { json = []; }
       
       let arr: any[] = [];
-      if (Array.isArray(json)) {
-        arr = json;
-      } else if (json && typeof json === 'object') {
+      if (Array.isArray(json)) arr = json;
+      else if (json && typeof json === 'object') {
         const possibleKeys = ['data', 'results', 'items', 'staff_types', 'categories', 'types', 'list'];
         for (const key of possibleKeys) {
           if (json[key] && Array.isArray(json[key])) { arr = json[key]; break; }
@@ -103,22 +106,68 @@ export default function AddEmployeePage() {
   // ---------- Fetch initial data ----------
   useEffect(() => {
     if (!companyId) return;
-    fetchData(`/api/settings/roles/${companyId}`, setRoles, "Roles");
-    fetchData(`/api/settings/staff_type/${companyId}`, setStaffTypes, "StaffTypes");
-    fetchData(`/api/settings/staff_category/${companyId}`, setStaffCategories, "StaffCategories");
-    fetchData(`/api/settings/groups/${companyId}`, setGroups, "Groups");
+    fetchData(`/api/settings/roles/${companyId}`, setRoles);
+    fetchData(`/api/settings/staff_type/${companyId}`, setStaffTypes);
+    fetchData(`/api/settings/staff_category/${companyId}`, setStaffCategories);
+    fetchData(`/api/settings/groups/${companyId}`, setGroups);
   }, [companyId]);
 
-  useEffect(() => { fetchData(`/api/settings/manage-religion/`, setReligions, "Religions"); }, []);
+  useEffect(() => { fetchData(`/api/settings/manage-religion/`, setReligions); }, []);
 
   useEffect(() => {
     if (!profileData.religion_id) { setCastes([]); return; }
-    fetchData(`/api/settings/manage-caste/?religion_id=${profileData.religion_id}`, setCastes, "Castes");
+    fetchData(`/api/settings/manage-caste/?religion_id=${profileData.religion_id}`, setCastes);
   }, [profileData.religion_id]);
 
   useEffect(() => {
     if (companyId) setFormData(prev => ({ ...prev, company_id: companyId }));
   }, [companyId]);
+
+  // ---------- Availability Check Handlers (FIXED URLs) ----------
+  const handleCheckBiometric = async () => {
+    if (!formData.biometric_id.trim()) {
+      setBiometricAvailabilityError("Biometric ID is required");
+      return;
+    }
+    setBiometricAvailabilityError("");
+    try {
+      // Changed from /api/available-id/ to /api/available_id/
+      const url = `/api/available_id/?company_id=${companyId}&biometric_id=${encodeURIComponent(formData.biometric_id)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      // Adjust condition based on your backend response (e.g., data.exists, data.available, etc.)
+      if (data.exists === true) {
+        setBiometricAvailabilityError("Oops! This Biometric ID is already linked to this company");
+      } else {
+        setBiometricAvailabilityError("✅ Biometric ID is available");
+      }
+    } catch (err) {
+      console.error(err);
+      setBiometricAvailabilityError("Error checking availability");
+    }
+  };
+
+  const handleCheckStaffId = async () => {
+    if (!profileData.staff_id.trim()) {
+      setStaffIdAvailabilityError("Staff ID is required");
+      return;
+    }
+    setStaffIdAvailabilityError("");
+    try {
+      // Changed from /api/available-id/ to /api/available_id/
+      const url = `/api/available_id/?company_id=${companyId}&staff_id=${encodeURIComponent(profileData.staff_id)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.exists === true) {
+        setStaffIdAvailabilityError("Oops! This Staff ID is already in use");
+      } else {
+        setStaffIdAvailabilityError("✅ Staff ID is available");
+      }
+    } catch (err) {
+      console.error(err);
+      setStaffIdAvailabilityError("Error checking availability");
+    }
+  };
 
   // ---------- Dynamic Array Helpers ----------
   const addBank = () => setBankDetails([...bankDetails, { acc_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "", is_primary: false }]);
@@ -167,12 +216,14 @@ export default function AddEmployeePage() {
     const processedValue = (name === 'role_id' || name === 'company_id' || name === 'group_id') ? (value === '' ? '' : Number(value)) : value;
     setFormData({ ...formData, [name]: processedValue });
     if (errors[name]) setErrors(prev => { const newErrors = { ...prev }; delete newErrors[name]; return newErrors; });
+    if (name === 'biometric_id') setBiometricAvailabilityError("");
   };
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setProfileData({ ...profileData, [name]: value });
     if (errors[name]) setErrors(prev => { const newErrors = { ...prev }; delete newErrors[name]; return newErrors; });
+    if (name === 'staff_id') setStaffIdAvailabilityError("");
   };
 
   const handleAddressChange = (type: "present_address" | "permanent_address", field: string, value: string) => {
@@ -194,7 +245,7 @@ export default function AddEmployeePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ---------- Enhanced Validation (step-by-step) ----------
+  // ---------- Validation (step-by-step) ----------
   const validateStep = (step: number) => {
     const newErrors: Record<string, string> = {};
     
@@ -214,15 +265,19 @@ export default function AddEmployeePage() {
       if (!profileData.staff_id?.trim()) newErrors.staff_id = "Required";
       if (!profileData.staff_type_id) newErrors.staff_type_id = "Required";
       if (!profileData.staff_category_id) newErrors.staff_category_id = "Required";
+      if (biometricAvailabilityError && !biometricAvailabilityError.includes("✅")) {
+        newErrors.biometric_availability = biometricAvailabilityError;
+      }
+      if (staffIdAvailabilityError && !staffIdAvailabilityError.includes("✅")) {
+        newErrors.staff_id_availability = staffIdAvailabilityError;
+      }
     }
     else if (step === 2) {
       if (!profileData.present_address.address_line_1) newErrors.present_addr_1 = "Required";
       if (!profileData.present_address.city) newErrors.present_city = "Required";
     }
     else if (step === 3) {
-      if (qualifications.length === 0) {
-        newErrors.general = "At least one qualification is required.";
-      }
+      if (qualifications.length === 0) newErrors.general = "At least one qualification is required.";
       qualifications.forEach((q, i) => {
         if (!q.qualification_level) newErrors[`qual_${i}_level`] = "Required";
         if (!q.specialization) newErrors[`qual_${i}_specialization`] = "Required";
@@ -241,9 +296,7 @@ export default function AddEmployeePage() {
         if (!exp.location) newErrors[`exp_${i}_location`] = "Required";
         if (!exp.start_year) newErrors[`exp_${i}_start`] = "Required";
         if (!exp.end_year) newErrors[`exp_${i}_end`] = "Required";
-        if (!exp.description) newErrors[`exp_${i}_desc`] = "Required";
         if (!exp.experience_letter) newErrors[`exp_${i}_letter`] = "Experience letter is required";
-        
         if (exp.designations.length === 0) {
           newErrors[`exp_${i}_desig_empty`] = "At least one designation is required";
         }
@@ -252,7 +305,7 @@ export default function AddEmployeePage() {
           if (!des.start_date) newErrors[`exp_${i}_des_${d}_start`] = "Required";
           if (!des.end_date) newErrors[`exp_${i}_des_${d}_end`] = "Required";
           if (!des.change_type) newErrors[`exp_${i}_des_${d}_type`] = "Required";
-          if (!des.description) newErrors[`exp_${i}_des_${d}_desc`] = "Required";
+          // description is optional – no validation
         });
       });
     }
@@ -281,13 +334,11 @@ export default function AddEmployeePage() {
   // ---------- Submit ----------
   const handleSubmit = async () => {
     if (!validateStep(5)) return;
-    
     setLoading(true); 
     setMessage("");
 
     try {
       const fd = new FormData();
-
       fd.append('first_name', formData.first_name);
       fd.append('last_name', formData.last_name);
       fd.append('email', formData.email);
@@ -296,10 +347,8 @@ export default function AddEmployeePage() {
       fd.append('gender', formData.gender);
       fd.append('biometric_id', formData.biometric_id);
       fd.append('company_id', formData.company_id.toString());
-      
       if (formData.group_id) fd.append('group_id', formData.group_id.toString());
       if (formData.role_id) fd.append('role_id', formData.role_id.toString());
-
       fd.append('is_whatsapp', formData.is_whatsapp.toString());
       fd.append('is_sms', formData.is_sms.toString());
       fd.append('is_wfh', formData.is_wfh.toString());
@@ -324,7 +373,6 @@ export default function AddEmployeePage() {
         date_of_contract_completion: profileData.date_of_contract_completion || null,
         date_of_relieving: profileData.date_of_relieving || null
       };
-
       fd.append('profile', JSON.stringify(profileObj));
 
       const mappedGuardians = [];
@@ -337,8 +385,6 @@ export default function AddEmployeePage() {
         });
       }
       fd.append('guardians', JSON.stringify(mappedGuardians));
-
-
       if (profileImage) fd.append('prof_img', profileImage);
 
       const mappedBankDetails = bankDetails.map(bank => ({
@@ -359,7 +405,7 @@ export default function AddEmployeePage() {
         start_year: q.start_year,
         passing_year: q.passing_year,
         percentage: q.percentage,
-        certificate: q.certificate // will be appended as file separately
+        certificate: q.certificate
       }));
 
       const mappedExperiences = experiences.map(exp => ({
@@ -369,7 +415,7 @@ export default function AddEmployeePage() {
         start_year: exp.start_year,
         end_year: exp.end_year,
         description: exp.description,
-        experience_letter: exp.experience_letter, // file
+        experience_letter: exp.experience_letter,
         designations: (exp.designations || []).map((des: any) => ({
           designation: des.designation,
           company_role_id: des.company_role_id ? Number(des.company_role_id) : null,
@@ -384,15 +430,13 @@ export default function AddEmployeePage() {
       fd.append('present_address', JSON.stringify(profileData.present_address));
       fd.append('permanent_address', JSON.stringify(profileData.permanent_address));
       fd.append('bank_details', JSON.stringify(mappedBankDetails));
-      fd.append('qualifications', JSON.stringify(mappedQualifications.map(({ certificate, ...rest }) => rest))); // exclude file from JSON
+      fd.append('qualifications', JSON.stringify(mappedQualifications.map(({ certificate, ...rest }) => rest)));
       fd.append('experiences', JSON.stringify(mappedExperiences.map(({ experience_letter, ...rest }) => rest)));
 
-      // Append qualification certificate files
       for (let i = 0; i < qualifications.length; i++) {
         const cert = qualifications[i]?.certificate;
         if (cert) fd.append(`qualifications[${i}][certificate]`, cert);
       }
-      // Append experience letter files
       for (let i = 0; i < experiences.length; i++) {
         const letter = experiences[i]?.experience_letter;
         if (letter) fd.append(`experiences[${i}][experience_letter]`, letter);
@@ -404,13 +448,11 @@ export default function AddEmployeePage() {
 
       setMessage("Employee and complete profile created successfully!");
       queryClient.invalidateQueries({ queryKey: ["employees", companyId] });
-      
       setCurrentStep(0);
       setBankDetails([]); 
       setQualifications([]); 
       setExperiences([]);
       removeImage();
-
     } catch (error: any) {
       setMessage(error.message || "An unexpected error occurred");
     } finally {
@@ -418,7 +460,7 @@ export default function AddEmployeePage() {
     }
   };
 
-  // ---------- Render Steps ----------
+  // ---------- Render Functions (unchanged) ----------
   const renderStep0 = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row gap-8 items-start">
@@ -679,30 +721,58 @@ export default function AddEmployeePage() {
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Biometric ID <span className="text-[#c9962a] ml-1">*</span></Label>
-          <div className="flex">
-          <Input 
-            name="biometric_id" 
-            value={formData.biometric_id} 
-            onChange={handleChange} 
-            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-          />
-          <Button className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer">Check Availability</Button>
+          <div className="flex flex-col gap-1">
+            <div className="flex">
+              <Input 
+                name="biometric_id" 
+                value={formData.biometric_id} 
+                onChange={handleChange} 
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
+              <Button 
+                type="button"
+                onClick={handleCheckBiometric} 
+                className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer whitespace-nowrap"
+              >
+                Check Availability
+              </Button>
+            </div>
+            {biometricAvailabilityError && (
+              <p className={`text-xs mt-1 ${biometricAvailabilityError.includes("✅") ? "text-green-600" : "text-red-500"}`}>
+                {biometricAvailabilityError}
+              </p>
+            )}
           </div>
           {errors.biometric_id && <p className="text-xs text-red-500 mt-1">{errors.biometric_id}</p>}
+          {errors.biometric_availability && <p className="text-xs text-red-500 mt-1">{errors.biometric_availability}</p>}
         </div>
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Staff ID <span className="text-[#c9962a] ml-1">*</span></Label>
-          <div className="flex">
-            <Input 
-              name="staff_id" 
-              value={profileData.staff_id} 
-              onChange={handleProfileChange} 
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            <Button className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer">Check Availability</Button>
+          <div className="flex flex-col gap-1">
+            <div className="flex">
+              <Input 
+                name="staff_id" 
+                value={profileData.staff_id} 
+                onChange={handleProfileChange} 
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
+              <Button 
+                type="button"
+                onClick={handleCheckStaffId} 
+                className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer whitespace-nowrap"
+              >
+                Check Availability
+              </Button>
+            </div>
+            {staffIdAvailabilityError && (
+              <p className={`text-xs mt-1 ${staffIdAvailabilityError.includes("✅") ? "text-green-600" : "text-red-500"}`}>
+                {staffIdAvailabilityError}
+              </p>
+            )}
           </div>
           {errors.staff_id && <p className="text-xs text-red-500 mt-1">{errors.staff_id}</p>}
+          {errors.staff_id_availability && <p className="text-xs text-red-500 mt-1">{errors.staff_id_availability}</p>}
         </div>
 
         <div>
@@ -1154,15 +1224,14 @@ export default function AddEmployeePage() {
               </div>
 
               <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Description / Notes <span className="text-[#c9962a] ml-1">*</span></Label>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
                 <textarea 
                   rows={2}
                   value={exp.description} 
                   onChange={e => updateExp(idx, 'description', e.target.value)} 
-                  placeholder="Brief description of role or responsibilities..."
+                  placeholder="Brief description of role or responsibilities (optional)..."
                   className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
                 />
-                {errors[`exp_${idx}_desc`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desc`]}</p>}
               </div>
 
               <div>
@@ -1204,7 +1273,6 @@ export default function AddEmployeePage() {
                 
                 {exp.designations.map((des: any, didx: number) => (
                   <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
-                    {/* Row 1: Title (Full Width) */}
                     <div className="w-full">
                       {exp.is_internal ? (
                         <div className="grid grid-cols-2 gap-4">
@@ -1244,7 +1312,6 @@ export default function AddEmployeePage() {
                       )}
                     </div>
 
-                    {/* Row 2: Start Date, End Date, Type (Shared Row) */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
@@ -1282,17 +1349,15 @@ export default function AddEmployeePage() {
                       </div>
                     </div>
 
-                    {/* Row 3: Description and Action Button (Shared Row) */}
                     <div className="flex items-end gap-3">
                       <div className="flex-1">
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Description <span className="text-[#c9962a] ml-1">*</span></Label>
+                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Description (optional)</Label>
                         <Input 
                           className="h-8 text-xs border-[#dde3ec] bg-white w-full" 
-                          placeholder="Notes about this change..."
+                          placeholder="Notes about this change (optional)..."
                           value={des.description} 
                           onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
                         />
-                        {errors[`exp_${idx}_des_${didx}_desc`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_desc`]}</p>}
                       </div>
                       <Button 
                         type="button"
@@ -1447,10 +1512,10 @@ export default function AddEmployeePage() {
     </div>
   );
 
+  // ---------- Main Return ----------
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
-        {/* Page Title Header */}
         <div className="flex items-center gap-4 mb-8">
           <div className="p-3 bg-[#eff6ff] rounded-lg text-[#2563eb] shadow-sm"><UserPlus className="h-6 w-6" /></div>
           <div>
@@ -1459,99 +1524,52 @@ export default function AddEmployeePage() {
           </div>
         </div>
 
-        {/* Stepper progress tracker */}
         <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(15,39,68,0.08)] p-6 mb-8 border border-[#dde3ec]">
           <div className="flex items-center justify-between relative px-4">
-            {/* Connecting Line Background */}
             <div className="absolute left-[5%] right-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#dde3ec] z-0 rounded-full"></div>
-            {/* Connecting Line Progress */}
-            <div 
-              className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" 
-              style={{ width: `${(currentStep / (steps.length - 1)) * 90}%` }}
-            ></div>
-            
+            <div className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" style={{ width: `${(currentStep / (steps.length - 1)) * 90}%` }}></div>
             {steps.map((label, idx) => (
-              <div 
-                key={idx} 
-                className="relative z-10 flex flex-col items-center gap-2 group cursor-pointer w-24" 
-                onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                  idx === currentStep 
-                    ? 'bg-[#eff6ff] border-2 border-[#0f2744] text-[#0f2744] shadow-[0_0_0_4px_rgba(239,246,255,1)] scale-105' 
-                    : idx < currentStep 
-                      ? 'bg-[#0f2744] text-white' 
-                      : 'bg-[#f4f7fb] text-[#7a8ba0] border-2 border-transparent'
-                }`}>
+              <div key={idx} className="relative z-10 flex flex-col items-center gap-2 group cursor-pointer w-24" onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${idx === currentStep ? 'bg-[#eff6ff] border-2 border-[#0f2744] text-[#0f2744] shadow-[0_0_0_4px_rgba(239,246,255,1)] scale-105' : idx < currentStep ? 'bg-[#0f2744] text-white' : 'bg-[#f4f7fb] text-[#7a8ba0] border-2 border-transparent'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-[11px] font-semibold text-center whitespace-nowrap hidden sm:block ${idx === currentStep ? 'text-[#0f2744]' : 'text-[#7a8ba0]'}`}>
-                  {label}
-                </span>
+                <span className={`text-[11px] font-semibold text-center whitespace-nowrap hidden sm:block ${idx === currentStep ? 'text-[#0f2744]' : 'text-[#7a8ba0]'}`}>{label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Main form Card */}
         <Card className="border border-[#dde3ec] shadow-[0_2px_16px_rgba(15,39,68,0.08)] bg-white rounded-xl overflow-hidden">
           <div className="px-8 py-5 border-b border-[#dde3ec] bg-white flex items-center">
             <div className="w-1 h-5 bg-[#e8b84b] rounded-r-sm mr-3"></div>
-            <h3 className="text-lg font-bold text-[#0f2744] tracking-tight font-serif">
-              {steps[currentStep]}
-            </h3>
+            <h3 className="text-lg font-bold text-[#0f2744] tracking-tight font-serif">{steps[currentStep]}</h3>
           </div>
-
           <CardContent className="p-8 min-h-[400px]">
-             {message && (
-               <div className={`p-4 rounded-lg mb-6 flex items-center gap-2 text-sm ${
-                 message.includes("successfully") 
-                   ? "bg-green-50 text-green-700 border border-green-200" 
-                   : "bg-red-50 text-red-700 border border-red-200"
-               }`}>
-                 {message}
-               </div>
-             )}
-             {currentStep === 0 && renderStep0()}
-             {currentStep === 1 && renderStep1()}
-             {currentStep === 2 && renderStep2()}
-             {currentStep === 3 && renderStep3()}
-             {currentStep === 4 && renderStep4()}
-             {currentStep === 5 && renderStep5()}
+            {message && (
+              <div className={`p-4 rounded-lg mb-6 flex items-center gap-2 text-sm ${message.includes("successfully") ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                {message}
+              </div>
+            )}
+            {currentStep === 0 && renderStep0()}
+            {currentStep === 1 && renderStep1()}
+            {currentStep === 2 && renderStep2()}
+            {currentStep === 3 && renderStep3()}
+            {currentStep === 4 && renderStep4()}
+            {currentStep === 5 && renderStep5()}
           </CardContent>
-
           <CardFooter className="bg-[#f4f7fb] border-t border-[#dde3ec] px-8 py-4 flex justify-between items-center">
-            <Button 
-              type="button"
-              variant="outline" 
-              onClick={handlePrev} 
-              disabled={currentStep === 0 || loading} 
-              className="w-32 gap-2 border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb]"
-            >
+            <Button type="button" variant="outline" onClick={handlePrev} disabled={currentStep === 0 || loading} className="w-32 gap-2 border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb]">
               <ArrowLeft className="w-4 h-4"/> Back
             </Button>
             {currentStep < steps.length - 1 ? (
-               <Button 
-                 type="button"
-                 onClick={handleNext} 
-                 className="w-32 gap-2 bg-[#0f2744] hover:bg-[#1a3a5c] text-white shadow-sm"
-               >
-                 Next <ArrowRight className="w-4 h-4"/>
-               </Button>
+              <Button type="button" onClick={handleNext} className="w-32 gap-2 bg-[#0f2744] hover:bg-[#1a3a5c] text-white shadow-sm">
+                Next <ArrowRight className="w-4 h-4"/>
+              </Button>
             ) : (
-               <Button 
-                 type="button"
-                 onClick={handleSubmit} 
-                 disabled={loading} 
-                 className="w-40 gap-2 bg-[#1a7f5a] hover:bg-[#146648] text-white shadow-lg shadow-green-600/10"
-               >
-                 {loading ? (
-                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                 ) : (
-                   <Save className="w-4 h-4"/>
-                 )}
-                 Submit
-               </Button>
+              <Button type="button" onClick={handleSubmit} disabled={loading} className="w-40 gap-2 bg-[#1a7f5a] hover:bg-[#146648] text-white shadow-lg shadow-green-600/10">
+                {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Save className="w-4 h-4"/>}
+                Submit
+              </Button>
             )}
           </CardFooter>
         </Card>
