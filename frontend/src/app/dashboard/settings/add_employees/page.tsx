@@ -72,10 +72,6 @@ export default function AddEmployeePage() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Availability check error states
-  const [biometricAvailabilityError, setBiometricAvailabilityError] = useState("");
-  const [staffIdAvailabilityError, setStaffIdAvailabilityError] = useState("");
-
   // ---------- Generic fetch function ----------
   const fetchData = async (url: string, setter: (data: any[]) => void) => {
     try {
@@ -122,52 +118,6 @@ export default function AddEmployeePage() {
   useEffect(() => {
     if (companyId) setFormData(prev => ({ ...prev, company_id: companyId }));
   }, [companyId]);
-
-  // ---------- Availability Check Handlers (FIXED URLs) ----------
-  const handleCheckBiometric = async () => {
-    if (!formData.biometric_id.trim()) {
-      setBiometricAvailabilityError("Biometric ID is required");
-      return;
-    }
-    setBiometricAvailabilityError("");
-    try {
-      // Changed from /api/available-id/ to /api/available_id/
-      const url = `/api/available_id/?company_id=${companyId}&biometric_id=${encodeURIComponent(formData.biometric_id)}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      // Adjust condition based on your backend response (e.g., data.exists, data.available, etc.)
-      if (data.exists === true) {
-        setBiometricAvailabilityError("Oops! This Biometric ID is already linked to this company");
-      } else {
-        setBiometricAvailabilityError("✅ Biometric ID is available");
-      }
-    } catch (err) {
-      console.error(err);
-      setBiometricAvailabilityError("Error checking availability");
-    }
-  };
-
-  const handleCheckStaffId = async () => {
-    if (!profileData.staff_id.trim()) {
-      setStaffIdAvailabilityError("Staff ID is required");
-      return;
-    }
-    setStaffIdAvailabilityError("");
-    try {
-      // Changed from /api/available-id/ to /api/available_id/
-      const url = `/api/available_id/?company_id=${companyId}&staff_id=${encodeURIComponent(profileData.staff_id)}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.exists === true) {
-        setStaffIdAvailabilityError("Oops! This Staff ID is already in use");
-      } else {
-        setStaffIdAvailabilityError("✅ Staff ID is available");
-      }
-    } catch (err) {
-      console.error(err);
-      setStaffIdAvailabilityError("Error checking availability");
-    }
-  };
 
   // ---------- Dynamic Array Helpers ----------
   const addBank = () => setBankDetails([...bankDetails, { acc_holder_name: "", bank_name: "", account_number: "", ifsc_code: "", branch_name: "", is_primary: false }]);
@@ -216,14 +166,12 @@ export default function AddEmployeePage() {
     const processedValue = (name === 'role_id' || name === 'company_id' || name === 'group_id') ? (value === '' ? '' : Number(value)) : value;
     setFormData({ ...formData, [name]: processedValue });
     if (errors[name]) setErrors(prev => { const newErrors = { ...prev }; delete newErrors[name]; return newErrors; });
-    if (name === 'biometric_id') setBiometricAvailabilityError("");
   };
 
   const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setProfileData({ ...profileData, [name]: value });
     if (errors[name]) setErrors(prev => { const newErrors = { ...prev }; delete newErrors[name]; return newErrors; });
-    if (name === 'staff_id') setStaffIdAvailabilityError("");
   };
 
   const handleAddressChange = (type: "present_address" | "permanent_address", field: string, value: string) => {
@@ -265,12 +213,6 @@ export default function AddEmployeePage() {
       if (!profileData.staff_id?.trim()) newErrors.staff_id = "Required";
       if (!profileData.staff_type_id) newErrors.staff_type_id = "Required";
       if (!profileData.staff_category_id) newErrors.staff_category_id = "Required";
-      if (biometricAvailabilityError && !biometricAvailabilityError.includes("✅")) {
-        newErrors.biometric_availability = biometricAvailabilityError;
-      }
-      if (staffIdAvailabilityError && !staffIdAvailabilityError.includes("✅")) {
-        newErrors.staff_id_availability = staffIdAvailabilityError;
-      }
     }
     else if (step === 2) {
       if (!profileData.present_address.address_line_1) newErrors.present_addr_1 = "Required";
@@ -305,7 +247,6 @@ export default function AddEmployeePage() {
           if (!des.start_date) newErrors[`exp_${i}_des_${d}_start`] = "Required";
           if (!des.end_date) newErrors[`exp_${i}_des_${d}_end`] = "Required";
           if (!des.change_type) newErrors[`exp_${i}_des_${d}_type`] = "Required";
-          // description is optional – no validation
         });
       });
     }
@@ -460,7 +401,7 @@ export default function AddEmployeePage() {
     }
   };
 
-  // ---------- Render Functions (unchanged) ----------
+  // ---------- Render Functions (unchanged except Step 1) ----------
   const renderStep0 = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row gap-8 items-start">
@@ -721,58 +662,24 @@ export default function AddEmployeePage() {
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Biometric ID <span className="text-[#c9962a] ml-1">*</span></Label>
-          <div className="flex flex-col gap-1">
-            <div className="flex">
-              <Input 
-                name="biometric_id" 
-                value={formData.biometric_id} 
-                onChange={handleChange} 
-                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-              />
-              <Button 
-                type="button"
-                onClick={handleCheckBiometric} 
-                className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer whitespace-nowrap"
-              >
-                Check Availability
-              </Button>
-            </div>
-            {biometricAvailabilityError && (
-              <p className={`text-xs mt-1 ${biometricAvailabilityError.includes("✅") ? "text-green-600" : "text-red-500"}`}>
-                {biometricAvailabilityError}
-              </p>
-            )}
-          </div>
+          <Input 
+            name="biometric_id" 
+            value={formData.biometric_id} 
+            onChange={handleChange} 
+            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+          />
           {errors.biometric_id && <p className="text-xs text-red-500 mt-1">{errors.biometric_id}</p>}
-          {errors.biometric_availability && <p className="text-xs text-red-500 mt-1">{errors.biometric_availability}</p>}
         </div>
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Staff ID <span className="text-[#c9962a] ml-1">*</span></Label>
-          <div className="flex flex-col gap-1">
-            <div className="flex">
-              <Input 
-                name="staff_id" 
-                value={profileData.staff_id} 
-                onChange={handleProfileChange} 
-                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-              />
-              <Button 
-                type="button"
-                onClick={handleCheckStaffId} 
-                className="h-[38px] ml-2 px-3 border border-[#c9962a] rounded-[7px] bg-[#c9962a] text-white text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer whitespace-nowrap"
-              >
-                Check Availability
-              </Button>
-            </div>
-            {staffIdAvailabilityError && (
-              <p className={`text-xs mt-1 ${staffIdAvailabilityError.includes("✅") ? "text-green-600" : "text-red-500"}`}>
-                {staffIdAvailabilityError}
-              </p>
-            )}
-          </div>
+          <Input 
+            name="staff_id" 
+            value={profileData.staff_id} 
+            onChange={handleProfileChange} 
+            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+          />
           {errors.staff_id && <p className="text-xs text-red-500 mt-1">{errors.staff_id}</p>}
-          {errors.staff_id_availability && <p className="text-xs text-red-500 mt-1">{errors.staff_id_availability}</p>}
         </div>
 
         <div>
