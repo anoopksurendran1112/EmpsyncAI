@@ -2893,11 +2893,7 @@ def employee_with_profile(request):
                         profile = profile_serializer.save()
 
                 def upsert_guardians(guardian_items, user):
-                    incoming_ids = [
-                        _parse_int(item.get('id')) 
-                        for item in guardian_items 
-                        if _parse_int(item.get('id')) is not None
-                    ]
+                    incoming_ids = [ _parse_int(item.get('id'))  for item in guardian_items  if _parse_int(item.get('id')) is not None ]
                     EmployeeGuardian.objects.filter(employee=user).exclude(id__in=incoming_ids).delete()
 
                     saved = []
@@ -2905,15 +2901,23 @@ def employee_with_profile(request):
                         item['employee'] = user.id
                         if 'is_guardian' in item:
                             item['is_guardian'] = _parse_bool(item.get('is_guardian'))
+                        
                         g_id = _parse_int(item.get('id'))
                         if g_id:
                             g_obj = EmployeeGuardian.objects.filter(id=g_id, employee=user).first()
                             serializer = EmployeeGuardianSerializer(g_obj, data=item, partial=True) if g_obj else EmployeeGuardianSerializer(data=item)
                         else:
                             serializer = EmployeeGuardianSerializer(data=item)
+                            
                         if not serializer.is_valid():
                             raise ValueError(f"Guardian validation failed: {serializer.errors}")
+                        
                         saved.append(serializer.save())
+
+                    if saved and not any(g.is_guardian for g in saved):
+                        first_guardian = saved[0]
+                        first_guardian.is_guardian = True
+                        first_guardian.save()
                     return saved
 
                 def upsert_bank_details(bank_items, user):
@@ -2984,83 +2988,73 @@ def employee_with_profile(request):
                     return saved
                     
                 def upsert_experiences(experience_items, user):
-                    # 1. Track incoming IDs for bulk deletion
-                    incoming_exp_ids = []
-                    incoming_des_ids = []
+                    with transaction.atomic():
 
-                    for item in experience_items:
-                        exp_id = _parse_int(item.get('id'))
-                        if exp_id:
-                            incoming_exp_ids.append(exp_id)
-                        
-                        # Track nested designation IDs
-                        for des in item.get('designations', []):
-                            des_id = _parse_int(des.get('id'))
-                            if des_id:
-                                incoming_des_ids.append(des_id)
+                        incoming_exp_ids = []
+                        incoming_des_ids = []
 
-                    # 2. Perform deletions
-                    # Delete designations first (or use CASCADE), then experiences
-                    ExperienceDesignation.objects.filter(
-                        experience__user=user
-                    ).exclude(id__in=incoming_des_ids).delete()
-                    
-                    EmployeeExperience.objects.filter(
-                        user=user
-                    ).exclude(id__in=incoming_exp_ids).delete()
-
-                    # 3. Process Upserts
-                    saved = []
-                    for idx, item in enumerate(experience_items):
-                        item['user'] = user.id
-                        if 'is_internal' in item:
-                            item['is_internal'] = _parse_bool(item.get('is_internal'))
-                        
-                        # Handle file upload
-                        exp_letter_key = f'experiences[{idx}][experience_letter]'
-                        if exp_letter_key in request.FILES:
-                            item['experience_letter'] = request.FILES[exp_letter_key]
-                        
-                        designations = item.pop('designations', [])
-                        exp_id = _parse_int(item.get('id'))
-                        
-                        # Experience Upsert
-                        if exp_id:
-                            exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
-                            exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
-                        else:
-                            exp_serializer = EmployeeExperienceSerializer(data=item)
+                        for item in experience_items:
+                            exp_id = _parse_int(item.get('id'))
+                            if exp_id:
+                                incoming_exp_ids.append(exp_id)
                             
-                        if not exp_serializer.is_valid():
-                            raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
+                            for des in item.get('designations', []):
+                                des_id = _parse_int(des.get('id'))
+                                if des_id:
+                                    incoming_des_ids.append(des_id)
+
+                        ExperienceDesignation.objects.filter(experience__user=user).exclude(id__in=incoming_des_ids).delete()
+                        EmployeeExperience.objects.filter(user=user).exclude(id__in=incoming_exp_ids).delete()
                         
-                        exp_obj = exp_serializer.save()
-                        
-                        # Designation Upsert
-                        des_list = []
-                        for des in designations:
-                            des['experience'] = exp_obj.id
-                            if 'company_role' in des:
-                                des['company_role'] = _parse_int(des.get('company_role'))
-                            if 'company_group' in des:
-                                des['company_group'] = _parse_int(des.get('company_group'))
+                        saved = []
+                        for idx, item in enumerate(experience_items):
+                            item['user'] = user.id
+                            if 'is_internal' in item:
+                                item['is_internal'] = _parse_bool(item.get('is_internal'))
                             
-                            des_id = _parse_int(des.get('id'))
-                            if des_id:
-                                des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
-                                des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
+                            exp_letter_key = f'experience_letter_{idx}'
+                            if exp_letter_key in request.FILES:
+                                item['experience_letter'] = request.FILES[exp_letter_key]
+                            
+                            designations = item.pop('designations', [])
+                            exp_id = _parse_int(item.get('id'))
+                            
+                            if exp_id:
+                                exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
+                                exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
                             else:
-                                des_serializer = ExperienceDesignationSerializer(data=des)
+                                exp_serializer = EmployeeExperienceSerializer(data=item)
                                 
-                            if not des_serializer.is_valid():
-                                raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                            if not exp_serializer.is_valid():
+                                raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
                             
-                            des_obj = des_serializer.save()
-                            des_list.append(des_obj)
+                            exp_obj = exp_serializer.save()
                             
-                        saved.append((exp_obj, des_list))
-                        
+                            des_list = []
+                            for des in designations:
+                                des['experience'] = exp_obj.id
+                                if 'company_role' in des:
+                                    des['company_role'] = _parse_int(des.get('company_role'))
+                                if 'company_group' in des:
+                                    des['company_group'] = _parse_int(des.get('company_group'))
+                                
+                                des_id = _parse_int(des.get('id'))
+                                if des_id:
+                                    des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
+                                    des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
+                                else:
+                                    des_serializer = ExperienceDesignationSerializer(data=des)
+                                    
+                                if not des_serializer.is_valid():
+                                    raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                                
+                                des_obj = des_serializer.save()
+                                des_list.append(des_obj)
+                                
+                            saved.append((exp_obj, des_list))
+
                     return saved
+
                 if guardians:
                     upsert_guardians(guardians, user)
                 if bank_details:

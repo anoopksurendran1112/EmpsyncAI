@@ -828,8 +828,12 @@ export default function ProfilePage() {
   const handleSaveExperience = async () => {
     if (!user || !company) return;
     setIsSaving(true);
+    
     try {
-      const expsToSend = editExperiences.map((e: any) => ({
+      const formData = new FormData();
+      formData.append("user_id", user.id.toString());
+      
+      formData.append("experiences", JSON.stringify(editExperiences.map((e: any) => ({
         ...(e.id ? { id: e.id } : {}),
         user: user.id,
         company_name: e.company_name || '',
@@ -845,15 +849,25 @@ export default function ProfilePage() {
           change_type: d.change_type || 'Joined',
           description: d.description || '',
         })),
-      }));
-      const payload = { user_id: user.id, experiences: expsToSend };
+      }))));
+
+      editExperiences.forEach((e: any, index: number) => {
+        if (e.experience_letter instanceof File) {
+          formData.append(`experience_letter_${index}`, e.experience_letter);
+        }
+      });
+
       const res = await fetch("/api/employee-with-profile/", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-company-id": company.id.toString() },
-        body: JSON.stringify(payload),
+        headers: { 
+          "x-company-id": company.id.toString() 
+        },
+        body: formData,
       });
+
       const result = await res.json();
-      if (!res.ok || !result.success) throw new Error(result.message || "Failed to save experiences");
+      if (!res.ok || !result.success) throw new Error(result.message || "Failed to save");
+      
       toast.success("Experience records updated!");
       setEditingSection(null);
       await fetchProfile();
@@ -1884,7 +1898,7 @@ export default function ProfilePage() {
               {/* Family Marital Switch */}
               <div className="p-4 bg-teal-50/50 rounded-2xl border border-teal-100 flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="is_married" className="text-sm font-bold text-gray-800 cursor-pointer">Marital Standpoint</Label>
+                  <Label htmlFor="is_married" className="text-sm font-bold text-gray-800 cursor-pointer">Marital Status: Married</Label>
                   <p className="text-xs text-gray-500">Toggle to reveal spouse contact field</p>
                 </div>
                 <Checkbox 
