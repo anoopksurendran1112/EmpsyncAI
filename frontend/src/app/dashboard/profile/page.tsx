@@ -115,6 +115,7 @@ interface EmployeeFullProfile {
   guardian_phone?: string | null;
   religion_name?: string | null;
   caste_name?: string | null;
+  staff_id?: string | null;
   staff_type?: string | null;
   staff_category?: string | null;
   ktu_id?: string | null;
@@ -140,6 +141,7 @@ interface EditableProfile {
   caste_id: number | null;
   staff_type_id: number | null;
   staff_category_id: number | null;
+  staff_id: string | null;
   ktu_id: string;
   aicte_id: string;
   pan_no: string;
@@ -1025,9 +1027,9 @@ export default function ProfilePage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-gray-500 mb-1">User ID</h3><p className="text-2xl font-bold text-blue-600">#{user.id}</p></div><div className="p-3 bg-blue-50 rounded-lg"><Hash className="h-6 w-6 text-blue-600" /></div></div>
+          <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-gray-500 mb-1">College Staff ID</h3><p className="text-2xl font-bold text-amber-600">{fullProfile?.staff_id || "-- --"}</p></div><div className="p-3 bg-amber-50 rounded-lg"><ShieldCheck className="h-6 w-6 text-amber-600" /></div></div>
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-gray-500 mb-1">Biometric ID</h3><p className="text-2xl font-bold text-green-600">{user.biometric_id || "--"}</p></div><div className="p-3 bg-green-50 rounded-lg"><Activity className="h-6 w-6 text-green-600" /></div></div>
           <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-gray-500 mb-1">Current Group</h3><p className="text-2xl font-bold text-purple-600">{getGroupName(user.group_id || user.group)}</p></div><div className="p-3 bg-purple-50 rounded-lg"><Users className="h-6 w-6 text-purple-600" /></div></div>
-          <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between"><div><h3 className="text-sm font-semibold text-gray-500 mb-1">Account Level</h3><p className="text-2xl font-bold text-amber-600">{user.role_id === 1 ? "Admin" : "Member"}</p></div><div className="p-3 bg-amber-50 rounded-lg"><ShieldCheck className="h-6 w-6 text-amber-600" /></div></div>
         </div>
 
         <div className="space-y-6">
@@ -1777,9 +1779,6 @@ export default function ProfilePage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Staff Type</Label>
                   <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)}>
@@ -1805,6 +1804,14 @@ export default function ProfilePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Staff ID</Label>
+                  <Input 
+                    value={fullProfile?.staff_id || ""} 
+                    onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
+                    className="rounded-xl h-11 border-gray-200 focus-visible:ring-purple-500" 
+                  />
                 </div>
               </div>
             </div>
