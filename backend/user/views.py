@@ -2922,29 +2922,30 @@ def employee_with_profile(request):
 
                 def upsert_bank_details(bank_items, user):
                     incoming_ids = [_parse_int(item.get('id')) for item in bank_items if _parse_int(item.get('id')) is not None]
-                    has_primary_in_input = any(item.get('is_primary') for item in bank_items)
-                    
-                    deleted_accounts = BankDetail.objects.filter(user=user).exclude(id__in=incoming_ids)
-                    was_primary_deleted = deleted_accounts.filter(is_primary=True).exists()
-                    deleted_accounts.delete()
+                    BankDetail.objects.filter(user=user).exclude(id__in=incoming_ids).delete()
+                    has_primary_in_input = any(_parse_bool(item.get('is_primary')) for item in bank_items)
+                    has_primary_in_db = BankDetail.objects.filter(user=user, is_primary=True).exclude(id__in=incoming_ids).exists()
+                    force_primary = not has_primary_in_input and not has_primary_in_db
 
                     saved = []
-                    for item in bank_items:
+                    for idx, item in enumerate(bank_items):
                         item['user'] = user.id
-                        bank_id = _parse_int(item.get('id'))
+                        item['is_primary'] = _parse_bool(item.get('is_primary'))
                         
-                        if not has_primary_in_input and not saved:
+                        if force_primary and idx == 0:
                             item['is_primary'] = True
-                        
+                            
+                        bank_id = _parse_int(item.get('id'))
                         bank = BankDetail.objects.filter(id=bank_id, user=user).first() if bank_id else None
                         serializer = BankDetailSerializer(bank, data=item, partial=True) if bank else BankDetailSerializer(data=item)
                         
                         if not serializer.is_valid():
                             raise ValueError(f"Bank validation failed: {serializer.errors}")
+                        
                         saved.append(serializer.save())
                     return saved
 
-                def upsert_qualifications(qual_list, user):
+                def upsert_qualifications(qual_list, user, request):
                     incoming_ids = [
                         _parse_int(item.get('id')) 
                         for item in qual_list 
@@ -2987,7 +2988,7 @@ def employee_with_profile(request):
 
                     return saved
                     
-                def upsert_experiences(experience_items, user):
+                def upsert_experiences(experience_items, user, request):
                     with transaction.atomic():
 
                         incoming_exp_ids = []
@@ -3055,14 +3056,14 @@ def employee_with_profile(request):
 
                     return saved
 
-                if guardians:
+                if guardians is not None:
                     upsert_guardians(guardians, user)
-                if bank_details:
+                if bank_details is not None:
                     upsert_bank_details(bank_details, user)
-                if qualifications:
-                    upsert_qualifications(qualifications, user)
-                if experiences:
-                    upsert_experiences(experiences, user)
+                if qualifications is not None:
+                    upsert_qualifications(qualifications, user, request)
+                if experiences is not None:
+                    upsert_experiences(experiences, user, request)
 
                 return Response({
                     'success': True,
