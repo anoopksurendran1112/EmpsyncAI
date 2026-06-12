@@ -77,12 +77,12 @@ export function Sidebar({ className }: SidebarProps) {
 
   const menuItems: MenuItem[] = [
     { title: "Punch Records", icon: Fingerprint, href: "/dashboard/mypunches" },
-    {
-      title: isAdmin ? "Leaves & Holiday" : "Leaves",
-      icon: CalendarX,
-      href: "/dashboard/leaves"
-    },
-    ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+    { title: isAdmin ? "Leaves & Holiday" : "Leaves", icon: CalendarX, href: "/dashboard/leaves"},
+
+    // ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+
+    { title: "Employees", icon: Users, href: "/dashboard/employees" },
+    
     { title: "Bank Account", icon: Landmark, href: "/dashboard/bank" },
     { title: "Company", icon: Building2, href: "/dashboard/company" },
     {

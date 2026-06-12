@@ -846,24 +846,21 @@ def delete_user(request):
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllUsers(request, page):
-    
     company_id = request.data.get('company_id')
-    # ----------------------------------------------------------------------
-    # 1. AUTHENTICATION & INITIAL SETUP
-    # ----------------------------------------------------------------------
+    user = request.user
+    
+    if not user.company.filter(id=company_id).exists():
+        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
+
     try:
-        if not c.CompanyUser.objects.get(user=request.user, company=company_id).is_admin:
-            return Response({
-                'status': status.HTTP_403_FORBIDDEN,
-                'success': False,
-                'message': 'Unauthorized access.'
-            })
+        is_admin = c.CompanyUser.objects.get(user=user, company_id=company_id).is_admin
     except c.CompanyUser.DoesNotExist:
-        return Response({
-            'status': status.HTTP_403_FORBIDDEN,
-            'success': False,
-            'message': 'Unauthorized access or Company not found.'
-        })
+        is_admin = False
+    
+    is_team_lead = user.team_lead
+
+    if not is_admin and not is_team_lead:
+        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'Insufficient permissions.'})
 
     gender = request.data.get('gender')
     is_active = request.data.get('is_active')
@@ -871,28 +868,25 @@ def getAllUsers(request, page):
     groups = request.data.get('groups', [])
     search = request.data.get('search', '').strip()
 
-    # Get company settings for later use
     try:
         company = Company.objects.get(id=company_id)
     except Company.DoesNotExist:
          return Response({'status': status.HTTP_404_NOT_FOUND, 'message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
         
     avg_interval = company.work_summary_interval
-    # punch_mode = company.punch_mode # Not used in filtering/querying, but good to keep
     
-    # ----------------------------------------------------------------------
-    # 2. QUERY BUILDING AND DB SORTING
-    # ----------------------------------------------------------------------
     filters = Q(company__id=company_id) & Q(is_active=True) & ~Q(id=request.user.id)
 
+    if not is_admin:
+        filters &= Q(group_id=user.group_id)
     if gender:
         filters &= Q(gender__in=gender)
     if is_active is not None:
         filters &= Q(is_active=is_active)
     if roles:
-        filters &= Q(role_id__in=roles) # Assumes 'role' is a ForeignKey to CompanyRole
+        filters &= Q(role_id__in=roles)
     if groups:
-        filters &= Q(group_id__in=groups) # Assumes 'group' is a ForeignKey to CompanyGroup
+        filters &= Q(group_id__in=groups)
     if search:
         filters &= (
             Q(first_name__icontains=search) |
@@ -900,17 +894,9 @@ def getAllUsers(request, page):
             Q(email__icontains=search)
         )
 
-    # --- PERFORMANCE FIX 1: Sort and Filter in the Database ---
     users = CustomUser.objects.filter(filters).distinct().order_by(
-        F('group__short_name').asc(nulls_last=True),  # Groups A-Z, NULLs last
-        'first_name',                                 # Then by Name
-        'last_name',
-        'id'                                          # Tie-breaker
-    )
+        F('group__short_name').asc(nulls_last=True), 'first_name', 'last_name', 'id')
 
-    # ----------------------------------------------------------------------
-    # 3. GLOBAL COUNTS (Must run on the full filtered QuerySet)
-    # ----------------------------------------------------------------------
     male_count = users.filter(gender='M').count()
     female_count = users.filter(gender='F').count()
     others_count = users.filter(gender='O').count()
@@ -922,42 +908,27 @@ def getAllUsers(request, page):
              'female_count': 0, 'others_count': 0, 'data': []
          })
 
-    # ----------------------------------------------------------------------
-    # 4. PAGINATION (Apply Paginator to the QuerySet)
-    # ----------------------------------------------------------------------
-    # NOTE: The QuerySet is lazily evaluated, so no data is fetched yet.
     paginator = Paginator(users, 10)
     
-    # Handle invalid page number (optional, Paginator is robust)
     try:
         page_data = paginator.page(page)
     except Exception:
         page_data = paginator.page(paginator.num_pages)
 
-    # The actual users to process (only 10 of them!)
     users_on_current_page = page_data.object_list
     
-    # ----------------------------------------------------------------------
-    # 5. CONTEXT & TIME SETUP (for the loop)
-    # ----------------------------------------------------------------------
     today = date.today()
     devices = Device.objects.filter(company=company_id)
     device_ids = list(devices.values_list('device_id', flat=True))
 
-    # Determine average working hour field based on company interval
     if avg_interval == 'W':
          avg_hour_field = 'weekly_avg_working_hour'
-    else: # 'M' or fallback
+    else:
          avg_hour_field = 'monthly_avg_working_hour'
 
     user_data = []
 
-    # ----------------------------------------------------------------------
-    # 6. TARGETED PROCESSING (N+1 queries now run only 10 times)
-    # ----------------------------------------------------------------------
-    for user in users_on_current_page:
-        
-        # Pass company_id to the serializer for correct role/group lookup
+    for user in users_on_current_page:        
         serializer = UserSerializer(user, context={'company_id': company_id})
         serialized_user = serializer.data
         
@@ -965,15 +936,11 @@ def getAllUsers(request, page):
         
         # --- Heavy Operation: Runs only for users on this page ---
         today_punches = PunchRecords.objects.using('secondary').filter(
-            user_id=biometric_id,
-            device_id__in=device_ids,
-            punch_time__date=today
-        ).order_by('punch_time')
+            user_id=biometric_id, device_id__in=device_ids, punch_time__date=today ).order_by('punch_time')
 
         # --- DEDUPLICATION LOGIC ("Cluster & Sequence Match") ---
         # valid_punches = deduplicate_punches(today_punches)
 
-        # --- Work Hour Calculation ---
         avg_hour = getattr(user, avg_hour_field)
         serialized_user['avg_working_hour'] = round(avg_hour, 2)
         
@@ -993,13 +960,11 @@ def getAllUsers(request, page):
         serialized_user['check_in'] = check_in.isoformat() if check_in else None
         serialized_user['check_out'] = check_out.isoformat() if check_out else None
         
-        # --- Punch Pairing (Multi-Mode) ---
         punch_pairs = []
         if company.punch_mode == 'M':
             remaining_check_ins = punch_ins.copy()
             remaining_check_outs = punch_outs.copy()
 
-            # Note: This pairing logic is preserved from your original code
             while remaining_check_ins and remaining_check_outs:
                 earliest_in = min(remaining_check_ins)
                 next_out = min((p for p in remaining_check_outs if p > earliest_in), default=None)
@@ -1014,23 +979,13 @@ def getAllUsers(request, page):
                     remaining_check_ins.remove(earliest_in)
 
         serialized_user['punch_pairs'] = punch_pairs
-
         user_data.append(serialized_user)
 
-    # ----------------------------------------------------------------------
-    # 7. FINAL RESPONSE
-    # ----------------------------------------------------------------------
-    return Response({
-        'status': status.HTTP_200_OK,
-        'total': paginator.count,
-        'page': page_data.number,
-        'total_page': paginator.num_pages,
-        'male_count': male_count,
-        'female_count': female_count,
-        'others_count': others_count,
-        'success': True,
-        'message': 'No users found.' if paginator.count == 0 else 'Success',
-        'data': user_data # Now 'user_data' is the serialized, processed list for the current page
+    return Response({ 'status': status.HTTP_200_OK, 'total': paginator.count,
+        'page': page_data.number, 'total_page': paginator.num_pages,
+        'male_count': male_count, 'female_count': female_count, 'others_count': others_count,
+        'success': True, 'message': 'No users found.' if paginator.count == 0 else 'Success',
+        'data': user_data
     })
 
 
