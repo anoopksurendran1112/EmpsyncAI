@@ -1094,48 +1094,78 @@ export default function ProfilePage() {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm border border-purple-50">
+                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 shadow-sm border border-purple-50">
                           <UserIcon className="h-5 w-5" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Personal Details</h3>
                       </div>
-                      <button onClick={() => handleEditExtended("personal")} className="text-purple-600 border border-purple-100 bg-purple-50 hover:bg-purple-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("personal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
                     <div className="p-6 space-y-6">
                       <div className="grid grid-cols-3 gap-6">
-                        <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p><p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p></div>
-                        <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p><p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)} years old</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p><p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p></div>
-                        <div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p><p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p><p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p><p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p></div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                          <p className="text-base font-semibold text-gray-800 gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
+                          <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Professional Details Section */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                           <Briefcase className="h-5 w-5" />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900">Professional Profile</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Professional Details</h3>
                       </div>
                       <button variant="outline" onClick={() => handleEditExtended("professional")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
                     <div className="p-6 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Designation / Role</span><p className="text-base font-semibold text-gray-800">{getRoleName(user.role_id || user.role)}</p></div>
-                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Department / Group</span><p className="text-base font-semibold text-gray-800">{getGroupName(user.group_id || user.group)}</p></div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Staff Category</span><p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffCategoryName(fullProfile.staff_category) : "Not provided"}</p></div>
-                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Staff Type</span><p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffTypeName(fullProfile.staff_type) : "Not provided"}</p></div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Department / Group</span>
+                          <p className="text-base font-semibold text-gray-800">{getGroupName(user.group_id || user.group)}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Designation / Role</span>
+                          <p className="text-base font-semibold text-gray-800">{getRoleName(user.role_id || user.role)}</p>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Staff Category</span>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffCategoryName(fullProfile.staff_category) : "Not provided"}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Staff Type</span>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile ? getStaffTypeName(fullProfile.staff_type) : "Not provided"}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1144,23 +1174,33 @@ export default function ProfilePage() {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                           <Smartphone className="h-5 w-5" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Contact Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("contact")} className="text-green-600 border border-green-100 bg-green-50 hover:bg-green-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button variant="outline" onClick={() => handleEditExtended("contact")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
                     <div className="p-6 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Email</p><p className="text-base font-semibold text-gray-800">{user?.email || "Not provided"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Mobile</p><p className="text-base font-semibold text-gray-800">{user?.mobile || "Not provided"}</p></div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p><p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Mobile</p><p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p></div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0">Primary Email</p>
+                          <p className="text-base font-semibold text-gray-800">{user?.email || "Not provided"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0">Primary Mobile</p>
+                          <p className="text-base font-semibold text-gray-800">{user?.mobile || "Not provided"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0">Alternate Email</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0">Alternate Mobile</p>
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1169,12 +1209,12 @@ export default function ProfilePage() {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                           <Users className="h-5 w-5" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Family & Emergency Contacts</h3>
                       </div>
-                      <button onClick={() => handleEditExtended("family")} className="text-indigo-600 border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors">
+                      <button onClick={() => handleEditExtended("family")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -1184,9 +1224,9 @@ export default function ProfilePage() {
                           {guardians.map((guardian: GuardianItem) => (
                             <div key={guardian.id} className="flex flex-row items-center justify-between relative group">
                               <div className="flex flex-col">
-                                <h4 className="text-base font-bold text-gray-800">{guardian.name}</h4>
+                                <h4 className="text-base font-semibold text-gray-800">{guardian.name}</h4>
                                 <div className="flex items-center gap-2">
-                                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{guardian.relationship_type_display || guardian.relationship_type}</p>
+                                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-0">{guardian.relationship_type_display || guardian.relationship_type}</p>
                                   {guardian.is_guardian && <span className="text-[9px] font-extrabold uppercase tracking-wide bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded shadow-3xs">Primary Guardian</span>}
                                 </div>
                               </div>
@@ -1209,12 +1249,12 @@ export default function ProfilePage() {
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-gray-900 flex items-center justify-center text-white">
+                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                           <MapPin className="h-5 w-5" />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900">Address Matrix</h3>
+                        <h3 className="text-lg font-bold text-gray-900">Address Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("address")} className="text-gray-900 border border-gray-200 bg-gray-50 hover:bg-gray-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button variant="outline" onClick={() => handleEditExtended("address")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -1295,12 +1335,12 @@ export default function ProfilePage() {
               <div className="space-y-8 animate-fadeIn bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 mb-0 border-b border-gray-100 flex items-center justify-between bg-white">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+                    <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                       <Briefcase className="h-5 w-5" />
                     </div>
                     <h3 className="text-lg font-bold text-gray-900">Work Experience</h3>
                   </div>
-                  <button onClick={() => handleEditExtended("experience")} className="text-green-600 border border-green-100 bg-green-50 hover:bg-green-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors">
+                  <button onClick={() => handleEditExtended("experience")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors">
                     <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                   </button>
                 </div>
@@ -1408,23 +1448,33 @@ export default function ProfilePage() {
             {/* TAB 4: Legal & Bank Settings */}
             {activeTab === 'legal' && (
               <div className="grid grid-cols-1 gap-8 animate-fadeIn">
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><ShieldCheck className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3></div>
-                    <button variant="outline" onClick={() => handleEditExtended("legal")} className="text-amber-600 border border-amber-100 bg-amber-50 hover:bg-amber-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3>
+                    </div>
+                    <button variant="outline" onClick={() => handleEditExtended("legal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                    </button>
                   </div>
                   <div className="p-6 space-y-6">
                     <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100"><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Aadhaar Card</p><p className="text-base font-bold text-gray-800">{fullProfile?.aadhar_no || "Not provided"}</p></div><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">PAN Number</p><p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.pan_no || "Not provided"}</p></div></div>
                     <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100"><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">KTU ID</p><p className="text-base font-bold text-gray-800">{fullProfile?.ktu_id || "Not provided"}</p></div><div><p className="text-[10px] font-bold uppercase text-gray-400 mb-1">AICTE ID</p><p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.aicte_id || "Not provided"}</p></div></div>
                   </div>
                 </div>
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
-                    <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600"><Landmark className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Bank Information</h3></div>
-                    <button onClick={() => handleEditExtended("bank")} className="text-amber-600 border border-amber-100 bg-amber-50 hover:bg-amber-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
+                    <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Landmark className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Bank Information</h3></div>
+                    <button onClick={() => handleEditExtended("bank")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center transition-colors"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
-                    {bankDetails && bankDetails.length > 0 ? bankDetails.map((bank: any) => (<div key={bank.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 relative">{bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}<div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span><p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span><p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span><p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span><p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p></div></div>)) : <p className="text-sm text-gray-500 text-center py-4">No financial billing accounts connected.</p>}
+                    {bankDetails && bankDetails.length > 0 ? bankDetails.map((bank: any) => (<div key={bank.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 relative">
+                      {bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}<div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span><p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span><p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span><p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span><p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p></div></div>)) : <p className="text-sm text-gray-500 text-center py-4">No financial billing accounts connected.</p>}
                   </div>
                 </div>
               </div>
@@ -1435,8 +1485,8 @@ export default function ProfilePage() {
               <div className="space-y-8 animate-fadeIn">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600"><Settings className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">System Preferences</h3></div>
-                    <button variant="outline" onClick={() => handleEditExtended("preferences")} className="text-orange-600 border border-orange-100 bg-orange-50 hover:bg-orange-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
+                    <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Settings className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Notification Preferences</h3></div>
+                    <button variant="outline" onClick={() => handleEditExtended("preferences")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><MessageCircle className="h-4 w-4 text-green-500" /><span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span></div><span className={`text-xs px-2.5 py-1 rounded-full font-bold ${user?.is_whatsapp ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{user?.is_whatsapp ? "Enabled" : "Disabled"}</span></div>
@@ -1445,7 +1495,7 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600"><Shield className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Security & Access</h3></div></div>
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between"><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Shield className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Security & Access</h3></div></div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><Key className="h-4 w-4 text-purple-500" /><span className="text-sm font-medium text-gray-700">Administrator Access</span></div><span className={`text-xs px-2.5 py-1 rounded-full font-bold ${isAdmin ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{isAdmin ? "Full Access" : "Restricted"}</span></div>
                     <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><Crown className="h-4 w-4 text-pink-500" /><span className="text-sm font-medium text-gray-700">Superuser Privileges</span></div><span className={`text-xs px-2.5 py-1 rounded-full font-bold ${user.is_superuser ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'}`}>{user.is_superuser ? "Enabled" : "Disabled"}</span></div>
@@ -1460,149 +1510,1030 @@ export default function ProfilePage() {
 
         {/* PERSONAL EDIT DIALOG */}
         <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-purple-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Personal Details</DialogTitle><DialogDescription className="text-purple-100 mt-1.5 text-sm font-medium">Refine dynamic demographic details and identity indicators.</DialogDescription><UserIcon className="absolute right-8 top-8 h-12 w-12 text-purple-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-2 gap-6"><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">First Name</Label><Input value={editedUser?.first_name || ""} onChange={(e) => handleInputChange("first_name", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-purple-500" /></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Last Name</Label><Input value={editedUser?.last_name || ""} onChange={(e) => handleInputChange("last_name", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-purple-500" /></div></div>
-              <div className="grid grid-cols-2 gap-6"><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Date of Birth</Label><Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-purple-500" />{editProfileData?.dob && calculateAge(editProfileData.dob) !== null && <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 text-xs text-purple-700 font-semibold mt-1.5"><Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years</div>}</div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Gender</Label><Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-purple-500"><SelectValue placeholder="Select gender" /></SelectTrigger><SelectContent className="rounded-xl"><SelectItem value="M">Male</SelectItem><SelectItem value="F">Female</SelectItem><SelectItem value="O">Other</SelectItem></SelectContent></Select></div></div>
-              <div className="grid grid-cols-3 gap-4"><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Blood Group</Label><Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-purple-500"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="rounded-xl">{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Religion</Label><Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => { const newId = v ? parseInt(v) : null; handleProfileChange("religion_id", newId); setCastes([]); }}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-purple-500"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="rounded-xl">{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Caste</Label><Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-purple-500 disabled:opacity-60 disabled:bg-gray-50"><SelectValue placeholder={!editProfileData?.religion_id ? "Select religion first" : "Select caste"} /></SelectTrigger><SelectContent className="rounded-xl">{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div></div>
+          <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Personal Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Refine dynamic demographic details and identity indicators.
+              </DialogDescription>
+              <UserIcon className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* First Name & Last Name */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">First Name<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.first_name || ""} 
+                    onChange={(e) => handleInputChange("first_name", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Last Name<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.last_name || ""} 
+                    onChange={(e) => handleInputChange("last_name", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* DOB & Gender */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    type="date" 
+                    value={editProfileData?.dob || ""} 
+                    onChange={(e) => handleProfileChange("dob", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                  {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
+                      <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Gender<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      <SelectItem value="M">Male</SelectItem>
+                      <SelectItem value="F">Female</SelectItem>
+                      <SelectItem value="O">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Blood Group, Religion, Caste */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Blood Group</Label>
+                  <Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => (
+                        <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Religion</Label>
+                  <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => { const newId = v ? parseInt(v) : null; handleProfileChange("religion_id", newId); setCastes([]); }}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {religions.map(r => (
+                        <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Caste</Label>
+                  <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white disabled:opacity-60 disabled:bg-[#f2f4f6]">
+                      <SelectValue placeholder={!editProfileData?.religion_id ? "Select religion first" : "Select caste"} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {castes.map(c => (
+                        <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200 transition-colors">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl px-6 h-11 font-semibold shadow-sm transition-all disabled:opacity-50">{isSaving ? "Updating Details..." : "Save Changes"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Personal Details..." : "Save Personal Details"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-blue-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Professional Identity Metadata</DialogTitle><DialogDescription className="text-blue-100 mt-1.5 text-sm font-medium">Refine corporate structure alignment and tracking parameters.</DialogDescription><Briefcase className="absolute right-8 top-8 h-12 w-12 text-blue-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-2 gap-6"><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Department / Group</Label><Select value={editedUser?.group_id?.toString() || ""} onValueChange={handleGroupChange}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-blue-500"><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent className="rounded-xl">{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name || g.group_name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Designation / Role</Label><Select value={editedUser?.role_id?.toString() || ""} onValueChange={handleRoleChange}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-blue-500"><SelectValue placeholder="Select designation" /></SelectTrigger><SelectContent className="rounded-xl">{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Staff Type</Label><Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-blue-500"><SelectValue placeholder="Select type" /></SelectTrigger><SelectContent className="rounded-xl">{staffTypes.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Staff Category</Label><Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)}><SelectTrigger className="rounded-xl h-11 border-gray-200 focus:ring-blue-500"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent className="rounded-xl">{staffCategories.map(sc => <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Staff ID</Label><Input value={editProfileData?.staff_id || ""} onChange={(e) => handleProfileChange("staff_id", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-purple-500" /></div></div>
+          <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Professional Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Refine corporate structure alignment and tracking parameters.
+              </DialogDescription>
+              <Briefcase className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Department & Designation */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Department / Group<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.group_id?.toString() || ""} onValueChange={handleGroupChange} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {groups.map(g => (
+                        <SelectItem key={g.id} value={g.id.toString()}>
+                          {g.group || g.name || g.group_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Designation / Role<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.role_id?.toString() || ""} onValueChange={handleRoleChange} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select designation" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {roles.map(r => (
+                        <SelectItem key={r.id} value={r.id.toString()}>
+                          {r.role || r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Staff Type & Staff Category */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Type<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {staffTypes.map(st => (
+                        <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Category<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {staffCategories.map(sc => (
+                        <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Staff ID Field */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff ID<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.staff_id || ""} 
+                  onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  required
+                />
+              </div>
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200 transition-colors">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 h-11 font-semibold shadow-sm transition-all disabled:opacity-50">{isSaving ? "Saving Alignment..." : "Update Assignment"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Professional Details..." : "Save Professional Details"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* CONTACT EDIT DIALOG */}
         <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-emerald-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Communication Channels</DialogTitle><DialogDescription className="text-emerald-100 mt-1.5 text-sm font-medium">Manage personal contact touchpoints and delivery configurations.</DialogDescription><Smartphone className="absolute right-8 top-8 h-12 w-12 text-emerald-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-4"><h4 className="text-xs font-bold uppercase tracking-widest text-emerald-700 border-b border-emerald-100 pb-1.5">Primary Directives</h4><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Primary Email</Label><Input value={editedUser?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-emerald-500" /></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Primary Mobile</Label><Input value={editedUser?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-emerald-500 font-mono" maxLength={10} /></div></div>
-              <div className="space-y-4 pt-2"><h4 className="text-xs font-bold uppercase tracking-widest text-emerald-700 border-b border-emerald-100 pb-1.5">Fallback Nodes</h4><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Alternate Mobile</Label><Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-emerald-500 font-mono" maxLength={10} /></div><div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-gray-500">Alternate Email</Label><Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-11 border-gray-200 focus-visible:ring-emerald-500" /></div></div>
+          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Communication Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage personal contact touchpoints and delivery configurations.
+              </DialogDescription>
+              <Smartphone className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Primary Channels Section */}
+              <div className="space-y-3.5">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
+                  Primary Communication
+                </h4>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Email<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.email || ""} 
+                    onChange={(e) => handleInputChange("email", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Mobile<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.mobile || ""} 
+                    onChange={(e) => handleInputChange("mobile", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                    minLength={10} maxLength={10} required
+                  />
+                </div>
+              </div>
+
+              {/* Fallback Channels Section */}
+              <div className="space-y-3.5 pt-1">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
+                  Alternative Communication
+                </h4>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Email</Label>
+                  <Input 
+                    value={editProfileData?.alternate_email || ""} 
+                    onChange={(e) => handleProfileChange("alternate_email", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Mobile</Label>
+                  <Input 
+                    value={editProfileData?.alternate_mobile || ""} 
+                    onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                    minLength={10} maxLength={10}
+                  />
+                </div>
+              </div>
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3"><Button variant="outline" onClick={handleCancel} className="w-1/2 rounded-xl h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200 transition-colors">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-11 font-semibold shadow-sm transition-all disabled:opacity-50">{isSaving ? "Saving Nodes..." : "Apply Channels"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Savinging Communication Details..." : "Save Communication Details"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* GUARDIAN EDIT DIALOG */}
         <Dialog open={editingSection === "family"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-teal-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Family & Guardian Protocol</DialogTitle><DialogDescription className="text-teal-100 mt-1.5 text-sm font-medium">Manage statutory dependencies and emergency contacts.</DialogDescription><Users className="absolute right-8 top-8 h-12 w-12 text-teal-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="p-4 bg-teal-50/50 rounded-2xl border border-teal-100 flex items-center justify-between"><div className="space-y-0.5"><Label htmlFor="is_married" className="text-sm font-bold text-gray-800 cursor-pointer">Marital Status: Married</Label><p className="text-xs text-gray-500">Toggle to reveal spouse contact field</p></div><Checkbox id="is_married" checked={familyIsMarried} onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} className="h-5 w-5 rounded-md border-gray-300 text-teal-600 focus:ring-teal-500" /></div>
-              <div className="space-y-4"><Label className="text-xs font-extrabold uppercase tracking-widest text-teal-800 block mb-2">Primary Emergency Node Configuration</Label>
-                <RadioGroup value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} onValueChange={(relationshipType) => { const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); setGuardians(updated); }} className="space-y-4">
-                  {/* Father */}
-                  {(() => { const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; const updateFather = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...father, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-2xl border transition-all ${father.is_guardian ? 'border-teal-300 bg-teal-50/20 shadow-sm' : 'border-gray-100 bg-gray-50/50'} space-y-3`}><div className="flex items-center justify-between"><span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500"></span> Father Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-lg border border-gray-100 shadow-2xs"><RadioGroupItem value="father" id="primary-father" className="text-teal-600 focus:ring-teal-500" /><Label htmlFor="primary-father" className="text-xs font-bold text-gray-500 cursor-pointer">Set Primary</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Full Name</Label><Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Mobile Target</Label><Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500 font-mono" maxLength={10} /></div></div></div>); })()}
-                  {/* Mother */}
-                  {(() => { const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; const updateMother = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...mother, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-2xl border transition-all ${mother.is_guardian ? 'border-teal-300 bg-teal-50/20 shadow-sm' : 'border-gray-100 bg-gray-50/50'} space-y-3`}><div className="flex items-center justify-between"><span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-400"></span> Mother Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-lg border border-gray-100 shadow-2xs"><RadioGroupItem value="mother" id="primary-mother" className="text-teal-600 focus:ring-teal-500" /><Label htmlFor="primary-mother" className="text-xs font-bold text-gray-500 cursor-pointer">Set Primary</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Full Name</Label><Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Mobile Target</Label><Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500 font-mono" maxLength={10} /></div></div></div>); })()}
-                  {/* Spouse (conditional) */}
-                  {familyIsMarried && (() => { const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; const updateSpouse = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...spouse, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-2xl border transition-all ${spouse.is_guardian ? 'border-teal-300 bg-teal-50/20 shadow-sm' : 'border-gray-100 bg-gray-50/50'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}><div className="flex items-center justify-between"><span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400"></span> Spouse Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-lg border border-gray-100 shadow-2xs"><RadioGroupItem value="spouse" id="primary-spouse" className="text-teal-600 focus:ring-teal-500" /><Label htmlFor="primary-spouse" className="text-xs font-bold text-gray-500 cursor-pointer">Set Primary</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Full Name</Label><Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-400 uppercase">Mobile Target</Label><Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="h-10 bg-white rounded-xl border-gray-200 focus-visible:ring-teal-500 font-mono" maxLength={10} /></div></div></div>); })()}
+          <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Family & Emergency Contacts
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage statutory dependencies and emergency contacts.
+              </DialogDescription>
+              <Users className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {/* Radio Group Block */}
+              <div className="space-y-3">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
+                  Primary Emergency Node Configuration
+                </Label>
+                
+                <RadioGroup 
+                  value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
+                  onValueChange={(relationshipType) => { 
+                    const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
+                    setGuardians(updated); 
+                  }} 
+                  className="space-y-3"
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Father Node */}
+                    <div>
+                      {(() => { 
+                        const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
+                        const updateFather = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...father, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-blue-600"></span> Father Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="father" id="primary-father" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-father" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
+                    
+                    {/* Mother Node */}
+                    <div>
+                      {(() => { 
+                        const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
+                        const updateMother = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...mother, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-[#ef4444]"></span> Mother Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="mother" id="primary-mother" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-mother" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
+
+                    {/* Marital Status Banner */}
+                    <div>  
+                      <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
+                            Marital Status: Married?
+                          </Label>
+                          <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
+                        </div>
+                        <Checkbox 
+                          id="is_married" 
+                          checked={familyIsMarried} 
+                          onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
+                          className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                        />
+                      </div>
+                    </div>
+                      
+                    {/* Spouse Node (Conditional) */}
+                    <div>  
+                      {familyIsMarried && (() => { 
+                        const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
+                        const updateSpouse = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...spouse, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-[#f59e0b]"></span> Spouse Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="spouse" id="primary-spouse" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-spouse" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
+                  </div>
                 </RadioGroup>
               </div>
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3"><Button variant="outline" onClick={handleCancel} className="w-1/2 rounded-xl h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200 transition-colors">Cancel</Button><Button onClick={handleSaveFamily} disabled={isSaving} className="w-1/2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl h-11 font-semibold shadow-sm transition-all disabled:opacity-50">{isSaving ? "Saving Contacts..." : "Save Family Contacts"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveFamily} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-4xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-slate-800 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Residence Data Protocol</DialogTitle><DialogDescription className="text-slate-300 mt-1.5 text-sm font-medium">Update Present and Permanent Physical Coordinates.</DialogDescription><MapPin className="absolute right-8 top-8 h-12 w-12 text-slate-600/30 pointer-events-none" /></DialogHeader>
-            <div className="p-8 grid grid-cols-1 gap-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/40 space-y-5"><div className="flex items-center gap-2.5 border-b border-slate-200/60 pb-3"><div className="h-8 w-8 rounded-xl bg-blue-100 flex items-center justify-center shadow-xs"><MapPin className="h-4 w-4 text-blue-600" /></div><div><h4 className="text-xs font-black uppercase text-blue-600 tracking-wider">Present Residence</h4><p className="text-[10px] text-gray-400 font-medium">Current mailing location</p></div></div><div className="space-y-4"><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Address Line 1</Label><Input placeholder="House number, apartment, street" value={editProfileData?.present_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div className="grid grid-cols-2 gap-4"><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">City</Label><Input placeholder="City" value={editProfileData?.present_address_details?.city || ""} onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pincode</Label><Input placeholder="Postal code" value={editProfileData?.present_address_details?.pincode || ""} onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700 font-mono" /></div></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State</Label><Input placeholder="State" value={editProfileData?.present_address_details?.state || ""} onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Country</Label><Input placeholder="Country" value={editProfileData?.present_address_details?.country || "India"} onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div></div></div>
-              <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/40 space-y-5"><div className="flex items-center gap-2.5 border-b border-slate-200/60 pb-3"><div className="h-8 w-8 rounded-xl bg-indigo-100 flex items-center justify-center shadow-xs"><Landmark className="h-4 w-4 text-indigo-600" /></div><div><h4 className="text-xs font-black uppercase text-indigo-600 tracking-wider">Permanent Landmark</h4><p className="text-[10px] text-gray-400 font-medium">Statutory domicile node</p></div></div><div className="space-y-4"><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Address Line 1</Label><Input placeholder="House number, native street, sector" value={editProfileData?.permanent_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div className="grid grid-cols-2 gap-4"><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">City</Label><Input placeholder="City" value={editProfileData?.permanent_address_details?.city || ""} onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pincode</Label><Input placeholder="Postal code" value={editProfileData?.permanent_address_details?.pincode || ""} onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700 font-mono" /></div></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State</Label><Input placeholder="State" value={editProfileData?.permanent_address_details?.state || ""} onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div><div><Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Country</Label><Input placeholder="Country" value={editProfileData?.permanent_address_details?.country || "India"} onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} className="rounded-xl h-11 mt-1 border-gray-200 focus-visible:ring-slate-700" /></div></div></div>
+          <DialogContent className="sm:max-w-4xl  bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Residence Data Protocol
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Update Present and Permanent Physical Coordinates.
+              </DialogDescription>
+              <MapPin className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form - Dual Column Layout */}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* PRESENT RESIDENCE SECTION */}
+              <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
+                  <div className="h-8 w-8 rounded-lg bg-[#eff6ff] flex items-center justify-center border border-blue-100 shadow-sm">
+                    <MapPin className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Present Residence</h4>
+                    <p className="text-[10px] text-[#7a8ba0]">Current mailing location</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1<span className="text-red-500 -ml-1">*</span></Label>
+                    <Input 
+                      placeholder="House number, apartment, street" 
+                      value={editProfileData?.present_address_details?.address_line_1 || ""} 
+                      onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
+                      required 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="City" 
+                        value={editProfileData?.present_address_details?.city || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="Postal code" 
+                        value={editProfileData?.present_address_details?.pincode || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                        minLength={6} maxLength={6} 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="State" 
+                        value={editProfileData?.present_address_details?.state || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="Country" 
+                        value={editProfileData?.present_address_details?.country || "India"} 
+                        onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* PERMANENT RESIDENCE SECTION */}
+              <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
+                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
+                  <div className="h-8 w-8 rounded-lg bg-[#f5f3ff] flex items-center justify-center border border-purple-100 shadow-sm">
+                    <Landmark className="h-4 w-4 text-[#6d28d9]" />
+                  </div>
+                  <div>
+                    <h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Permanent Landmark</h4>
+                    <p className="text-[10px] text-[#7a8ba0]">Statutory domicile node</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1</Label>
+                    <Input 
+                      placeholder="House number, native street, sector" 
+                      value={editProfileData?.permanent_address_details?.address_line_1 || ""} 
+                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City</Label>
+                      <Input 
+                        placeholder="City" 
+                        value={editProfileData?.permanent_address_details?.city || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode</Label>
+                      <Input 
+                        placeholder="Postal code" 
+                        value={editProfileData?.permanent_address_details?.pincode || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                        minLength={6} maxLength={6} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State</Label>
+                      <Input 
+                        placeholder="State" 
+                        value={editProfileData?.permanent_address_details?.state || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country</Label>
+                      <Input 
+                        placeholder="Country" 
+                        value={editProfileData?.permanent_address_details?.country || "India"} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200 transition-colors">Cancel</Button><Button onClick={handleSave} disabled={isSaving} className="bg-slate-800 hover:bg-slate-900 text-white rounded-xl px-6 h-11 font-semibold shadow-sm transition-all disabled:opacity-50">{isSaving ? "Syncing Coordinates..." : "Commit Physical Data"}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
 
-        {/* LEGAL EDIT DIALOG */}
-        <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-amber-600 text-white relative"><DialogTitle className="text-2xl font-bold">Statutory Identities</DialogTitle><DialogDescription className="text-amber-100 mt-1">Update governmental and legal identification numbers.</DialogDescription><ShieldCheck className="absolute right-8 top-8 h-12 w-12 text-amber-300/30" /></DialogHeader>
-            <div className="p-8 space-y-6"><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">Aadhaar Number (UIDAI)</Label><Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11" /></div><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">PAN Number (Income Tax)</Label><Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 uppercase" /></div><Separator /><div className="space-y-2"><Label className="text-xs font-semibold uppercase text-gray-500">KTU / AICTE Identifier</Label><Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11" /></div></div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button onClick={handleSave} disabled={isSaving} className="bg-amber-600 hover:bg-amber-700 w-full rounded-xl h-12">{isSaving ? "Saving..." : "Commit IDs"}</Button></DialogFooter>
-          </DialogContent>
-        </Dialog>
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
 
-        {/* PREFERENCES EDIT DIALOG */}
-        <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-orange-500 text-white relative"><DialogTitle className="text-2xl font-bold">System Configurations</DialogTitle><DialogDescription className="text-orange-100 mt-1">Manage Work-from-home and automated alert policies.</DialogDescription><Settings className="absolute right-8 top-8 h-12 w-12 text-orange-300/30" /></DialogHeader>
-            <div className="p-8 space-y-4">{[{ icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" }, { icon: MessageSquare, label: "Enable SMS Service Protocol", field: "is_sms" }, { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }].map((pref, i) => (<div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100"><div className="flex items-center gap-3"><div className="p-2 bg-white rounded-xl shadow-sm text-orange-500"><pref.icon className="h-4 w-4" /></div><span className="text-sm font-medium text-gray-700">{pref.label}</span></div><Switch checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} onCheckedChange={(val) => handleInputChange(pref.field, val)} /></div>))}</div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100"><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600 w-full rounded-xl h-12">{isSaving ? "Saving..." : "Sync Preferences"}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* EDUCATION EDIT DIALOG */}
         <Dialog open={editingSection === "education"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-3xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-blue-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Education Records</DialogTitle><DialogDescription className="text-blue-100 mt-1.5 text-sm font-medium">Manage academic qualifications, degrees, and certifications.</DialogDescription><GraduationCap className="absolute right-8 top-8 h-12 w-12 text-blue-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-3">{editQualifications.map((qual: any, idx: number) => { const levelLabels: Record<string, string> = { UG: 'UG', PG: 'PG', MPHIL: 'M.Phil', PHD: 'Ph.D', POSTDOC: 'Post Doc', RESEARCH_OTHERS: 'Research', OTHERS: 'Others' }; const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; return (<div key={idx} className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start justify-between gap-4"><div className="flex-1 min-w-0 space-y-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-gray-800 truncate">{qual.specialization || "Unnamed"}</span><span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded shrink-0">{displayLevel}</span></div><p className="text-xs text-gray-500">{qual.institution_name}{qual.university ? `, ${qual.university}` : ""}</p><p className="text-xs text-gray-400">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} – {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}{qual.percentage != null && qual.percentage !== "" ? ` · ${qual.percentage}%` : ""}</p>{qual.certificate_preview && <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1"><CheckCircle className="h-3 w-3" /> Certificate Document Staged</p>}{qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">View Uploaded Document</a>}</div><div className="flex gap-1 shrink-0"><button onClick={() => { let normalizedLevel = qual.qualification_level; if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); setQualFormOpen(true); }} className="text-blue-600 hover:text-blue-800 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition">Edit</button><button onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button></div></div>);})}{editQualifications.length === 0 && !qualFormOpen && <p className="text-sm text-gray-400 text-center py-6">No qualifications added yet. Click below to add one.</p>}</div>
-              {qualFormOpen && (<div className="p-5 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4"><h4 className="text-xs font-extrabold uppercase tracking-wider text-blue-700">{currentQual?._idx !== undefined ? 'Edit Qualification' : 'Add Qualification'}</h4><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Qualification Level</Label><Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))}><SelectTrigger className="h-10 rounded-xl border-gray-200 bg-white"><SelectValue placeholder="Select level" /></SelectTrigger><SelectContent>{[['UG','Undergraduate (UG)'],['PG','Postgraduate (PG)'],['MPHIL','M.Phil.'],['PHD','Ph.D.'],['POSTDOC','Post Doctoral'],['RESEARCH_OTHERS','Research (Others)'],['OTHERS','Others']].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Specialization / Degree</Label><Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" placeholder="e.g. Computer Science" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Institution / College</Label><Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" placeholder="College or school name" /></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Affiliated University</Label><Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" placeholder="University name" /></div></div><div className="grid grid-cols-3 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Start Date</Label><Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" /></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Completion Date</Label><Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" /></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Score / %</Label><Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" placeholder="e.g. 85.5" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5 col-span-2"><Label className="text-xs font-bold uppercase text-gray-500">Certificate Document (.pdf, image)</Label><Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="h-10 rounded-xl border-gray-200 bg-white pt-2 text-xs" /></div><div className="space-y-1.5 col-span-2"><Label className="text-xs font-bold uppercase text-gray-500">Location</Label><Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="h-10 rounded-xl border-gray-200 bg-white" placeholder="City, State" /></div></div><div className="flex gap-3 pt-1"><Button type="button" onClick={() => { if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } const { _idx, ...qualData } = currentQual; if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } else { setEditQualifications(prev => [...prev, qualData]); } setCurrentQual({}); setQualFormOpen(false); }} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-9 px-5 text-sm font-semibold">{currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}</Button><Button variant="outline" type="button" onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} className="rounded-xl h-9 px-4 text-sm">Cancel</Button></div></div>)}
-              {!qualFormOpen && (<button type="button" onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-blue-200 rounded-xl text-blue-600 text-sm font-bold hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Qualification</button>)}
+          <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Education Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage academic qualifications, degrees, and certifications.
+              </DialogDescription>
+              <GraduationCap className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Existing Education Qualifications Stack */}
+              <div className="space-y-3">
+                {editQualifications.map((qual: any, idx: number) => { 
+                  const levelLabels: Record<string, string> = { 
+                    UG: 'UG', 
+                    PG: 'PG', 
+                    MPHIL: 'M.Phil', 
+                    PHD: 'Ph.D', 
+                    POSTDOC: 'Post Doc', 
+                    RESEARCH_OTHERS: 'Research', 
+                    OTHERS: 'Others' 
+                  }; 
+                  const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
+                  
+                  return (
+                    <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                            {qual.specialization || "Unnamed"}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 px-2 py-0.5 rounded border border-blue-100 shrink-0">
+                            {displayLevel}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-[#7a8ba0]">
+                          {qual.institution_name}{qual.university ? `, ${qual.university}` : ""}
+                        </p>
+                        <p className="text-[12px] text-[#434655] font-medium">
+                          {qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} &ndash; {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}
+                          {qual.percentage != null && qual.percentage !== "" ? ` &middot; ${qual.percentage}%` : ""}
+                        </p>
+                        {qual.certificate_preview && (
+                          <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                            <CheckCircle className="h-3 w-3" /> Certificate Document Staged
+                          </p>
+                        )}
+                        {qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && (
+                          <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">
+                            View Uploaded Document
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button 
+                          onClick={() => { 
+                            let normalizedLevel = qual.qualification_level; 
+                            if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
+                            setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
+                            setQualFormOpen(true); 
+                          }} 
+                          className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                          className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {editQualifications.length === 0 && !qualFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No qualifications added yet. Click below to add one.
+                  </p>
+                )}
+              </div>
+
+              {/* Qualification Mutation Node */}
+              {qualFormOpen && (
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
+                  </h4>
+                  
+                  {/* Level & Specialty Block */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Qualification Level<span className="text-red-500 -ml-1">*</span></Label>
+                      <Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))} required>
+                        <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white">
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            ['UG','Undergraduate (UG)'],
+                            ['PG','Postgraduate (PG)'],
+                            ['MPHIL','M.Phil.'],
+                            ['PHD','Ph.D.'],
+                            ['POSTDOC','Post Doctoral'],
+                            ['RESEARCH_OTHERS','Research (Others)'],
+                            ['OTHERS','Others']
+                          ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
+                      required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Institutional Identification Block */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Institution / College<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="College or school name" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Affiliated University<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="University name" required />
+                    </div>
+                  </div>
+
+                  {/* Geographic Metadata */}
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="City, State" required />
+                    </div>
+                  </div>
+
+                  {/* Chronology & Metrics Matrix */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Date<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Completion Date<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Score / %<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. 85.5" required />
+                    </div>
+                  </div>
+
+                  {/* Verification Attestations */}
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Certificate Document (.pdf, image)<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" required />
+                    </div>
+                  </div>
+
+                  {/* Mutation Action Sub-block */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      type="button" 
+                      onClick={() => { 
+                        if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
+                        if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
+                        const { _idx, ...qualData } = currentQual; 
+                        if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
+                        else { setEditQualifications(prev => [...prev, qualData]); } 
+                        setCurrentQual({}); 
+                        setQualFormOpen(false); 
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      type="button" 
+                      onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Trigger Node to Reveal Form */}
+              {!qualFormOpen && (
+                <button 
+                  type="button" 
+                  onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Qualification Record
+                </button>
+              )}
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3"><Button variant="outline" type="button" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200">Cancel</Button><Button type="button" onClick={handleSaveEducation} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 h-11 font-semibold shadow-sm disabled:opacity-50">{isSaving ? "Saving Records..." : "Save Education"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                type="button" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleSaveEducation} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Education Details..." : "Save Education Details"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
-        {/* EXPERIENCE EDIT DIALOG (with internal checkbox auto‑fill company name & location) */}
+        {/* EXPERIENCE EDIT DIALOG */}
         <Dialog open={editingSection === "experience"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-4xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-green-600 text-white relative">
-              <DialogTitle className="text-2xl font-bold tracking-tight">Work Experience</DialogTitle>
-              <DialogDescription className="text-green-100 mt-1.5 text-sm font-medium">
-                Manage professional employment history. Toggle "Internal Role" – company & location auto‑fill from organisation profile.
+          <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Work Experience
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage professional employment history. Toggle "Internal Role" &ndash; company & location auto‑fill from organisation profile.
               </DialogDescription>
-              <BriefcaseBusiness className="absolute right-8 top-8 h-12 w-12 text-green-300/20 pointer-events-none" />
+              <BriefcaseBusiness className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
 
-            <div className="p-8 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              {/* List existing experiences */}
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Existing Experiences Stack */}
               <div className="space-y-3">
                 {editExperiences.map((exp: ExperienceItem, idx: number) => (
-                  <div key={idx} className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start justify-between gap-4">
+                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-gray-800 truncate">
+                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
                           {exp.company_name || 'Company'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-[12px] text-[#7a8ba0]">
                         {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
-                        {exp.end_year ? ` – ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' – Present'}
-                        {exp.location ? ` · ${exp.location}` : ''}
+                        {exp.end_year ? ` &ndash; ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' &ndash; Present'}
+                        {exp.location ? ` &middot; ${exp.location}` : ''}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">{exp.designations?.length || 0} role(s) defined</p>
+                      <p className="text-[12px] text-[#434655] font-medium mt-1">
+                        {exp.designations?.length || 0} role(s) defined
+                      </p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} className="text-green-600 hover:text-green-800 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-green-50 transition">Edit</button>
-                      <button onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button>
+                      <button 
+                        onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
+                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
+                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 ))}
-                {editExperiences.length === 0 && !expFormOpen && <p className="text-sm text-gray-400 text-center py-6">No experience records added yet. Click below to add one.</p>}
+                {editExperiences.length === 0 && !expFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No experience records added yet. Click below to add one.
+                  </p>
+                )}
               </div>
 
-              {/* Add/Edit Experience Form */}
+              {/* Experience Mutation Node */}
               {expFormOpen && currentExp && (
-                <div className="p-5 bg-green-50/50 rounded-2xl border border-green-100 space-y-4">
-                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-green-700">{currentExp.id ? 'Edit Experience' : 'Add Experience'}</h4>
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}
+                  </h4>
 
-                  {/* Internal Role Checkbox with auto‑fill company name & location */}
-                  <div className="flex items-center gap-3 p-2 bg-white rounded-lg border border-green-200">
+                  {/* Internal Role Configuration Node */}
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]">
                     <Checkbox
                       id="internal-role-checkbox"
                       checked={currentExp.is_internal || false}
@@ -1635,108 +2566,586 @@ export default function ProfilePage() {
                           location: newLocation
                         });
                       }}
-                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
                     />
-                    <Label htmlFor="internal-role-checkbox" className="text-sm font-semibold text-gray-700 cursor-pointer">
+                    <Label htmlFor="internal-role-checkbox" className="text-[13px] font-semibold text-[#434655] cursor-pointer select-none">
                       This is an internal role (organisation uses predefined Roles & Groups)
                     </Label>
                   </div>
 
-                  {/* Company & Location fields */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* Company & Location Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold uppercase text-gray-500">Company / Organization</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
                       <Input
                         value={currentExp.company_name || ''}
                         onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })}
                         disabled={currentExp.is_internal}
-                        className={`h-10 rounded-xl border-gray-200 ${currentExp.is_internal ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
                         placeholder={currentExp.is_internal ? "Auto-filled from company" : "Company name"}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold uppercase text-gray-500">Location (City, State)</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label>
                       <Input
                         value={currentExp.location || ''}
                         onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })}
                         disabled={currentExp.is_internal}
-                        className={`h-10 rounded-xl border-gray-200 ${currentExp.is_internal ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
                         placeholder={currentExp.is_internal ? "Auto-filled from company address" : "e.g. Bangalore, India"}
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Start Year</Label><Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="h-10 rounded-xl border-gray-200" /></div>
-                    <div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">End Year <span className="text-gray-400 normal-case font-normal">(leave blank if current)</span></Label><Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="h-10 rounded-xl border-gray-200" /></div>
-                  </div>
-
-                  <div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Experience Letter (optional)</Label><Input type="file" accept=".pdf,.jpg,.png" onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} className="h-10 rounded-xl border-gray-200 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" />{currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && <p className="text-[10px] text-green-600 font-medium">Selected: {(currentExp.experience_letter as File).name}</p>}</div>
-
-                  {/* Multiple Designations Section (no description) */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between mb-2"><Label className="text-xs font-extrabold uppercase text-gray-600">Roles / Designations</Label><Button type="button" onClick={() => { const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); }} size="sm" variant="outline" className="h-7 text-xs bg-white border-green-200 text-green-700 hover:bg-green-50"><Plus className="h-3 w-3 mr-1" /> Add Role</Button></div>
-                    <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
-                      {currentExp.designations && currentExp.designations.map((des, desIdx) => (
-                        <div key={desIdx} className="p-3 bg-white rounded-xl border border-gray-200 space-y-2 relative">
-                          <div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase text-gray-400">Role #{desIdx+1}</span><Button type="button" variant="ghost" size="sm" onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} className="h-6 w-6 p-0 text-red-500 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" /></Button></div>
-                          {currentExp.is_internal ? (
-                            <><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Role</Label><Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-8 rounded-lg text-xs"><SelectValue placeholder="Select role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Group</Label><Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-8 rounded-lg text-xs"><SelectValue placeholder="Select group" /></SelectTrigger><SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent></Select></div></div></>
-                          ) : (
-                            <><div className="grid grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Designation Title</Label><Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-8 rounded-lg text-xs" placeholder="e.g. Software Engineer" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Group / Department (optional)</Label><Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-8 rounded-lg text-xs" placeholder="e.g. Engineering" /></div></div></>
-                          )}
-                          <div className="grid grid-cols-2 gap-3 mt-1"><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Start Date</Label><Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-8 rounded-lg text-xs" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">End Date</Label><Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-8 rounded-lg text-xs" /></div></div>
-                          <div className="space-y-1"><Label className="text-[10px] font-bold text-gray-500">Change Type</Label><Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-8 rounded-lg text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Joined">Joined</SelectItem><SelectItem value="Promotion">Promotion</SelectItem><SelectItem value="Transfer">Transfer</SelectItem><SelectItem value="Demotion">Demotion</SelectItem><SelectItem value="Contract">Contract</SelectItem></SelectContent></Select></div>
-                        </div>
-                      ))}
-                      {(!currentExp.designations || currentExp.designations.length === 0) && <p className="text-xs text-gray-400 text-center py-2">No roles added. Click "Add Role" to specify.</p>}
+                  {/* Tenure Lifespan */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">End Year <span className="text-[#7a8ba0]/70 normal-case font-normal">(leave blank if current)</span></Label>
+                      <Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" />
                     </div>
                   </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <Button onClick={() => {
-                      if (!currentExp.start_year) { toast.error("Start year is required."); return; }
-                      if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; }
-                      for (let i = 0; i < currentExp.designations.length; i++) {
-                        const des = currentExp.designations[i];
-                        if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } 
-                        else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } }
-                        if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; }
-                      }
-                      const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
-                      if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
-                      else setEditExperiences(prev => [...prev, currentExp]);
-                      setCurrentExp(null); setExpFormOpen(false);
-                    }} className="bg-green-600 hover:bg-green-700 text-white rounded-xl h-9 px-5 text-sm font-semibold">{currentExp.id ? 'Update Record' : 'Add Record'}</Button>
-                    <Button variant="outline" onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} className="rounded-xl h-9 px-4 text-sm">Cancel</Button>
+                  {/* Verification Attestation */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
+                    <Input 
+                      type="file" 
+                      accept=".pdf,.jpg,.png" 
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
+                      className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
+                    />
+                    {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
+                      <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
+                    )}
+                  </div>
+
+                  {/* Multiple Designations Vector Segment */}
+                  <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
+                      <Button 
+                        type="button" 
+                        onClick={() => { 
+                          const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
+                          if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
+                          else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
+                          setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
+                        }} 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Add Role
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3 overflow-y-auto pr-1">
+                      {currentExp.designations && currentExp.designations.map((des, desIdx) => (
+                        <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
+                              className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          
+                          {currentExp.is_internal ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Role</Label>
+                                <Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select role" /></SelectTrigger>
+                                  <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group</Label>
+                                <Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select group" /></SelectTrigger>
+                                  <SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Designation Title</Label>
+                                <Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Software Engineer" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group / Department <span className="text-[#7a8ba0]/70 normal-case font-normal">(optional)</span></Label>
+                                <Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Engineering" />
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
+                              <Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">End Date</Label>
+                              <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
+                            <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                              <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Joined">Joined</SelectItem>
+                                <SelectItem value="Promotion">Promotion</SelectItem>
+                                <SelectItem value="Transfer">Transfer</SelectItem>
+                                <SelectItem value="Demotion">Demotion</SelectItem>
+                                <SelectItem value="Contract">Contract</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                      {(!currentExp.designations || currentExp.designations.length === 0) && (
+                        <p className="text-xs text-[#7a8ba0] text-center py-2">No roles added. Click "Add Role" to specify.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Form Node Actions */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      onClick={() => {
+                        if (!currentExp.start_year) { toast.error("Start year is required."); return; }
+                        if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; }
+                        for (let i = 0; i < currentExp.designations.length; i++) {
+                          const des = currentExp.designations[i];
+                          if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } 
+                          else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } }
+                          if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; }
+                        }
+                        const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
+                        if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
+                        else setEditExperiences(prev => [...prev, currentExp]);
+                        setCurrentExp(null); setExpFormOpen(false);
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentExp.id ? 'Update Record' : 'Add Record'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
                   </div>
                 </div>
               )}
 
+              {/* Trigger Node to Reveal Form */}
               {!expFormOpen && (
-                <button onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-green-200 rounded-xl text-green-600 text-sm font-bold hover:bg-green-50 transition-colors flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Experience</button>
+                <button 
+                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Experience Record
+                </button>
               )}
             </div>
 
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200">Cancel</Button>
-              <Button onClick={handleSaveExperience} disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-6 h-11 font-semibold shadow-sm disabled:opacity-50">{isSaving ? "Saving..." : "Save Experience"}</Button>
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveExperience} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
+              </Button>
             </DialogFooter>
+
+          </DialogContent>
+        </Dialog>
+
+        {/* LEGAL EDIT DIALOG */}
+        <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
+          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Statutory Identities
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Update governmental and legal identification numbers.
+              </DialogDescription>
+              <ShieldCheck className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Form */}
+            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Aadhaar Number */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Aadhaar Number (UIDAI)<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.aadhar_no || ""} 
+                  onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
+
+              {/* PAN Number */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">PAN Number (Income Tax)<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.pan_no || ""} 
+                  onChange={(e) => handleProfileChange("pan_no", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono" 
+                  required
+                />
+              </div>
+
+              <Separator className="bg-[#dde3ec]" />
+
+              {/* KTU Identifier */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">KTU Identifier<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.ktu_id || ""} 
+                  onChange={(e) => handleProfileChange("ktu_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
+
+              {/* AICTE Identifier */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">AICTE Identifier<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.aicte_id || ""} 
+                  onChange={(e) => handleProfileChange("aicte_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* BANK EDIT DIALOG */}
         <Dialog open={editingSection === "bank"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-2xl bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-amber-600 text-white relative"><DialogTitle className="text-2xl font-bold tracking-tight">Bank Accounts</DialogTitle><DialogDescription className="text-amber-100 mt-1.5 text-sm font-medium">Manage financial accounts linked to your employee profile.</DialogDescription><Landmark className="absolute right-8 top-8 h-12 w-12 text-amber-300/20 pointer-events-none" /></DialogHeader>
-            <div className="p-8 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-3">{editBankDetails.map((bank: any, idx: number) => (<div key={idx} className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start justify-between gap-4"><div className="flex-1 min-w-0 space-y-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold text-gray-800 truncate">{bank.bank_name || 'Bank'}</span>{bank.branch_name && <span className="text-xs text-gray-400">{bank.branch_name}</span>}{bank.is_primary && <span className="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shrink-0">Primary</span>}</div><p className="text-xs font-mono text-gray-600 tracking-wider">{bank.account_number}</p><p className="text-xs text-gray-400">{bank.acc_holder_name} · IFSC: {bank.ifsc_code}</p></div><div className="flex gap-1 shrink-0"><button onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} className="text-amber-600 hover:text-amber-800 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-amber-50 transition">Edit</button><button onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button></div></div>))}{editBankDetails.length === 0 && !bankFormOpen && <p className="text-sm text-gray-400 text-center py-6">No bank accounts added yet. Click below to add one.</p>}</div>
-              {bankFormOpen && (<div className="p-5 bg-amber-50/50 rounded-2xl border border-amber-100 space-y-4"><h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-700">{currentBank?._idx !== undefined ? 'Edit Account' : 'Add Account'}</h4><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Account Holder Name</Label><Input value={currentBank?.acc_holder_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} className="h-10 rounded-xl border-gray-200" placeholder="Full name as in bank" /></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Bank Name</Label><Input value={currentBank?.bank_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} className="h-10 rounded-xl border-gray-200" placeholder="e.g. State Bank of India" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Account Number</Label><Input value={currentBank?.account_number || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} className="h-10 rounded-xl border-gray-200 font-mono" placeholder="Bank account number" /></div><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">IFSC Code</Label><Input value={currentBank?.ifsc_code || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} className="h-10 rounded-xl border-gray-200 uppercase font-mono tracking-wider" placeholder="e.g. SBIN0001234" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-xs font-bold uppercase text-gray-500">Branch Name <span className="text-gray-400 normal-case font-normal">(optional)</span></Label><Input value={currentBank?.branch_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} className="h-10 rounded-xl border-gray-200" placeholder="Branch location" /></div><div className="flex items-end pb-2"><label className="flex items-center gap-2.5 cursor-pointer select-none"><input type="checkbox" checked={!!currentBank?.is_primary} onChange={e => setCurrentBank((p: any) => ({ ...p, is_primary: e.target.checked }))} className="w-4 h-4 rounded border-gray-300 accent-amber-600" /><span className="text-sm font-semibold text-gray-700">Set as Primary Account</span></label></div></div><div className="flex gap-3 pt-1"><Button onClick={() => { if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { toast.error("Bank name, account number and IFSC code are required."); return; } const { _idx, ...bankData } = currentBank; if (_idx !== undefined) { setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); } else { setEditBankDetails(prev => [...prev, bankData]); } setCurrentBank({}); setBankFormOpen(false); }} className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl h-9 px-5 text-sm font-semibold">{currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}</Button><Button variant="outline" onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} className="rounded-xl h-9 px-4 text-sm">Cancel</Button></div></div>)}
-              {!bankFormOpen && (<button onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-amber-200 rounded-xl text-amber-600 text-sm font-bold hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Bank Account</button>)}
+          <DialogContent className="max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Bank Accounts
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage financial accounts linked to your employee profile.
+              </DialogDescription>
+              <Landmark className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Scroll Container */}
+            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Account List Stack */}
+              <div className="space-y-3">
+                {editBankDetails.map((bank: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                          {bank.bank_name || 'Bank'}
+                        </span>
+                        {bank.branch_name && (
+                          <span className="text-[12px] text-[#7a8ba0]">
+                            ({bank.branch_name})
+                          </span>
+                        )}
+                        {bank.is_primary && (
+                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 border border-blue-100 px-2 py-0.5 rounded shrink-0">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[13px] font-mono text-[#434655] tracking-wider">
+                        {bank.account_number}
+                      </p>
+                      <p className="text-[12px] text-[#7a8ba0]">
+                        {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
+                      </p>
+                    </div>
+                    
+                    {/* Action Row */}
+                    <div className="flex gap-1 shrink-0">
+                      <button 
+                        onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
+                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
+                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {editBankDetails.length === 0 && !bankFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No bank accounts added yet. Click below to add one.
+                  </p>
+                )}
+              </div>
+
+              {/* Inline Account Mutation Node */}
+              {bankFormOpen && (
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentBank?._idx !== undefined ? 'Edit Account Matrix' : 'Add Account Matrix'}
+                  </h4>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.acc_holder_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="Full name as in bank records" 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.bank_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="e.g. State Bank of India" 
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.branch_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="Branch location" 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.account_number || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
+                        placeholder="Bank account number" 
+                        minLength={9} maxLength={18} required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.ifsc_code || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
+                        placeholder="e.g. SBIN0001234" 
+                        minLength={11} maxLength={11} required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <Checkbox 
+                          checked={!!currentBank?.is_primary} 
+                          onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
+                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
+                        />
+                        <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Form Action Controls */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      onClick={() => { 
+                        if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
+                          toast.error("Bank name, account number and IFSC code are required."); 
+                          return; 
+                        } 
+                        const { _idx, ...bankData } = currentBank; 
+                        if (_idx !== undefined) { 
+                          setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
+                        } else { 
+                          setEditBankDetails(prev => [...prev, bankData]); 
+                        } 
+                        setCurrentBank({}); 
+                        setBankFormOpen(false); 
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Trigger Node to Reveal Form */}
+              {!bankFormOpen && (
+                <button 
+                  onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Bank Account
+                </button>
+              )}
             </div>
-            <DialogFooter className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3"><Button variant="outline" onClick={handleCancel} className="rounded-xl px-5 h-11 font-semibold text-gray-600 hover:bg-gray-100 border-gray-200">Cancel</Button><Button onClick={handleSaveBank} disabled={isSaving} className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-6 h-11 font-semibold shadow-sm disabled:opacity-50">{isSaving ? "Saving..." : "Save Bank Details"}</Button></DialogFooter>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveBank} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving..." : "Save Bank Details"}
+              </Button>
+            </DialogFooter>
+
           </DialogContent>
         </Dialog>
+
+        {/* PREFERENCES EDIT DIALOG */}
+        <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
+          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Notification Preferences
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage Work-from-home and automated alert policies.
+              </DialogDescription>
+              <Settings className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+            </DialogHeader>
+
+            {/* Modal Body / Configuration Matrix */}
+            <div className="p-6 space-y-3.5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {[
+                { icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" }, 
+                { icon: MessageSquare, label: "Enable SMS Service Protocol", field: "is_sms" }, 
+                { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }
+              ].map((pref, i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-white rounded-lg border border-[#dde3ec] shadow-xs hover:border-[#dde3ec]/80 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-[#eff6ff] rounded-lg border border-blue-100 text-blue-600">
+                      <pref.icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-[13px] font-bold text-[#1a1a2e]">
+                      {pref.label}
+                    </span>
+                  </div>
+                  <Switch 
+                    checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} 
+                    onCheckedChange={(val) => handleInputChange(pref.field, val)} 
+                    className="data-[state=checked]:bg-blue-600"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Footer */}
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors" >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Notification Preferences..." : "Save Notification Preferences"}
+              </Button>
+            </DialogFooter>
+
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>
   );
