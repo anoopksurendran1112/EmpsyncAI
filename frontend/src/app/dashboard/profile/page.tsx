@@ -175,24 +175,6 @@ export default function ProfilePage() {
   const [bankFormOpen, setBankFormOpen] = useState(false);
   const [currentBank, setCurrentBank] = useState<any>({});
 
-  // Pending changes for global save
-  const [pendingChanges, setPendingChanges] = useState<{
-    user: User | null;
-    profile: EditableProfile | null;
-    guardians: GuardianItem[] | null;
-    qualifications: any[] | null;
-    experiences: ExperienceItem[] | null;
-    bankDetails: any[] | null;
-  }>({
-    user: null,
-    profile: null,
-    guardians: null,
-    qualifications: null,
-    experiences: null,
-    bankDetails: null,
-  });
-  const [isGlobalSaving, setIsGlobalSaving] = useState(false);
-
   // Refs to prevent duplicate fetches
   const initialFetchDone = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -283,19 +265,6 @@ export default function ProfilePage() {
     const m = now.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
     return age;
-  };
-
-  const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
-    const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
-    const result = { ...addr };
-    for (const field of requiredFields) {
-      const value = result[field as keyof AddressDetails];
-      if (!value || value.trim() === '') {
-        if (field === 'pincode') (result as any)[field] = '0000000000';
-        else (result as any)[field] = 'Not provided';
-      }
-    }
-    return result;
   };
 
   // --- API calls with AbortController ---
@@ -496,203 +465,23 @@ export default function ProfilePage() {
     if (updated) setFullProfile(newProfile);
   }, [fullProfile, religions, castes]);
 
-  // --- SINGLE GLOBAL SAVE FUNCTION (ALWAYS USES FORMDATA) ---
-  const saveAllChanges = async () => {
-    if (!user || !company) return;
-
-    // Merge pending changes with current data
-    const finalUser = pendingChanges.user ?? editedUser ?? user;
-    const finalProfile = pendingChanges.profile ?? editProfileData;
-    const finalGuardians = pendingChanges.guardians ?? guardians;
-    const finalQualifications = pendingChanges.qualifications ?? qualifications;
-    const finalExperiences = pendingChanges.experiences ?? experiences;
-    const finalBankDetails = pendingChanges.bankDetails ?? bankDetails;
-
-    // Validate critical fields (primary mobile & email)
-    const primaryMobile = finalUser?.mobile?.trim() || '';
-    if (!primaryMobile) {
-      toast.error("Primary mobile number is required");
-      return;
-    }
-    if (!isValidMobile(primaryMobile)) {
-      toast.error("Primary mobile number must be exactly 10 digits");
-      return;
-    }
-    const primaryEmail = finalUser?.email?.trim() || '';
-    if (!primaryEmail) {
-      toast.error("Email address is required");
-      return;
-    }
-    if (!isValidEmail(primaryEmail)) {
-      toast.error("Please enter a valid email address (e.g., name@example.com)");
-      return;
-    }
-
-    // Validate alternate fields if present
-    const altMobile = finalProfile?.alternate_mobile?.trim();
-    if (altMobile && !isValidMobile(altMobile)) {
-      toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
-      return;
-    }
-    const altEmail = finalProfile?.alternate_email?.trim();
-    if (altEmail && !isValidEmail(altEmail)) {
-      toast.error("Alternate email must be a valid email address (or leave empty)");
-      return;
-    }
-
-    setIsGlobalSaving(true);
-    try {
-      const formData = new FormData();
-      formData.append("user_id", user.id.toString());
-
-      // 1. User basic info
-      const userPayload = {
-        first_name: finalUser?.first_name || "",
-        last_name: finalUser?.last_name || "",
-        email: finalUser?.email || "",
-        mobile: finalUser?.mobile || "",
-        role: finalUser?.role || "",
-        gender: finalUser?.gender || "",
-        group: finalUser?.group || "",
-        is_wfh: finalUser?.is_wfh || false,
-        is_active: finalUser?.is_active ?? true,
-        role_id: finalUser?.role_id,
-        group_id: finalUser?.group_id,
-        is_whatsapp: finalUser?.is_whatsapp || false,
-        is_sms: finalUser?.is_sms || false,
-      };
-      formData.append("user", JSON.stringify(userPayload));
-
-      // 2. Profile and addresses
-      if (finalProfile) {
-        const profilePayload = {
-          dob: finalProfile.dob || null,
-          guardian_name: finalProfile.guardian_name || "",
-          guardian_phone: finalProfile.guardian_phone || "",
-          religion: finalProfile.religion_id,
-          caste: finalProfile.caste_id,
-          staff_type: finalProfile.staff_type_id,
-          staff_category: finalProfile.staff_category_id,
-          staff_id: finalProfile.staff_id,
-          ktu_id: finalProfile.ktu_id,
-          aicte_id: finalProfile.aicte_id,
-          pan_no: finalProfile.pan_no,
-          aadhar_no: finalProfile.aadhar_no,
-          blood_group: finalProfile.blood_group,
-          alternate_mobile: finalProfile.alternate_mobile,
-          alternate_email: finalProfile.alternate_email,
-        };
-        formData.append("profile", JSON.stringify(profilePayload));
-        formData.append("present_address", JSON.stringify(ensureAddressDefaults(finalProfile.present_address_details)));
-        formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(finalProfile.permanent_address_details)));
+  // --- Helpers for saving ---
+  const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
+    const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
+    const result = { ...addr };
+    for (const field of requiredFields) {
+      const value = result[field as keyof AddressDetails];
+      if (!value || value.trim() === '') {
+        if (field === 'pincode') (result as any)[field] = '0000000000';
+        else (result as any)[field] = 'Not provided';
       }
-
-      // 3. Guardians
-      if (finalGuardians) {
-        formData.append("guardians", JSON.stringify(finalGuardians));
-      }
-
-      // 4. Bank details
-      if (finalBankDetails) {
-        formData.append("bank_details", JSON.stringify(finalBankDetails));
-      }
-
-      // 5. Qualifications: remove File objects from JSON, attach files separately
-      if (finalQualifications) {
-        const qualsForJson = finalQualifications.map((q: any) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { certificate_file, certificate_preview, ...rest } = q;
-          return rest;
-        });
-        formData.append("qualifications", JSON.stringify(qualsForJson));
-        // Append each certificate file (only new ones)
-        finalQualifications.forEach((q: any, idx: number) => {
-          if (q.certificate_file instanceof File) {
-            formData.append(`certificate_${idx}`, q.certificate_file);
-          }
-        });
-      }
-
-      // 6. Experiences: remove File objects from JSON, attach files separately
-      if (finalExperiences) {
-        const expsForJson = finalExperiences.map((exp: ExperienceItem) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { experience_letter, ...rest } = exp;
-          return rest;
-        });
-        formData.append("experiences", JSON.stringify(expsForJson));
-        // Append each experience letter (only new ones)
-        finalExperiences.forEach((exp: ExperienceItem, idx: number) => {
-          if (exp.experience_letter instanceof File) {
-            formData.append(`experience_letter_${idx}`, exp.experience_letter);
-          }
-        });
-      }
-
-      const response = await fetch("/api/employee-with-profile/", {
-        method: "PUT",
-        headers: { "x-company-id": company.id.toString() },
-        body: formData,
-      });
-
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || "Failed to update profile");
-
-      toast.success("All changes saved successfully!");
-      // Clear pending state
-      setPendingChanges({
-        user: null,
-        profile: null,
-        guardians: null,
-        qualifications: null,
-        experiences: null,
-        bankDetails: null,
-      });
-      // Refresh all data
-      await fetchProfile();
-      if (updateUser && result.data?.user) {
-        const safeUser = sanitizeUser(result.data.user);
-        updateUser(safeUser);
-        setEditedUser(safeUser);
-      }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setIsGlobalSaving(false);
     }
+    return result;
   };
 
-  const createEmptyProfile = async () => {
-    if (!user?.id || !company?.id) return;
-    setProfileLoading(true);
-    try {
-      const payload = {
-        user_id: user.id,
-        profile: {
-          dob: "1900-01-01",
-          religion: null, caste: null,
-          staff_type: null, staff_category: null,
-          staff_id: null,
-          ktu_id: "", aicte_id: "",
-          pan_no: "", aadhar_no: "", blood_group: "", alternate_mobile: "", alternate_email: "",
-        },
-        present_address: { address_line_1: "Not provided", address_line_2: "", city: "Not provided", district: "Not provided", state: "Not provided", country: "Not provided", pincode: "0000000000" },
-        permanent_address: { address_line_1: "Not provided", address_line_2: "", city: "Not provided", district: "Not provided", state: "Not provided", country: "Not provided", pincode: "0000000000" },
-      };
-      const response = await fetch("/api/employee-with-profile/", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "x-company-id": company.id.toString() },
-        body: JSON.stringify(payload),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error("Failed to create profile");
-      toast.success("Extended profile initialized!");
-      await fetchProfile();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setProfileLoading(false);
-    }
+  const nullIfEmpty = (value: string | null | undefined): string | null => {
+    if (value === undefined || value === null || value.trim() === '') return null;
+    return value;
   };
 
   // --- Image Upload Handler ---
@@ -737,7 +526,7 @@ export default function ProfilePage() {
     }
   };
 
-  // --- Edit handlers (populate edit state) ---
+  // --- Edit handlers ---
   const handleEditExtended = (section: string) => {
     if (!user) return;
     let religionId = null, casteId = null;
@@ -836,6 +625,475 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSave = async () => {
+    if (!user || !company) return;
+
+    // --- Validate primary mobile ---
+    const primaryMobile = editedUser?.mobile?.trim() || '';
+    if (!primaryMobile) {
+      toast.error("Primary mobile number is required");
+      return;
+    }
+    if (!isValidMobile(primaryMobile)) {
+      toast.error("Primary mobile number must be exactly 10 digits");
+      return;
+    }
+
+    // --- Validate primary email ---
+    const primaryEmail = editedUser?.email?.trim() || '';
+    if (!primaryEmail) {
+      toast.error("Email address is required");
+      return;
+    }
+    if (!isValidEmail(primaryEmail)) {
+      toast.error("Please enter a valid email address (e.g., name@example.com)");
+      return;
+    }
+
+    // --- Validate alternate mobile if provided ---
+    const altMobile = editProfileData?.alternate_mobile?.trim();
+    if (altMobile && !isValidMobile(altMobile)) {
+      toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
+      return;
+    }
+
+    // --- Validate alternate email if provided ---
+    const altEmail = editProfileData?.alternate_email?.trim();
+    if (altEmail && !isValidEmail(altEmail)) {
+      toast.error("Alternate email must be a valid email address (or leave empty)");
+      return;
+    }
+
+    // --- Validate family contacts ---
+    for (const guardian of guardians) {
+      const phone = guardian.phone?.trim();
+      if (phone && !isValidMobile(phone)) {
+        toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
+        return;
+      }
+    }
+
+    // --- Process Family Guardians ---
+    let guardiansToSend = guardians
+      .filter((g: any) => g.name?.trim())
+      .map((g: any) => ({
+        ...(g.id ? { id: g.id } : {}),
+        employee: user.id,
+        name: g.name,
+        phone: g.phone || '',
+        relationship_type: g.relationship_type,
+        is_guardian: !!g.is_guardian,
+      }));
+
+    if (!familyIsMarried) {
+      guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
+    }
+    // --- Process Education Records ---
+    const qualsToSend = editQualifications.map((q: any) => ({
+      ...(q.id ? { id: q.id } : {}),
+      user: user.id,
+      qualification_level: q.qualification_level,
+      specialization: q.specialization,
+      institution_name: q.institution_name,
+      university: q.university || '',
+      location: q.location || '',
+      start_date: q.start_date || null,
+      completion_date: q.completion_date || null,
+      percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
+    }));
+
+    // --- Process Experience Records ---
+    const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
+      const cleanedExp: any = {
+        ...(exp.id ? { id: exp.id } : {}),
+        company_name: exp.company_name || '',
+        location: exp.location || '',
+        start_year: exp.start_year,
+        end_year: exp.end_year || null,
+        is_internal: !!exp.is_internal,
+        designations: (exp.designations || []).map((des: DesignationItem) => {
+          if (exp.is_internal) {
+            return {
+              ...(des.id ? { id: des.id } : {}),
+              company_role: des.company_role || null,
+              company_group: des.company_group || null,
+              start_date: des.start_date,
+              end_date: des.end_date || null,
+              change_type: des.change_type || 'Joined',
+            };
+          } else {
+            return {
+              ...(des.id ? { id: des.id } : {}),
+              designation: des.designation || '',
+              company_group_text: des.company_group_text || '',
+              start_date: des.start_date,
+              end_date: des.end_date || null,
+              change_type: des.change_type || 'Joined',
+            };
+          }
+        }),
+      };
+      if (!exp.is_internal) {
+        cleanedExp.designations = cleanedExp.designations.map((d: any) => {
+          delete d.company_role;
+          delete d.company_group;
+          return d;
+        });
+      }
+      return cleanedExp;
+    });
+    
+    // --- Process Bank Details ---
+    const banksToSend = editBankDetails.map((b: any) => ({
+      ...(b.id ? { id: b.id } : {}),
+      user: user.id,
+      acc_holder_name: b.acc_holder_name,
+      bank_name: b.bank_name,
+      account_number: b.account_number,
+      ifsc_code: b.ifsc_code,
+      branch_name: b.branch_name || '',
+      is_primary: !!b.is_primary,
+    }));
+
+
+    setIsSaving(true);
+    try {
+      const formData = new FormData();
+
+      // 1. Core Identification Key
+      formData.append("user_id", user.id.toString());
+
+      // 2. Append User Profile Base Properties
+      formData.append("first_name", editedUser?.first_name || "");
+      formData.append("last_name", editedUser?.last_name || "");
+      formData.append("email", editedUser?.email || "");
+      formData.append("mobile", editedUser?.mobile || "");
+      formData.append("role", editedUser?.role || "");
+      formData.append("gender", editedUser?.gender || "");
+      formData.append("group", editedUser?.group || "");
+      formData.append("is_wfh", String(editedUser?.is_wfh || false));
+      formData.append("is_active", String(editedUser?.is_active ?? true));
+      formData.append("is_whatsapp", String(editedUser?.is_whatsapp || false));
+      formData.append("is_sms", String(editedUser?.is_sms || false));
+
+      if (editedUser?.role_id) formData.append("role_id", editedUser.role_id.toString());
+      if (editedUser?.group_id) formData.append("group_id", editedUser.group_id.toString());
+
+      // 3. Append Profile Sub-Object Data & Addresses
+      if (editProfileData) {
+        const profileData = {
+          dob: nullIfEmpty(editProfileData.dob),
+          religion: editProfileData.religion_id,
+          caste: editProfileData.caste_id,
+          staff_type: editProfileData.staff_type_id,
+          staff_category: editProfileData.staff_category_id,
+          staff_id: editProfileData.staff_id,
+          ktu_id: editProfileData.ktu_id,
+          aicte_id: editProfileData.aicte_id,
+          pan_no: editProfileData.pan_no,
+          aadhar_no: editProfileData.aadhar_no,
+          blood_group: editProfileData.blood_group,
+          alternate_mobile: editProfileData.alternate_mobile,
+          alternate_email: editProfileData.alternate_email,
+        };
+        
+        formData.append("profile", JSON.stringify(profileData));
+        formData.append("present_address", JSON.stringify(ensureAddressDefaults(editProfileData.present_address_details)));
+        formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(editProfileData.permanent_address_details)));
+      }
+
+      // 4. Append Sub-Arrays
+      formData.append("guardians", JSON.stringify(guardiansToSend));
+      formData.append("qualifications", JSON.stringify(qualsToSend));
+      formData.append("experiences", JSON.stringify(experiencesToSend));
+      formData.append("bank_details", JSON.stringify(banksToSend));
+
+      // 5. Append Binary Files
+      editQualifications.forEach((q: any, index: number) => {
+        if (q.certificate_file instanceof File) {
+          formData.append(`certificate_${index}`, q.certificate_file);
+        }
+      });
+
+      // 6. Binary Document Attachments (Experience Letters)
+      editExperiences.forEach((exp: ExperienceItem, index: number) => {
+        if (exp.experience_letter instanceof File) {
+          formData.append(`experience_letter_${index}`, exp.experience_letter);
+        }
+      });
+
+      /// 7. Request Pipeline Dispatch
+      const response = await fetch("/api/employee-with-profile/", {
+        method: "PUT",
+        headers: { 
+          "x-company-id": company.id.toString() 
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to update profile changes");
+      }
+
+      toast.success("Profile updated successfully!");
+      setEditingSection(null);
+      setQualFormOpen(false);
+
+      if (updateUser && result.data?.user) {
+        const safeUser = sanitizeUser(result.data.user);
+        updateUser(safeUser);
+        setEditedUser(safeUser);
+      }
+      
+      await fetchProfile();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
+  const createEmptyProfile = async () => {
+    if (!user?.id || !company?.id) return;
+    setProfileLoading(true);
+    try {
+      const payload = {
+        user_id: user.id,
+        profile: {
+          dob: "1900-01-01",
+          religion: null, caste: null,
+          staff_type: null, staff_category: null,
+          staff_id: null,
+          ktu_id: "", aicte_id: "",
+          pan_no: "", aadhar_no: "", blood_group: "", alternate_mobile: "", alternate_email: "",
+        },
+        present_address: { address_line_1: "Not provided", address_line_2: "", city: "Not provided", district: "Not provided", state: "Not provided", country: "Not provided", pincode: "0000000000" },
+        permanent_address: { address_line_1: "Not provided", address_line_2: "", city: "Not provided", district: "Not provided", state: "Not provided", country: "Not provided", pincode: "0000000000" },
+      };
+      const response = await fetch("/api/employee-with-profile/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-company-id": company.id.toString() },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error("Failed to create profile");
+      toast.success("Extended profile initialized!");
+      await fetchProfile();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // --- Save Family Contacts with validation ---
+  // const handleSaveFamily = async () => {
+  //   if (!user || !company) return;
+
+  //   // Validate guardian phone numbers if provided
+  //   for (const guardian of guardians) {
+  //     const phone = guardian.phone?.trim();
+  //     if (phone && !isValidMobile(phone)) {
+  //       toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
+  //       return;
+  //     }
+  //   }
+
+  //   setIsSaving(true);
+  //   try {
+  //     let guardiansToSend = guardians
+  //       .filter((g: any) => g.name?.trim())
+  //       .map((g: any) => ({
+  //         ...(g.id ? { id: g.id } : {}),
+  //         employee: user.id,
+  //         name: g.name,
+  //         phone: g.phone || '',
+  //         relationship_type: g.relationship_type,
+  //         is_guardian: !!g.is_guardian,
+  //       }));
+
+  //     if (!familyIsMarried) {
+  //       guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
+  //     }
+
+  //     const payload = { user_id: user.id, guardians: guardiansToSend };
+  //     const res = await fetch("/api/employee-with-profile/", {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json", "x-company-id": company.id.toString() },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     const result = await res.json();
+  //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to update family contacts");
+  //     toast.success("Family contacts updated!");
+  //     setEditingSection(null);
+  //     await fetchProfile();
+  //   } catch (err: any) {
+  //     toast.error(err.message);
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
+
+  // --- Save Education Records ---
+  // const handleSaveEducation = async () => {
+  //   if (!user || !company) return;
+  //   setIsSaving(true);
+  //   try {
+  //     const formData = new FormData();
+      
+  //     const qualsToSend = editQualifications.map((q: any) => ({
+  //       ...(q.id ? { id: q.id } : {}),
+  //       user: user.id,
+  //       qualification_level: q.qualification_level,
+  //       specialization: q.specialization,
+  //       institution_name: q.institution_name,
+  //       university: q.university || '',
+  //       location: q.location || '',
+  //       start_date: q.start_date || null,
+  //       completion_date: q.completion_date || null,
+  //       percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
+  //     }));
+
+  //     formData.append("user_id", user.id.toString());
+  //     formData.append("qualifications", JSON.stringify(qualsToSend));
+
+  //     editQualifications.forEach((q: any, index: number) => {
+  //       if (q.certificate_file instanceof File) {
+  //         formData.append(`certificate_${index}`, q.certificate_file);
+  //       }
+  //     });
+
+  //     const res = await fetch("/api/employee-with-profile/", {
+  //       method: "PUT",
+  //       headers: { "x-company-id": company.id.toString() },
+  //       body: formData,
+  //     });
+
+  //     const result = await res.json();
+  //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to save");
+      
+  //     toast.success("Education records updated!");
+  //     setEditingSection(null);
+  //     setQualFormOpen(false);
+  //     await fetchProfile();
+  //   } catch (err: any) {
+  //     toast.error(err.message);
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
+
+  // --- Save Experience Records ---
+  // const handleSaveExperience = async () => {
+  //   if (!user || !company) return;
+  //   setIsSaving(true);
+    
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("user_id", user.id.toString());
+      
+  //     const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
+  //       const cleanedExp: any = {
+  //         ...(exp.id ? { id: exp.id } : {}),
+  //         company_name: exp.company_name || '',
+  //         location: exp.location || '',
+  //         start_year: exp.start_year,
+  //         end_year: exp.end_year || null,
+  //         is_internal: !!exp.is_internal,
+  //         designations: (exp.designations || []).map((des: DesignationItem) => {
+  //           if (exp.is_internal) {
+  //             return {
+  //               ...(des.id ? { id: des.id } : {}),
+  //               company_role: des.company_role || null,
+  //               company_group: des.company_group || null,
+  //               start_date: des.start_date,
+  //               end_date: des.end_date || null,
+  //               change_type: des.change_type || 'Joined',
+  //             };
+  //           } else {
+  //             return {
+  //               ...(des.id ? { id: des.id } : {}),
+  //               designation: des.designation || '',
+  //               company_group_text: des.company_group_text || '',
+  //               start_date: des.start_date,
+  //               end_date: des.end_date || null,
+  //               change_type: des.change_type || 'Joined',
+  //             };
+  //           }
+  //         }),
+  //       };
+  //       if (!exp.is_internal) {
+  //         cleanedExp.designations = cleanedExp.designations.map((d: any) => {
+  //           delete d.company_role;
+  //           delete d.company_group;
+  //           return d;
+  //         });
+  //       }
+  //       return cleanedExp;
+  //     });
+      
+  //     formData.append("experiences", JSON.stringify(experiencesToSend));
+      
+  //     editExperiences.forEach((exp: ExperienceItem, index: number) => {
+  //       if (exp.experience_letter instanceof File) {
+  //         formData.append(`experience_letter_${index}`, exp.experience_letter);
+  //       }
+  //     });
+
+  //     const res = await fetch("/api/employee-with-profile/", {
+  //       method: "PUT",
+  //       headers: { "x-company-id": company.id.toString() },
+  //       body: formData,
+  //     });
+
+  //     const result = await res.json();
+  //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to save");
+      
+  //     toast.success("Experience records updated!");
+  //     setEditingSection(null);
+  //     await fetchProfile();
+  //   } catch (err: any) {
+  //     toast.error(err.message);
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
+
+  // --- Save Bank Details ---
+  // const handleSaveBank = async () => {
+  //   if (!user || !company) return;
+  //   setIsSaving(true);
+  //   try {
+  //     const banksToSend = editBankDetails.map((b: any) => ({
+  //       ...(b.id ? { id: b.id } : {}),
+  //       user: user.id,
+  //       acc_holder_name: b.acc_holder_name,
+  //       bank_name: b.bank_name,
+  //       account_number: b.account_number,
+  //       ifsc_code: b.ifsc_code,
+  //       branch_name: b.branch_name || '',
+  //       is_primary: !!b.is_primary,
+  //     }));
+  //     const payload = { user_id: user.id, bank_details: banksToSend };
+  //     const res = await fetch("/api/employee-with-profile/", {
+  //       method: "PUT",
+  //       headers: { "Content-Type": "application/json", "x-company-id": company.id.toString() },
+  //       body: JSON.stringify(payload),
+  //     });
+  //     const result = await res.json();
+  //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to save bank details");
+  //     toast.success("Bank details updated!");
+  //     setEditingSection(null);
+  //     await fetchProfile();
+  //   } catch (err: any) {
+  //     toast.error(err.message);
+  //   } finally {
+  //     setIsSaving(false);
+  //   }
+  // };
+
   // --- Render guard ---
   if (!user) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
@@ -846,38 +1104,14 @@ export default function ProfilePage() {
     return <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center"><div className="text-center"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-gray-500">Loading your profile data...</p></div></div>;
   }
 
-  const hasAnyPending = !!pendingChanges.user || !!pendingChanges.profile || !!pendingChanges.guardians || !!pendingChanges.qualifications || !!pendingChanges.experiences || !!pendingChanges.bankDetails;
-
+  // ========== JSX (the complete UI) ==========
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
-        {/* Header with Global Save Button */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div className="flex gap-3">
-            {!fullProfile && !profileLoading && (
-              <Button onClick={createEmptyProfile} className="bg-blue-50 text-blue-700 border-none hover:bg-blue-100">
-                <Plus className="h-4 w-4 mr-2" /> Initialize Extended Profile
-              </Button>
-            )}
-            {!fullProfile && !profileLoading && retryCount >= 2 && (
-              <Button onClick={() => { setRetryCount(0); fetchProfile(); }} variant="outline" className="border-amber-200 text-amber-700">
-                <RefreshCw className="h-4 w-4 mr-2" /> Retry Loading
-              </Button>
-            )}
-          </div>
-          <Button
-            onClick={saveAllChanges}
-            disabled={isGlobalSaving || !hasAnyPending}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isGlobalSaving ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Saving…
-              </>
-            ) : (
-              <>Save All Changes</>
-            )}
-          </Button>
+          {!fullProfile && !profileLoading && <Button onClick={createEmptyProfile} className="bg-blue-50 text-blue-700 border-none hover:bg-blue-100"><Plus className="h-4 w-4 mr-2" /> Initialize Extended Profile</Button>}
+          {!fullProfile && !profileLoading && retryCount >= 2 && <Button onClick={() => { setRetryCount(0); fetchProfile(); }} variant="outline" className="border-amber-200 text-amber-700"><RefreshCw className="h-4 w-4 mr-2" /> Retry Loading</Button>}
         </div>
 
         {/* Inactive User Warning */}
@@ -1026,6 +1260,7 @@ export default function ProfilePage() {
 
                   {/* Professional Details Section */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
@@ -1155,6 +1390,7 @@ export default function ProfilePage() {
                           {fullProfile?.present_address_details ? (
                             <div className="text-sm font-semibold text-gray-800 space-y-1">
                               <p>{fullProfile.present_address_details.address_line_1}</p>
+                              <p>{fullProfile.present_address_details.address_line_2}</p>
                               <p>{fullProfile.present_address_details.city}, {fullProfile.present_address_details.district}</p>
                               <p>{fullProfile.present_address_details.state}, {fullProfile.present_address_details.country}</p>
                               <p className="text-blue-600 mt-2 font-bold">{fullProfile.present_address_details.pincode}</p>
@@ -1260,6 +1496,7 @@ export default function ProfilePage() {
                                 <p className="text-sm font-semibold text-gray-600">{latestTitle}</p>
                               </div>
                             </div>
+                            {/* Removed the internal/external badge */}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-gray-500 pt-1">
                             <div className="flex items-center gap-1.5">
@@ -1395,251 +1632,1644 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* ========== All Edit Dialogs (exactly as before) ========== */}
+        {/* ========== All Edit Dialogs (unchanged except for validation added in save handlers) ========== */}
 
         {/* PERSONAL EDIT DIALOG */}
         <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Personal Details</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Refine dynamic demographic details and identity indicators.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Personal Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Refine dynamic demographic details and identity indicators.
+              </DialogDescription>
               <UserIcon className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* First Name & Last Name */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">First Name<span className="text-red-500 -ml-1">*</span></Label><Input value={editedUser?.first_name || ""} onChange={(e) => handleInputChange("first_name", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Last Name<span className="text-red-500 -ml-1">*</span></Label><Input value={editedUser?.last_name || ""} onChange={(e) => handleInputChange("last_name", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">First Name<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.first_name || ""} 
+                    onChange={(e) => handleInputChange("first_name", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Last Name<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.last_name || ""} 
+                    onChange={(e) => handleInputChange("last_name", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
               </div>
+
+              {/* DOB & Gender */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label><Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Gender<span className="text-red-500 -ml-1">*</span></Label><Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required><SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white"><SelectValue placeholder="Select gender" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]"><SelectItem value="M">Male</SelectItem><SelectItem value="F">Female</SelectItem><SelectItem value="O">Other</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    type="date" 
+                    value={editProfileData?.dob || ""} 
+                    onChange={(e) => handleProfileChange("dob", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                  {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
+                      <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Gender<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      <SelectItem value="M">Male</SelectItem>
+                      <SelectItem value="F">Female</SelectItem>
+                      <SelectItem value="O">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {/* Blood Group, Religion, Caste */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Blood Group</Label><Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}><SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => <SelectItem key={bg} value={bg}>{bg}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Religion</Label><Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => { const newId = v ? parseInt(v) : null; handleProfileChange("religion_id", newId); setCastes([]); }}><SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Caste</Label><Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}><SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white disabled:opacity-60 disabled:bg-[#f2f4f6]"><SelectValue placeholder={!editProfileData?.religion_id ? "Select religion first" : "Select caste"} /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Blood Group</Label>
+                  <Select value={editProfileData?.blood_group || ""} onValueChange={(v) => handleProfileChange("blood_group", v)}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => (
+                        <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Religion</Label>
+                  <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(v) => { const newId = v ? parseInt(v) : null; handleProfileChange("religion_id", newId); setCastes([]); }}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {religions.map(r => (
+                        <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Caste</Label>
+                  <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(v) => handleProfileChange("caste_id", v ? parseInt(v) : null)} disabled={!editProfileData?.religion_id}>
+                    <SelectTrigger className="w-full px-3 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] h-10 bg-white disabled:opacity-60 disabled:bg-[#f2f4f6]">
+                      <SelectValue placeholder={!editProfileData?.religion_id ? "Select religion first" : "Select caste"} />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {castes.map(c => (
+                        <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { if (!editedUser?.first_name?.trim()) { toast.error("First name is required."); return; } if (!editedUser?.last_name?.trim()) { toast.error("Last name is required."); return; } if (!editProfileData?.dob) { toast.error("Date of birth is required."); return; } if (!editedUser?.gender) { toast.error("Gender is required."); return; } setPendingChanges(prev => ({ ...prev, user: editedUser, profile: editProfileData })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Personal Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Personal Details..." : "Save Personal Details"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Professional Details</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Refine corporate structure alignment and tracking parameters.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Professional Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Refine corporate structure alignment and tracking parameters.
+              </DialogDescription>
               <Briefcase className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Department & Designation */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Department / Group<span className="text-red-500 -ml-1">*</span></Label><Select value={editedUser?.group_id?.toString() || ""} onValueChange={handleGroupChange} required><SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white"><SelectValue placeholder="Select department" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name || g.group_name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Designation / Role<span className="text-red-500 -ml-1">*</span></Label><Select value={editedUser?.role_id?.toString() || ""} onValueChange={handleRoleChange} required><SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white"><SelectValue placeholder="Select designation" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Department / Group<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.group_id?.toString() || ""} onValueChange={handleGroupChange} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {groups.map(g => (
+                        <SelectItem key={g.id} value={g.id.toString()}>
+                          {g.group || g.name || g.group_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Designation / Role<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editedUser?.role_id?.toString() || ""} onValueChange={handleRoleChange} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select designation" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {roles.map(r => (
+                        <SelectItem key={r.id} value={r.id.toString()}>
+                          {r.role || r.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {/* Staff Type & Staff Category */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Type<span className="text-red-500 -ml-1">*</span></Label><Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)} required><SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white"><SelectValue placeholder="Select type" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{staffTypes.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}</SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Category<span className="text-red-500 -ml-1">*</span></Label><Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)} required><SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white"><SelectValue placeholder="Select category" /></SelectTrigger><SelectContent className="rounded-lg border-[#dde3ec]">{staffCategories.map(sc => <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>)}</SelectContent></Select></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Type<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_type_id", v ? parseInt(v) : null)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {staffTypes.map(st => (
+                        <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff Category<span className="text-red-500 -ml-1">*</span></Label>
+                  <Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(v) => handleProfileChange("staff_category_id", v ? parseInt(v) : null)} required>
+                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg border-[#dde3ec]">
+                      {staffCategories.map(sc => (
+                        <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff ID<span className="text-red-500 -ml-1">*</span></Label><Input value={editProfileData?.staff_id || ""} onChange={(e) => handleProfileChange("staff_id", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
+
+              {/* Staff ID Field */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff ID<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.staff_id || ""} 
+                  onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  required
+                />
+              </div>
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { if (!editedUser?.group_id) { toast.error("Department / Group is required."); return; } if (!editedUser?.role_id) { toast.error("Designation / Role is required."); return; } if (!editProfileData?.staff_type_id) { toast.error("Staff Type is required."); return; } if (!editProfileData?.staff_category_id) { toast.error("Staff Category is required."); return; } if (!editProfileData?.staff_id?.trim()) { toast.error("Staff ID is required."); return; } setPendingChanges(prev => ({ ...prev, user: editedUser, profile: editProfileData })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Professional Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Professional Details..." : "Save Professional Details"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* CONTACT EDIT DIALOG */}
         <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Communication Details</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage personal contact touchpoints and delivery configurations.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Communication Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage personal contact touchpoints and delivery configurations.
+              </DialogDescription>
               <Smartphone className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-3.5"><h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">Primary Communication</h4>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Email<span className="text-red-500 -ml-1">*</span></Label><Input value={editedUser?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Mobile<span className="text-red-500 -ml-1">*</span></Label><Input value={editedUser?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" minLength={10} maxLength={10} required /></div>
+              
+              {/* Primary Channels Section */}
+              <div className="space-y-3.5">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
+                  Primary Communication
+                </h4>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Email<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.email || ""} 
+                    onChange={(e) => handleInputChange("email", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Mobile<span className="text-red-500 -ml-1">*</span></Label>
+                  <Input 
+                    value={editedUser?.mobile || ""} 
+                    onChange={(e) => handleInputChange("mobile", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                    minLength={10} maxLength={10} required
+                  />
+                </div>
               </div>
-              <div className="space-y-3.5 pt-1"><h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">Alternative Communication</h4>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Email</Label><Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" /></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Mobile</Label><Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" minLength={10} maxLength={10} /></div>
+
+              {/* Fallback Channels Section */}
+              <div className="space-y-3.5 pt-1">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
+                  Alternative Communication
+                </h4>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Email</Label>
+                  <Input 
+                    value={editProfileData?.alternate_email || ""} 
+                    onChange={(e) => handleProfileChange("alternate_email", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Mobile</Label>
+                  <Input 
+                    value={editProfileData?.alternate_mobile || ""} 
+                    onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} 
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                    minLength={10} maxLength={10}
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { if (!editedUser?.email?.trim() || !isValidEmail(editedUser.email)) { toast.error("Valid primary email is required."); return; } if (!editedUser?.mobile?.trim() || !isValidMobile(editedUser.mobile)) { toast.error("Valid 10-digit primary mobile is required."); return; } const altMobile = editProfileData?.alternate_mobile?.trim(); if (altMobile && !isValidMobile(altMobile)) { toast.error("Alternate mobile must be 10 digits."); return; } const altEmail = editProfileData?.alternate_email?.trim(); if (altEmail && !isValidEmail(altEmail)) { toast.error("Alternate email is invalid."); return; } setPendingChanges(prev => ({ ...prev, user: editedUser, profile: editProfileData })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Communication Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Savinging Communication Details..." : "Save Communication Details"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
-        {/* FAMILY EDIT DIALOG */}
+        {/* GUARDIAN EDIT DIALOG */}
         <Dialog open={editingSection === "family"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Family & Emergency Contacts</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage statutory dependencies and emergency contacts.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Family & Emergency Contacts
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage statutory dependencies and emergency contacts.
+              </DialogDescription>
               <Users className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              {/* Radio Group Block */}
               <div className="space-y-3">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">Primary Emergency Node Configuration</Label>
-                <RadioGroup value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} onValueChange={(relationshipType) => { const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); setGuardians(updated); }} className="space-y-3">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
+                  Primary Emergency Node Configuration
+                </Label>
+                
+                <RadioGroup 
+                  value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
+                  onValueChange={(relationshipType) => { 
+                    const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
+                    setGuardians(updated); 
+                  }} 
+                  className="space-y-3"
+                >
                   <div className="grid grid-cols-2 gap-3">
-                    {/* Father */}
-                    <div>{(() => { const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; const updateFather = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...father, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}><div className="flex items-center justify-between"><span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-600"></span> Father Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm"><RadioGroupItem value="father" id="primary-father" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" /><Label htmlFor="primary-father" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label><Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label><Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} /></div></div></div>); })()}</div>
-                    {/* Mother */}
-                    <div>{(() => { const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; const updateMother = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...mother, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}><div className="flex items-center justify-between"><span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#ef4444]"></span> Mother Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm"><RadioGroupItem value="mother" id="primary-mother" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" /><Label htmlFor="primary-mother" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label><Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label><Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} /></div></div></div>); })()}</div>
-                    {/* Marital Status */}
-                    <div><div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto"><div className="space-y-0.5"><Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">Marital Status: Married?</Label><p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p></div><Checkbox id="is_married" checked={familyIsMarried} onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" /></div></div>
-                    {/* Spouse (conditional) */}
-                    <div>{familyIsMarried && (() => { const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; const updateSpouse = (fields: any) => { let exists = false; const updated = (guardians || []).map((g: any) => { if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } return g; }); if (!exists) updated.push({ ...spouse, ...fields }); setGuardians(updated); }; return (<div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}><div className="flex items-center justify-between"><span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#f59e0b]"></span> Spouse Details</span><div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm"><RadioGroupItem value="spouse" id="primary-spouse" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" /><Label htmlFor="primary-spouse" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label></div></div><div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label><Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label><Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} /></div></div></div>); })()}</div>
+                    {/* Father Node */}
+                    <div>
+                      {(() => { 
+                        const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
+                        const updateFather = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...father, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-blue-600"></span> Father Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="father" id="primary-father" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-father" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
+                    
+                    {/* Mother Node */}
+                    <div>
+                      {(() => { 
+                        const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
+                        const updateMother = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...mother, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-[#ef4444]"></span> Mother Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="mother" id="primary-mother" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-mother" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
+
+                    {/* Marital Status Banner */}
+                    <div>  
+                      <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
+                            Marital Status: Married?
+                          </Label>
+                          <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
+                        </div>
+                        <Checkbox 
+                          id="is_married" 
+                          checked={familyIsMarried} 
+                          onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
+                          className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                        />
+                      </div>
+                    </div>
+                      
+                    {/* Spouse Node (Conditional) */}
+                    <div>  
+                      {familyIsMarried && (() => { 
+                        const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
+                        const updateSpouse = (fields: any) => { 
+                          let exists = false; 
+                          const updated = (guardians || []).map((g: any) => { 
+                            if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
+                            return g; 
+                          }); 
+                          if (!exists) updated.push({ ...spouse, ...fields }); 
+                          setGuardians(updated); 
+                        }; 
+                        return (
+                          <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-[#f59e0b]"></span> Spouse Details
+                              </span>
+                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                <RadioGroupItem value="spouse" id="primary-spouse" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                <Label htmlFor="primary-spouse" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                <Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                <Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              </div>
+                            </div>
+                          </div>
+                        ); 
+                      })()}
+                    </div>
                   </div>
                 </RadioGroup>
               </div>
             </div>
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { for (const guardian of guardians) { const phone = guardian.phone?.trim(); if (guardian.name?.trim() && phone && !isValidMobile(phone)) { toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be 10 digits.`); return; } } setPendingChanges(prev => ({ ...prev, guardians })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Family Contacts</Button>
+
+            {/* Modal Footer */}
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+          <DialogContent className="sm:max-w-4xl  bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Residence Data Protocol</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Update Present and Permanent Physical Coordinates.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Residence Data Protocol
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Update Present and Permanent Physical Coordinates.
+              </DialogDescription>
               <MapPin className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form - Dual Column Layout */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              {/* Present */}
+              
+              {/* PRESENT RESIDENCE SECTION */}
               <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3"><div className="h-8 w-8 rounded-lg bg-[#eff6ff] flex items-center justify-center border border-blue-100 shadow-sm"><MapPin className="h-4 w-4 text-blue-600" /></div><div><h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Present Residence</h4><p className="text-[10px] text-[#7a8ba0]">Current mailing location</p></div></div>
-                <div className="space-y-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1<span className="text-red-500 -ml-1">*</span></Label><Input placeholder="House number, apartment, street" value={editProfileData?.present_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City<span className="text-red-500 -ml-1">*</span></Label><Input placeholder="City" value={editProfileData?.present_address_details?.city || ""} onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode<span className="text-red-500 -ml-1">*</span></Label><Input placeholder="Postal code" value={editProfileData?.present_address_details?.pincode || ""} onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" minLength={6} maxLength={6} required /></div></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State<span className="text-red-500 -ml-1">*</span></Label><Input placeholder="State" value={editProfileData?.present_address_details?.state || ""} onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country<span className="text-red-500 -ml-1">*</span></Label><Input placeholder="Country" value={editProfileData?.present_address_details?.country || "India"} onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" required /></div></div></div>
+                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
+                  <div className="h-8 w-8 rounded-lg bg-[#eff6ff] flex items-center justify-center border border-blue-100 shadow-sm">
+                    <MapPin className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Present Residence</h4>
+                    <p className="text-[10px] text-[#7a8ba0]">Current mailing location</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1<span className="text-red-500 -ml-1">*</span></Label>
+                    <Input 
+                      placeholder="House number, apartment, street" 
+                      value={editProfileData?.present_address_details?.address_line_1 || ""} 
+                      onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
+                      required 
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 2</Label>
+                    <Input 
+                      placeholder="House number, apartment, street" 
+                      value={editProfileData?.present_address_details?.address_line_2 || ""} 
+                      onChange={(e) => handleAddressChange("present_address_details", "address_line_2", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="City" 
+                        value={editProfileData?.present_address_details?.city || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">District<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="District" 
+                        value={editProfileData?.present_address_details?.district || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "district", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="State" 
+                        value={editProfileData?.present_address_details?.state || ""} 
+                        onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        placeholder="Country" 
+                        value={editProfileData?.present_address_details?.country || "India"} 
+                        onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode<span className="text-red-500 -ml-1">*</span></Label>
+                    <Input 
+                      placeholder="Postal code" 
+                      value={editProfileData?.present_address_details?.pincode || ""} 
+                      onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                      minLength={6} maxLength={6} 
+                      required
+                    />
+                  </div>
+
+                </div>
               </div>
-              {/* Permanent */}
+
+              {/* PERMANENT RESIDENCE SECTION */}
               <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
-                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3"><div className="h-8 w-8 rounded-lg bg-[#f5f3ff] flex items-center justify-center border border-purple-100 shadow-sm"><Landmark className="h-4 w-4 text-[#6d28d9]" /></div><div><h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Permanent Landmark</h4><p className="text-[10px] text-[#7a8ba0]">Statutory domicile node</p></div></div>
-                <div className="space-y-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1</Label><Input placeholder="House number, native street, sector" value={editProfileData?.permanent_address_details?.address_line_1 || ""} onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" /></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City</Label><Input placeholder="City" value={editProfileData?.permanent_address_details?.city || ""} onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode</Label><Input placeholder="Postal code" value={editProfileData?.permanent_address_details?.pincode || ""} onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" minLength={6} maxLength={6} /></div></div>
-                <div className="grid grid-cols-2 gap-3"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State</Label><Input placeholder="State" value={editProfileData?.permanent_address_details?.state || ""} onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country</Label><Input placeholder="Country" value={editProfileData?.permanent_address_details?.country || "India"} onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" /></div></div></div>
+                <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
+                  <div className="h-8 w-8 rounded-lg bg-[#f5f3ff] flex items-center justify-center border border-purple-100 shadow-sm">
+                    <Landmark className="h-4 w-4 text-[#6d28d9]" />
+                  </div>
+                  <div>
+                    <h4 className="text-[12px] font-bold uppercase text-[#1a1a2e] tracking-wider">Permanent Landmark</h4>
+                    <p className="text-[10px] text-[#7a8ba0]">Statutory domicile node</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1</Label>
+                    <Input 
+                      placeholder="House number, native street, sector" 
+                      value={editProfileData?.permanent_address_details?.address_line_1 || ""} 
+                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    />
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 2</Label>
+                    <Input 
+                      placeholder="House number, native street, sector" 
+                      value={editProfileData?.permanent_address_details?.address_line_2 || ""} 
+                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_2", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City</Label>
+                      <Input 
+                        placeholder="City" 
+                        value={editProfileData?.permanent_address_details?.city || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">District</Label>
+                      <Input 
+                        placeholder="District" 
+                        value={editProfileData?.permanent_address_details?.district || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "district", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State</Label>
+                      <Input 
+                        placeholder="State" 
+                        value={editProfileData?.permanent_address_details?.state || ""} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country</Label>
+                      <Input 
+                        placeholder="Country" 
+                        value={editProfileData?.permanent_address_details?.country || "India"} 
+                        onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode</Label>
+                    <Input 
+                      placeholder="Postal code" 
+                      value={editProfileData?.permanent_address_details?.pincode || ""} 
+                      onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} 
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                      minLength={6} maxLength={6} 
+                    />
+                  </div>
+
+                </div>
               </div>
+
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { const present = editProfileData?.present_address_details; if (!present?.address_line_1?.trim() || !present?.city?.trim() || !present?.state?.trim() || !present?.country?.trim() || !present?.pincode?.trim()) { toast.error("Present address: Address line 1, City, State, Country, and Pincode are required."); return; } setPendingChanges(prev => ({ ...prev, profile: editProfileData })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Address Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* EDUCATION EDIT DIALOG */}
         <Dialog open={editingSection === "education"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Education Details</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage academic qualifications, degrees, and certifications.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Education Details
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage academic qualifications, degrees, and certifications.
+              </DialogDescription>
               <GraduationCap className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Existing Education Qualifications Stack */}
               <div className="space-y-3">
-                {editQualifications.map((qual: any, idx: number) => { const levelLabels: Record<string, string> = { UG: 'UG', PG: 'PG', MPHIL: 'M.Phil', PHD: 'Ph.D', POSTDOC: 'Post Doc', RESEARCH_OTHERS: 'Research', OTHERS: 'Others' }; const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; return (<div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs"><div className="flex-1 min-w-0 space-y-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[14px] font-bold text-[#1a1a2e] truncate">{qual.specialization || "Unnamed"}</span><span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 px-2 py-0.5 rounded border border-blue-100 shrink-0">{displayLevel}</span></div><p className="text-[12px] text-[#7a8ba0]">{qual.institution_name}{qual.university ? `, ${qual.university}` : ""}</p><p className="text-[12px] text-[#434655] font-medium">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} &ndash; {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}{qual.percentage != null && qual.percentage !== "" ? ` &middot; ${qual.percentage}%` : ""}</p>{qual.certificate_preview && <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1"><CheckCircle className="h-3 w-3" /> Certificate Document Staged</p>}{qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">View Uploaded Document</a>}</div><div className="flex gap-1 shrink-0"><button onClick={() => { let normalizedLevel = qual.qualification_level; if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); setQualFormOpen(true); }} className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition">Edit</button><button onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button></div></div>); })}
-                {editQualifications.length === 0 && !qualFormOpen && <p className="text-sm text-[#7a8ba0] text-center py-6">No qualifications added yet. Click below to add one.</p>}
+                {editQualifications.map((qual: any, idx: number) => { 
+                  const levelLabels: Record<string, string> = { 
+                    UG: 'UG', 
+                    PG: 'PG', 
+                    MPHIL: 'M.Phil', 
+                    PHD: 'Ph.D', 
+                    POSTDOC: 'Post Doc', 
+                    RESEARCH_OTHERS: 'Research', 
+                    OTHERS: 'Others' 
+                  }; 
+                  const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
+                  
+                  return (
+                    <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                            {qual.specialization || "Unnamed"}
+                          </span>
+                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 px-2 py-0.5 rounded border border-blue-100 shrink-0">
+                            {displayLevel}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-[#7a8ba0]">
+                          {qual.institution_name}{qual.university ? `, ${qual.university}` : ""}
+                        </p>
+                        <p className="text-[12px] text-[#434655] font-medium">
+                          {qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} &ndash; {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}
+                          {qual.percentage != null && qual.percentage !== "" ? ` &middot; ${qual.percentage}%` : ""}
+                        </p>
+                        {qual.certificate_preview && (
+                          <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                            <CheckCircle className="h-3 w-3" /> Certificate Document Staged
+                          </p>
+                        )}
+                        {qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && (
+                          <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">
+                            View Uploaded Document
+                          </a>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button 
+                          onClick={() => { 
+                            let normalizedLevel = qual.qualification_level; 
+                            if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
+                            setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
+                            setQualFormOpen(true); 
+                          }} 
+                          className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                          className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {editQualifications.length === 0 && !qualFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No qualifications added yet. Click below to add one.
+                  </p>
+                )}
               </div>
-              {qualFormOpen && (<div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"><h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>{currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}</h4><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Qualification Level<span className="text-red-500 -ml-1">*</span></Label><Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))}><SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select level" /></SelectTrigger><SelectContent>{[['UG','Undergraduate (UG)'],['PG','Postgraduate (PG)'],['MPHIL','M.Phil.'],['PHD','Ph.D.'],['POSTDOC','Post Doctoral'],['RESEARCH_OTHERS','Research (Others)'],['OTHERS','Others']].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label><Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" required /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Institution / College<span className="text-red-500 -ml-1">*</span></Label><Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="College or school name" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Affiliated University<span className="text-red-500 -ml-1">*</span></Label><Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="University name" required /></div></div><div className="space-y-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location<span className="text-red-500 -ml-1">*</span></Label><Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="City, State" required /></div></div><div className="grid grid-cols-1 sm:grid-cols-3 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Date<span className="text-red-500 -ml-1">*</span></Label><Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Completion Date<span className="text-red-500 -ml-1">*</span></Label><Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Score / %<span className="text-red-500 -ml-1">*</span></Label><Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. 85.5" required /></div></div><div className="space-y-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Certificate Document (.pdf, image)<span className="text-red-500 -ml-1">*</span></Label><Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" required /></div></div><div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60"><Button type="button" onClick={() => { if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } const { _idx, ...qualData } = currentQual; if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } else { setEditQualifications(prev => [...prev, qualData]); } setCurrentQual({}); setQualFormOpen(false); }} className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]">{currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}</Button><Button variant="outline" type="button" onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors">Cancel</Button></div></div>)}
-              {!qualFormOpen && (<button type="button" onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Qualification Record</button>)}
+
+              {/* Qualification Mutation Node */}
+              {qualFormOpen && (
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
+                  </h4>
+                  
+                  {/* Level & Specialty Block */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Qualification Level<span className="text-red-500 -ml-1">*</span></Label>
+                      <Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))} required>
+                        <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white">
+                          <SelectValue placeholder="Select level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[
+                            ['UG','Undergraduate (UG)'],
+                            ['PG','Postgraduate (PG)'],
+                            ['MPHIL','M.Phil.'],
+                            ['PHD','Ph.D.'],
+                            ['POSTDOC','Post Doctoral'],
+                            ['RESEARCH_OTHERS','Research (Others)'],
+                            ['OTHERS','Others']
+                          ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
+                      required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Institutional Identification Block */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Institution / College<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="College or school name" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Affiliated University<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="University name" required />
+                    </div>
+                  </div>
+
+                  {/* Geographic Metadata */}
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="City, State" required />
+                    </div>
+                  </div>
+
+                  {/* Chronology & Metrics Matrix */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Date<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Completion Date<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Score / %<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. 85.5" required />
+                    </div>
+                  </div>
+
+                  {/* Verification Attestations */}
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Certificate Document (.pdf, image)<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" required />
+                    </div>
+                  </div>
+
+                  {/* Mutation Action Sub-block */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      type="button" 
+                      onClick={() => { 
+                        if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
+                        if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
+                        const { _idx, ...qualData } = currentQual; 
+                        if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
+                        else { setEditQualifications(prev => [...prev, qualData]); } 
+                        setCurrentQual({}); 
+                        setQualFormOpen(false); 
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      type="button" 
+                      onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Trigger Node to Reveal Form */}
+              {!qualFormOpen && (
+                <button 
+                  type="button" 
+                  onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Qualification Record
+                </button>
+              )}
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" type="button" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button type="button" onClick={() => { setPendingChanges(prev => ({ ...prev, qualifications: editQualifications })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Education Details</Button>
+              <Button 
+                variant="outline" 
+                type="button" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Education Details..." : "Save Education Details"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* EXPERIENCE EDIT DIALOG */}
         <Dialog open={editingSection === "experience"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Work Experience</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage professional employment history. Toggle "Internal Role" &ndash; company & location auto‑fill from organisation profile.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Work Experience
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage professional employment history. Toggle "Internal Role" &ndash; company & location auto‑fill from organisation profile.
+              </DialogDescription>
               <BriefcaseBusiness className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Existing Experiences Stack */}
               <div className="space-y-3">
-                {editExperiences.map((exp: ExperienceItem, idx: number) => (<div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs"><div className="flex-1 min-w-0 space-y-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[14px] font-bold text-[#1a1a2e] truncate">{exp.company_name || 'Company'}</span></div><p className="text-[12px] text-[#7a8ba0]">{exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}{exp.end_year ? ` &ndash; ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' &ndash; Present'}{exp.location ? ` &middot; ${exp.location}` : ''}</p><p className="text-[12px] text-[#434655] font-medium mt-1">{exp.designations?.length || 0} role(s) defined</p></div><div className="flex gap-1 shrink-0"><button onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition">Edit</button><button onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button></div></div>))}
-                {editExperiences.length === 0 && !expFormOpen && <p className="text-sm text-[#7a8ba0] text-center py-6">No experience records added yet. Click below to add one.</p>}
+                {editExperiences.map((exp: ExperienceItem, idx: number) => (
+                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                          {exp.company_name || 'Company'}
+                        </span>
+                      </div>
+                      <p className="text-[12px] text-[#7a8ba0]">
+                        {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
+                        {exp.end_year ? ` &ndash; ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' &ndash; Present'}
+                        {exp.location ? ` &middot; ${exp.location}` : ''}
+                      </p>
+                      <p className="text-[12px] text-[#434655] font-medium mt-1">
+                        {exp.designations?.length || 0} role(s) defined
+                      </p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button 
+                        onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
+                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
+                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {editExperiences.length === 0 && !expFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No experience records added yet. Click below to add one.
+                  </p>
+                )}
               </div>
-              {expFormOpen && currentExp && (<div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"><h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>{currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}</h4><div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]"><Checkbox id="internal-role-checkbox" checked={currentExp.is_internal || false} onCheckedChange={(checked) => { const isInternal = !!checked; let newCompanyName = currentExp.company_name; let newLocation = currentExp.location; if (isInternal && company) { newCompanyName = company.company_name || company.name || "Internal Organization"; if (companyProfile) { const addressParts = [companyProfile.city, companyProfile.district, companyProfile.state].filter(Boolean); newLocation = addressParts.join(", "); if (!newLocation) newLocation = companyProfile.city || ""; } else { newLocation = ""; } } else if (!isInternal && !currentExp.company_name) { const defaultCompany = company?.company_name || company?.name || "Internal Organization"; if (newCompanyName === defaultCompany) newCompanyName = ""; if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = ""; } setCurrentExp({ ...currentExp, is_internal: isInternal, company_name: newCompanyName, location: newLocation }); }} className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20" /><Label htmlFor="internal-role-checkbox" className="text-[13px] font-semibold text-[#434655] cursor-pointer select-none">This is an internal role (organisation uses predefined Roles & Groups)</Label></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label><Input value={currentExp.company_name || ''} onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })} disabled={currentExp.is_internal} className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`} placeholder={currentExp.is_internal ? "Auto-filled from company" : "Company name"} /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label><Input value={currentExp.location || ''} onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })} disabled={currentExp.is_internal} className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`} placeholder={currentExp.is_internal ? "Auto-filled from company address" : "e.g. Bangalore, India"} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label><Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">End Year <span className="text-[#7a8ba0]/70 normal-case font-normal">(leave blank if current)</span></Label><Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" /></div></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label><Input type="file" accept=".pdf,.jpg,.png" onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" />{currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>}</div><div className="mt-4 pt-2 border-t border-[#dde3ec]/60"><div className="flex items-center justify-between mb-2.5"><Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label><Button type="button" onClick={() => { const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); }} size="sm" variant="outline" className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"><Plus className="h-3 w-3" /> Add Role</Button></div><div className="space-y-3 overflow-y-auto pr-1">{currentExp.designations && currentExp.designations.map((des, desIdx) => (<div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs"><div className="flex justify-between items-center"><span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span><Button type="button" variant="ghost" size="sm" onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"><Trash2 className="h-3.5 w-3.5" /></Button></div>{currentExp.is_internal ? (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Role</Label><Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select role" /></SelectTrigger><SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group</Label><Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select group" /></SelectTrigger><SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent></Select></div></div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Designation Title</Label><Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Software Engineer" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group / Department <span className="text-[#7a8ba0]/70 normal-case font-normal">(optional)</span></Label><Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Engineering" /></div></div>)}<div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label><Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" /></div><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">End Date</Label><Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" /></div></div><div className="space-y-1"><Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label><Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}><SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Joined">Joined</SelectItem><SelectItem value="Promotion">Promotion</SelectItem><SelectItem value="Transfer">Transfer</SelectItem><SelectItem value="Demotion">Demotion</SelectItem><SelectItem value="Contract">Contract</SelectItem></SelectContent></Select></div></div>))}{(!currentExp.designations || currentExp.designations.length === 0) && <p className="text-xs text-[#7a8ba0] text-center py-2">No roles added. Click "Add Role" to specify.</p>}</div></div><div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60"><Button onClick={() => { if (!currentExp.start_year) { toast.error("Start year is required."); return; } if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; } for (let i = 0; i < currentExp.designations.length; i++) { const des = currentExp.designations[i]; if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } } if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; } } const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id); if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp)); else setEditExperiences(prev => [...prev, currentExp]); setCurrentExp(null); setExpFormOpen(false); }} className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]">{currentExp.id ? 'Update Record' : 'Add Record'}</Button><Button variant="outline" onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors">Cancel</Button></div></div>)}
-              {!expFormOpen && (<button onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Experience Record</button>)}
+
+              {/* Experience Mutation Node */}
+              {expFormOpen && currentExp && (
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}
+                  </h4>
+
+                  {/* Internal Role Configuration Node */}
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]">
+                    <Checkbox
+                      id="internal-role-checkbox"
+                      checked={currentExp.is_internal || false}
+                      onCheckedChange={(checked) => {
+                        const isInternal = !!checked;
+                        let newCompanyName = currentExp.company_name;
+                        let newLocation = currentExp.location;
+                        if (isInternal && company) {
+                          newCompanyName = company.company_name || company.name || "Internal Organization";
+                          if (companyProfile) {
+                            const addressParts = [
+                              companyProfile.city,
+                              companyProfile.district,
+                              companyProfile.state
+                            ].filter(Boolean);
+                            newLocation = addressParts.join(", ");
+                            if (!newLocation) newLocation = companyProfile.city || "";
+                          } else {
+                            newLocation = "";
+                          }
+                        } else if (!isInternal && !currentExp.company_name) {
+                          const defaultCompany = company?.company_name || company?.name || "Internal Organization";
+                          if (newCompanyName === defaultCompany) newCompanyName = "";
+                          if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
+                        }
+                        setCurrentExp({ 
+                          ...currentExp, 
+                          is_internal: isInternal,
+                          company_name: newCompanyName,
+                          location: newLocation
+                        });
+                      }}
+                      className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
+                    />
+                    <Label htmlFor="internal-role-checkbox" className="text-[13px] font-semibold text-[#434655] cursor-pointer select-none">
+                      This is an internal role (organisation uses predefined Roles & Groups)
+                    </Label>
+                  </div>
+
+                  {/* Company & Location Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
+                      <Input
+                        value={currentExp.company_name || ''}
+                        onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })}
+                        disabled={currentExp.is_internal}
+                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
+                        placeholder={currentExp.is_internal ? "Auto-filled from company" : "Company name"}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label>
+                      <Input
+                        value={currentExp.location || ''}
+                        onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })}
+                        disabled={currentExp.is_internal}
+                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
+                        placeholder={currentExp.is_internal ? "Auto-filled from company address" : "e.g. Bangalore, India"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tenure Lifespan */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">End Year <span className="text-[#7a8ba0]/70 normal-case font-normal">(leave blank if current)</span></Label>
+                      <Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" />
+                    </div>
+                  </div>
+
+                  {/* Verification Attestation */}
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
+                    <Input 
+                      type="file" 
+                      accept=".pdf,.jpg,.png" 
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
+                      className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
+                    />
+                    {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
+                      <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
+                    )}
+                  </div>
+
+                  {/* Multiple Designations Vector Segment */}
+                  <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
+                      <Button 
+                        type="button" 
+                        onClick={() => { 
+                          const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
+                          if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
+                          else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
+                          setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
+                        }} 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Add Role
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3 overflow-y-auto pr-1">
+                      {currentExp.designations && currentExp.designations.map((des, desIdx) => (
+                        <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
+                              className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          
+                          {currentExp.is_internal ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Role</Label>
+                                <Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select role" /></SelectTrigger>
+                                  <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group</Label>
+                                <Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select group" /></SelectTrigger>
+                                  <SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Designation Title</Label>
+                                <Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Software Engineer" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group / Department <span className="text-[#7a8ba0]/70 normal-case font-normal">(optional)</span></Label>
+                                <Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Engineering" />
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
+                              <Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">End Date</Label>
+                              <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
+                            <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                              <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Joined">Joined</SelectItem>
+                                <SelectItem value="Promotion">Promotion</SelectItem>
+                                <SelectItem value="Transfer">Transfer</SelectItem>
+                                <SelectItem value="Demotion">Demotion</SelectItem>
+                                <SelectItem value="Contract">Contract</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                      {(!currentExp.designations || currentExp.designations.length === 0) && (
+                        <p className="text-xs text-[#7a8ba0] text-center py-2">No roles added. Click "Add Role" to specify.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Form Node Actions */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      onClick={() => {
+                        if (!currentExp.start_year) { toast.error("Start year is required."); return; }
+                        if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; }
+                        for (let i = 0; i < currentExp.designations.length; i++) {
+                          const des = currentExp.designations[i];
+                          if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } 
+                          else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } }
+                          if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; }
+                        }
+                        const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
+                        if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
+                        else setEditExperiences(prev => [...prev, currentExp]);
+                        setCurrentExp(null); setExpFormOpen(false);
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentExp.id ? 'Update Record' : 'Add Record'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Trigger Node to Reveal Form */}
+              {!expFormOpen && (
+                <button 
+                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Experience Record
+                </button>
+              )}
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { setPendingChanges(prev => ({ ...prev, experiences: editExperiences })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Work Experience</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* LEGAL EDIT DIALOG */}
         <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Statutory Identities</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Update governmental and legal identification numbers.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Statutory Identities
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Update governmental and legal identification numbers.
+              </DialogDescription>
               <ShieldCheck className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Aadhaar Number (UIDAI)<span className="text-red-500 -ml-1">*</span></Label><Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" required /></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">PAN Number (Income Tax)<span className="text-red-500 -ml-1">*</span></Label><Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono" required /></div>
+              
+              {/* Aadhaar Number */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Aadhaar Number (UIDAI)<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.aadhar_no || ""} 
+                  onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
+
+              {/* PAN Number */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">PAN Number (Income Tax)<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.pan_no || ""} 
+                  onChange={(e) => handleProfileChange("pan_no", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono" 
+                  required
+                />
+              </div>
+
               <Separator className="bg-[#dde3ec]" />
-              <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">KTU Identifier<span className="text-red-500 -ml-1">*</span></Label><Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" required /></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">AICTE Identifier<span className="text-red-500 -ml-1">*</span></Label><Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" required /></div>
+
+              {/* KTU Identifier */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">KTU Identifier<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.ktu_id || ""} 
+                  onChange={(e) => handleProfileChange("ktu_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
+
+              {/* AICTE Identifier */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">AICTE Identifier<span className="text-red-500 -ml-1">*</span></Label>
+                <Input 
+                  value={editProfileData?.aicte_id || ""} 
+                  onChange={(e) => handleProfileChange("aicte_id", e.target.value)} 
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  required
+                />
+              </div>
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { setPendingChanges(prev => ({ ...prev, profile: editProfileData })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Legal Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Updating Changes..." : "Save Changes"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* BANK EDIT DIALOG */}
         <Dialog open={editingSection === "bank"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Bank Accounts</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage financial accounts linked to your employee profile.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Bank Accounts
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage financial accounts linked to your employee profile.
+              </DialogDescription>
               <Landmark className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Scroll Container */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Account List Stack */}
               <div className="space-y-3">
-                {editBankDetails.map((bank: any, idx: number) => (<div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs"><div className="flex-1 min-w-0 space-y-1"><div className="flex items-center gap-2 flex-wrap"><span className="text-[14px] font-bold text-[#1a1a2e] truncate">{bank.bank_name || 'Bank'}</span>{bank.branch_name && <span className="text-[12px] text-[#7a8ba0]">({bank.branch_name})</span>}{bank.is_primary && <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 border border-blue-100 px-2 py-0.5 rounded shrink-0">Primary</span>}</div><p className="text-[13px] font-mono text-[#434655] tracking-wider">{bank.account_number}</p><p className="text-[12px] text-[#7a8ba0]">{bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span></p></div><div className="flex gap-1 shrink-0"><button onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition">Edit</button><button onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition">Remove</button></div></div>))}
-                {editBankDetails.length === 0 && !bankFormOpen && <p className="text-sm text-[#7a8ba0] text-center py-6">No bank accounts added yet. Click below to add one.</p>}
+                {editBankDetails.map((bank: any, idx: number) => (
+                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                          {bank.bank_name || 'Bank'}
+                        </span>
+                        {bank.branch_name && (
+                          <span className="text-[12px] text-[#7a8ba0]">
+                            ({bank.branch_name})
+                          </span>
+                        )}
+                        {bank.is_primary && (
+                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 border border-blue-100 px-2 py-0.5 rounded shrink-0">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[13px] font-mono text-[#434655] tracking-wider">
+                        {bank.account_number}
+                      </p>
+                      <p className="text-[12px] text-[#7a8ba0]">
+                        {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
+                      </p>
+                    </div>
+                    
+                    {/* Action Row */}
+                    <div className="flex gap-1 shrink-0">
+                      <button 
+                        onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
+                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
+                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {editBankDetails.length === 0 && !bankFormOpen && (
+                  <p className="text-sm text-[#7a8ba0] text-center py-6">
+                    No bank accounts added yet. Click below to add one.
+                  </p>
+                )}
               </div>
-              {bankFormOpen && (<div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200"><h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>{currentBank?._idx !== undefined ? 'Edit Account Matrix' : 'Add Account Matrix'}</h4><div className="grid grid-cols-1 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label><Input value={currentBank?.acc_holder_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="Full name as in bank records" required /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label><Input value={currentBank?.bank_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. State Bank of India" required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label><Input value={currentBank?.branch_name || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="Branch location" required /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label><Input value={currentBank?.account_number || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" placeholder="Bank account number" minLength={9} maxLength={18} required /></div><div className="space-y-1.5"><Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label><Input value={currentBank?.ifsc_code || ''} onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" placeholder="e.g. SBIN0001234" minLength={11} maxLength={11} required /></div></div><div className="grid grid-cols-1 gap-4"><div className="flex items-end pb-2"><label className="flex items-center gap-2.5 cursor-pointer select-none"><Checkbox checked={!!currentBank?.is_primary} onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))} className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" /><span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span></label></div></div><div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60"><Button onClick={() => { if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { toast.error("Bank name, account number and IFSC code are required."); return; } const { _idx, ...bankData } = currentBank; if (_idx !== undefined) { setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); } else { setEditBankDetails(prev => [...prev, bankData]); } setCurrentBank({}); setBankFormOpen(false); }} className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]">{currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}</Button><Button variant="outline" onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors">Cancel</Button></div></div>)}
-              {!bankFormOpen && (<button onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"><Plus className="h-4 w-4" /> Add Bank Account</button>)}
+
+              {/* Inline Account Mutation Node */}
+              {bankFormOpen && (
+                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                    {currentBank?._idx !== undefined ? 'Edit Account Matrix' : 'Add Account Matrix'}
+                  </h4>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.acc_holder_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="Full name as in bank records" 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.bank_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="e.g. State Bank of India" 
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.branch_name || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                        placeholder="Branch location" 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.account_number || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
+                        placeholder="Bank account number" 
+                        minLength={9} maxLength={18} required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
+                      <Input 
+                        value={currentBank?.ifsc_code || ''} 
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
+                        placeholder="e.g. SBIN0001234" 
+                        minLength={11} maxLength={11} required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <Checkbox 
+                          checked={!!currentBank?.is_primary} 
+                          onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
+                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
+                        />
+                        <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Form Action Controls */}
+                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                    <Button 
+                      onClick={() => { 
+                        if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
+                          toast.error("Bank name, account number and IFSC code are required."); 
+                          return; 
+                        } 
+                        const { _idx, ...bankData } = currentBank; 
+                        if (_idx !== undefined) { 
+                          setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
+                        } else { 
+                          setEditBankDetails(prev => [...prev, bankData]); 
+                        } 
+                        setCurrentBank({}); 
+                        setBankFormOpen(false); 
+                      }} 
+                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                    >
+                      {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
+                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Trigger Node to Reveal Form */}
+              {!bankFormOpen && (
+                <button 
+                  onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
+                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" /> Add Bank Account
+                </button>
+              )}
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { setPendingChanges(prev => ({ ...prev, bankDetails: editBankDetails })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Bank Details</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving..." : "Save Bank Details"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
         {/* PREFERENCES EDIT DIALOG */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            
+            {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">Edit Notification Preferences</DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">Manage Work-from-home and automated alert policies.</DialogDescription>
+              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                Edit Notification Preferences
+              </DialogTitle>
+              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                Manage Work-from-home and automated alert policies.
+              </DialogDescription>
               <Settings className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
             </DialogHeader>
+
+            {/* Modal Body / Configuration Matrix */}
             <div className="p-6 space-y-3.5 max-h-[60vh] overflow-y-auto custom-scrollbar">
               {[
                 { icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" }, 
@@ -1647,15 +3277,40 @@ export default function ProfilePage() {
                 { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }
               ].map((pref, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-white rounded-lg border border-[#dde3ec] shadow-xs hover:border-[#dde3ec]/80 transition-all">
-                  <div className="flex items-center gap-3"><div className="p-2 bg-[#eff6ff] rounded-lg border border-blue-100 text-blue-600"><pref.icon className="h-4 w-4" /></div><span className="text-[13px] font-bold text-[#1a1a2e]">{pref.label}</span></div>
-                  <Switch checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} onCheckedChange={(val) => handleInputChange(pref.field, val)} className="data-[state=checked]:bg-blue-600" />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-[#eff6ff] rounded-lg border border-blue-100 text-blue-600">
+                      <pref.icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-[13px] font-bold text-[#1a1a2e]">
+                      {pref.label}
+                    </span>
+                  </div>
+                  <Switch 
+                    checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} 
+                    onCheckedChange={(val) => handleInputChange(pref.field, val)} 
+                    className="data-[state=checked]:bg-blue-600"
+                  />
                 </div>
               ))}
             </div>
+
+            {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={handleCancel} className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors">Cancel</Button>
-              <Button onClick={() => { setPendingChanges(prev => ({ ...prev, user: editedUser })); setEditingSection(null); }} disabled={isSaving} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50">Save Preferences</Button>
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors" >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving} 
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+              >
+                {isSaving ? "Saving Notification Preferences..." : "Save Notification Preferences"}
+              </Button>
             </DialogFooter>
+
           </DialogContent>
         </Dialog>
 
