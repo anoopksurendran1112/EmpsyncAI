@@ -485,46 +485,46 @@ export default function ProfilePage() {
   };
 
   // --- Image Upload Handler ---
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!user) return;
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   if (!user) return;
+  //   const file = event.target.files?.[0];
+  //   if (!file) return;
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Only JPEG, PNG, or WEBP images are allowed');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be smaller than 2MB');
-      return;
-    }
+  //   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+  //   if (!allowedTypes.includes(file.type)) {
+  //     toast.error('Only JPEG, PNG, or WEBP images are allowed');
+  //     return;
+  //   }
+  //   if (file.size > 2 * 1024 * 1024) {
+  //     toast.error('Image must be smaller than 2MB');
+  //     return;
+  //   }
 
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      formData.append('prof_img', file);
-      formData.append('user_id', user.id.toString());
+  //   setUploadingImage(true);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append('prof_img', file);
+  //     formData.append('user_id', user.id.toString());
 
-      const response = await fetch('/api/employee-with-profile/', { method: 'PUT', body: formData });
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Upload failed');
+  //     const response = await fetch('/api/employee-with-profile/', { method: 'PUT', body: formData });
+  //     const result = await response.json();
+  //     if (!response.ok || !result.success) throw new Error(result.message || result.error || 'Upload failed');
 
-      const newImageUrl = result.data?.user?.prof_img || result.prof_img;
-      if (newImageUrl && updateUser) {
-        const updatedUser = sanitizeUser({ ...user, prof_img: newImageUrl });
-        updateUser(updatedUser);
-        setEditedUser(updatedUser);
-      }
-      toast.success('Profile picture updated!');
-      await fetchProfile();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
+  //     const newImageUrl = result.data?.user?.prof_img || result.prof_img;
+  //     if (newImageUrl && updateUser) {
+  //       const updatedUser = sanitizeUser({ ...user, prof_img: newImageUrl });
+  //       updateUser(updatedUser);
+  //       setEditedUser(updatedUser);
+  //     }
+  //     toast.success('Profile picture updated!');
+  //     await fetchProfile();
+  //   } catch (err: any) {
+  //     toast.error(err.message);
+  //   } finally {
+  //     setUploadingImage(false);
+  //     if (fileInputRef.current) fileInputRef.current.value = '';
+  //   }
+  // };
 
   // --- Edit handlers ---
   const handleEditExtended = (section: string) => {
@@ -673,6 +673,21 @@ export default function ProfilePage() {
       }
     }
 
+    // --- Process Profile Image Validation ---
+    // Assumes your file input updates a state tracking variable (e.g., `selectedImageFile`)
+    const imageFile = fileInputRef.current?.files?.[0] || null;
+    if (imageFile) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+      if (!allowedTypes.includes(imageFile.type)) {
+        toast.error('Only JPEG, PNG, or WEBP images are allowed');
+        return;
+      }
+      if (imageFile.size > 2 * 1024 * 1024) {
+        toast.error('Image must be smaller than 2MB');
+        return;
+      }
+    }
+
     // --- Process Family Guardians ---
     let guardiansToSend = guardians
       .filter((g: any) => g.name?.trim())
@@ -808,7 +823,12 @@ export default function ProfilePage() {
       formData.append("experiences", JSON.stringify(experiencesToSend));
       formData.append("bank_details", JSON.stringify(banksToSend));
 
-      // 5. Append Binary Files
+      // 5. Append Binary Files (Profile Picture)
+      if (imageFile) {
+        formData.append('prof_img', imageFile);
+      }
+
+      // 6. Append Binary Files (Qualification Certificates)
       editQualifications.forEach((q: any, index: number) => {
         if (q.certificate_file instanceof File) {
           formData.append(`certificate_${index}`, q.certificate_file);
@@ -1155,7 +1175,7 @@ export default function ProfilePage() {
                 ref={fileInputRef}
                 className="hidden"
                 accept="image/jpeg,image/png,image/webp"
-                onChange={handleImageUpload}
+                onChange={handleSave}
               />
               <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
                 {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
