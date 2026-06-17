@@ -83,7 +83,7 @@ export function Sidebar({ className }: SidebarProps) {
 
     { title: "Employees", icon: Users, href: "/dashboard/employees" },
     
-    { title: "Bank Account", icon: Landmark, href: "/dashboard/bank" },
+  
     { title: "Company", icon: Building2, href: "/dashboard/company" },
     {
       title: "Settings", icon: Settings, href: "/dashboard/settings", adminOnly: true,
