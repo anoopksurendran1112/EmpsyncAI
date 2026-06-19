@@ -2753,18 +2753,25 @@ def employee_with_profile(request):
         role_obj = c.CompanyRole.objects.filter(id=role_id).first() if role_id else None
         group_obj = c.CompanyGroup.objects.filter(id=group_id).first() if group_id else None
 
-        present_address_data = safe_parse_json('present_address', dict)
-        permanent_address_data = safe_parse_json('permanent_address', dict)
-        profile_payload = safe_parse_json('profile', dict)
-        guardians = safe_parse_json('guardians', list)
-        bank_details = safe_parse_json('bank_details', list)
-        qualifications = safe_parse_json('qualifications', list)
-        experiences = safe_parse_json('experiences', list)
+        # Check explicit presence of fields within request data
+        has_present_address = 'present_address' in request.data
+        has_permanent_address = 'permanent_address' in request.data
+        has_guardians = 'guardians' in request.data
+        has_bank_details = 'bank_details' in request.data
+        has_qualifications = 'qualifications' in request.data
+        has_experiences = 'experiences' in request.data
+
+        present_address_data = safe_parse_json('present_address', dict) if has_present_address else None
+        permanent_address_data = safe_parse_json('permanent_address', dict) if has_permanent_address else None
+        profile_payload = safe_parse_json('profile', dict) if 'profile' in request.data else None
+        guardians = safe_parse_json('guardians', list) if has_guardians else None
+        bank_details = safe_parse_json('bank_details', list) if has_bank_details else None
+        qualifications = safe_parse_json('qualifications', list) if has_qualifications else None
+        experiences = safe_parse_json('experiences', list) if has_experiences else None
 
         with transaction.atomic():
             try:
                 user_payload = {}
-                # FIX 1: Use actual user fields for user_payload extraction
                 user_fields = ['first_name', 'last_name', 'email', 'mobile', 'gender', 'biometric_id', 'is_whatsapp', 'is_sms', 'is_wfh', 'is_active', 'role_id']
                 for key in user_fields:
                     if key in request.data:
@@ -2805,15 +2812,17 @@ def employee_with_profile(request):
                 user.save()
 
                 profile = getattr(user, 'profile', None)
-                if profile is None and (present_address_data or permanent_address_data or profile_payload or any(k in request.data for k in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion', 'religion_id', 'caste_id', 'staff_type_id', 'staff_category_id'])):
+                if profile is None and (has_present_address or has_permanent_address or profile_payload or any(k in request.data for k in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion', 'religion_id', 'caste_id', 'staff_type_id', 'staff_category_id'])):
                     profile = EmployeeProfile(user=user)
 
                 if profile:
-                    if present_address_data:
+                    # Fix: Address objects are updated ONLY if explicitly passed
+                    if has_present_address and present_address_data:
                         present_addr_obj = save_address(present_address_data, 'present address', profile.present_address)
                     else:
                         present_addr_obj = profile.present_address
-                    if permanent_address_data:
+
+                    if has_permanent_address and permanent_address_data:
                         permanent_addr_obj = save_address(permanent_address_data, 'permanent address', profile.permanent_address)
                     else:
                         permanent_addr_obj = profile.permanent_address
@@ -2822,7 +2831,6 @@ def employee_with_profile(request):
                     if profile_payload:
                         profile_updates.update(profile_payload)
                     
-                    # FIX 2: Corrected complete list of profile fields for profile_updates extraction
                     profile_fields = ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion']
                     for key in profile_fields:
                         if key in request.data:
@@ -2849,6 +2857,7 @@ def employee_with_profile(request):
 
                 def upsert_guardians(guardian_items, user):
                     incoming_ids = [ _parse_int(item.get('id'))  for item in guardian_items  if _parse_int(item.get('id')) is not None ]
+                    # Fix: Deletes old profiles only if the payload parameter is verified present
                     EmployeeGuardian.objects.filter(employee=user).exclude(id__in=incoming_ids).delete()
 
                     saved = []
@@ -2913,26 +2922,21 @@ def employee_with_profile(request):
                         qual_id = _parse_int(item.get('id'))
                         certificate_file = request.FILES.get(f'certificate_{idx}')
                         
-                        # Enforce business rules
                         if item.get('qualification_level') == "B.Tech":
                             item['qualification_level'] = "UG"
 
-                        # 3. Handle Update or Create
                         if qual_id:
                             instance = EmployeeQualification.objects.filter(id=qual_id, user=user).first()
                             if instance:
                                 serializer = EmployeeQualificationSerializer(instance, data=item, partial=True)
                             else:
-                                # Handle edge case where ID is sent but record doesn't exist/doesn't belong to user
                                 serializer = EmployeeQualificationSerializer(data=item)
                         else:
                             serializer = EmployeeQualificationSerializer(data=item)
 
                         if serializer.is_valid():
-                            # Save only once
                             saved_instance = serializer.save(user=user) if not qual_id else serializer.save()
                             
-                            # Apply file if present
                             if certificate_file:
                                 saved_instance.certificate = certificate_file
                                 saved_instance.save()
@@ -2945,7 +2949,6 @@ def employee_with_profile(request):
                     
                 def upsert_experiences(experience_items, user, request):
                     with transaction.atomic():
-
                         incoming_exp_ids = []
                         incoming_des_ids = []
 
@@ -3009,15 +3012,16 @@ def employee_with_profile(request):
                                 
                             saved.append((exp_obj, des_list))
 
-                    return saved
+                        return saved
 
-                if guardians is not None:
+                # Safe Guard Processing: Execute sub-routines only if key was explicit in request payload
+                if has_guardians and guardians is not None:
                     upsert_guardians(guardians, user)
-                if bank_details is not None:
+                if has_bank_details and bank_details is not None:
                     upsert_bank_details(bank_details, user)
-                if qualifications is not None:
+                if has_qualifications and qualifications is not None:
                     upsert_qualifications(qualifications, user, request)
-                if experiences is not None:
+                if has_experiences and experiences is not None:
                     upsert_experiences(experiences, user, request)
 
                 return Response({
@@ -3029,10 +3033,11 @@ def employee_with_profile(request):
             except ValueError as err:
                 transaction.set_rollback(True)
                 return Response({ 'success': False, 'message': 'Validation Error inside Employee Update sequence', 'errors': str(err) }, status=status.HTTP_400_BAD_REQUEST)
+            
             except Exception as exc:
                 transaction.set_rollback(True)
                 return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 

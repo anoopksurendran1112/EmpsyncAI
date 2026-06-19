@@ -628,221 +628,307 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!user || !company) return;
 
-    // --- Validate primary mobile ---
-    const primaryMobile = editedUser?.mobile?.trim() || '';
-    if (!primaryMobile) {
-      toast.error("Primary mobile number is required");
-      return;
-    }
-    if (!isValidMobile(primaryMobile)) {
-      toast.error("Primary mobile number must be exactly 10 digits");
-      return;
-    }
-
-    // --- Validate primary email ---
-    const primaryEmail = editedUser?.email?.trim() || '';
-    if (!primaryEmail) {
-      toast.error("Email address is required");
-      return;
-    }
-    if (!isValidEmail(primaryEmail)) {
-      toast.error("Please enter a valid email address (e.g., name@example.com)");
-      return;
-    }
-
-    // --- Validate alternate mobile if provided ---
-    const altMobile = editProfileData?.alternate_mobile?.trim();
-    if (altMobile && !isValidMobile(altMobile)) {
-      toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
-      return;
-    }
-
-    // --- Validate alternate email if provided ---
-    const altEmail = editProfileData?.alternate_email?.trim();
-    if (altEmail && !isValidEmail(altEmail)) {
-      toast.error("Alternate email must be a valid email address (or leave empty)");
-      return;
-    }
-
-    // --- Validate family contacts ---
-    for (const guardian of guardians) {
-      const phone = guardian.phone?.trim();
-      if (phone && !isValidMobile(phone)) {
-        toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
-        return;
-      }
-    }
-
-    // --- Process Profile Image Validation ---
-    // Assumes your file input updates a state tracking variable (e.g., `selectedImageFile`)
-    const imageFile = fileInputRef.current?.files?.[0] || null;
-    if (imageFile) {
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-      if (!allowedTypes.includes(imageFile.type)) {
-        toast.error('Only JPEG, PNG, or WEBP images are allowed');
-        return;
-      }
-      if (imageFile.size > 2 * 1024 * 1024) {
-        toast.error('Image must be smaller than 2MB');
-        return;
-      }
-    }
-
-    // --- Process Family Guardians ---
-    let guardiansToSend = guardians
-      .filter((g: any) => g.name?.trim())
-      .map((g: any) => ({
-        ...(g.id ? { id: g.id } : {}),
-        employee: user.id,
-        name: g.name,
-        phone: g.phone || '',
-        relationship_type: g.relationship_type,
-        is_guardian: !!g.is_guardian,
-      }));
-
-    if (!familyIsMarried) {
-      guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
-    }
-    // --- Process Education Records ---
-    const qualsToSend = editQualifications.map((q: any) => ({
-      ...(q.id ? { id: q.id } : {}),
-      user: user.id,
-      qualification_level: q.qualification_level,
-      specialization: q.specialization,
-      institution_name: q.institution_name,
-      university: q.university || '',
-      location: q.location || '',
-      start_date: q.start_date || null,
-      completion_date: q.completion_date || null,
-      percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
-    }));
-
-    // --- Process Experience Records ---
-    const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
-      const cleanedExp: any = {
-        ...(exp.id ? { id: exp.id } : {}),
-        company_name: exp.company_name || '',
-        location: exp.location || '',
-        start_year: exp.start_year,
-        end_year: exp.end_year || null,
-        is_internal: !!exp.is_internal,
-        designations: (exp.designations || []).map((des: DesignationItem) => {
-          if (exp.is_internal) {
-            return {
-              ...(des.id ? { id: des.id } : {}),
-              company_role: des.company_role || null,
-              company_group: des.company_group || null,
-              start_date: des.start_date,
-              end_date: des.end_date || null,
-              change_type: des.change_type || 'Joined',
-            };
-          } else {
-            return {
-              ...(des.id ? { id: des.id } : {}),
-              designation: des.designation || '',
-              company_group_text: des.company_group_text || '',
-              start_date: des.start_date,
-              end_date: des.end_date || null,
-              change_type: des.change_type || 'Joined',
-            };
-          }
-        }),
-      };
-      if (!exp.is_internal) {
-        cleanedExp.designations = cleanedExp.designations.map((d: any) => {
-          delete d.company_role;
-          delete d.company_group;
-          return d;
-        });
-      }
-      return cleanedExp;
-    });
-    
-    // --- Process Bank Details ---
-    const banksToSend = editBankDetails.map((b: any) => ({
-      ...(b.id ? { id: b.id } : {}),
-      user: user.id,
-      acc_holder_name: b.acc_holder_name,
-      bank_name: b.bank_name,
-      account_number: b.account_number,
-      ifsc_code: b.ifsc_code,
-      branch_name: b.branch_name || '',
-      is_primary: !!b.is_primary,
-    }));
-
-
     setIsSaving(true);
     try {
       const formData = new FormData();
 
-      // 1. Core Identification Key
+      // 1. Core Identification Key (Always Required)
       formData.append("user_id", user.id.toString());
 
-      // 2. Append User Profile Base Properties
-      formData.append("first_name", editedUser?.first_name || "");
-      formData.append("last_name", editedUser?.last_name || "");
-      formData.append("email", editedUser?.email || "");
-      formData.append("mobile", editedUser?.mobile || "");
-      formData.append("role", editedUser?.role || "");
-      formData.append("gender", editedUser?.gender || "");
-      formData.append("group", editedUser?.group || "");
-      formData.append("is_wfh", String(editedUser?.is_wfh || false));
-      formData.append("is_active", String(editedUser?.is_active ?? true));
-      formData.append("is_whatsapp", String(editedUser?.is_whatsapp || false));
-      formData.append("is_sms", String(editedUser?.is_sms || false));
+      // ==========================================
+      // CONDITIONAL VALIDATION & DATA PROCESSING
+      // ==========================================
 
-      if (editedUser?.role_id) formData.append("role_id", editedUser.role_id.toString());
-      if (editedUser?.group_id) formData.append("group_id", editedUser.group_id.toString());
+      if (editingSection === "personal") {
+        // --- Validate core identity indicators ---
+        if (!editedUser?.first_name?.trim()) {
+          toast.error("First name is required");
+          return;
+        }
+        if (!editedUser?.last_name?.trim()) {
+          toast.error("Last name is required");
+          return;
+        }
+        if (!editProfileData?.dob) {
+          toast.error("Date of birth is required");
+          return;
+        }
+        if (!editedUser?.gender) {
+          toast.error("Gender selection is required");
+          return;
+        }
 
-      // 3. Append Profile Sub-Object Data & Addresses
-      if (editProfileData) {
-        const profileData = {
-          dob: nullIfEmpty(editProfileData.dob),
-          religion: editProfileData.religion_id,
-          caste: editProfileData.caste_id,
-          staff_type: editProfileData.staff_type_id,
-          staff_category: editProfileData.staff_category_id,
-          staff_id: editProfileData.staff_id,
-          ktu_id: editProfileData.ktu_id,
-          aicte_id: editProfileData.aicte_id,
-          pan_no: editProfileData.pan_no,
-          aadhar_no: editProfileData.aadhar_no,
-          blood_group: editProfileData.blood_group,
-          alternate_mobile: editProfileData.alternate_mobile,
-          alternate_email: editProfileData.alternate_email,
-        };
-        
-        formData.append("profile", JSON.stringify(profileData));
-        formData.append("present_address", JSON.stringify(ensureAddressDefaults(editProfileData.present_address_details)));
-        formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(editProfileData.permanent_address_details)));
+        // --- Append strictly Personal parameters ---
+        formData.append("first_name", editedUser.first_name);
+        formData.append("last_name", editedUser.last_name);
+        formData.append("gender", editedUser.gender);
+
+        if (editProfileData) {
+          const profileData = {
+            dob: nullIfEmpty(editProfileData.dob),
+            religion: editProfileData.religion_id,
+            caste: editProfileData.caste_id,
+            blood_group: editProfileData.blood_group,
+          };
+          formData.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "professional") {
+        // --- Validate structural fields ---
+        if (!editedUser?.group_id) {
+          toast.error("Department / Group is required");
+          return;
+        }
+        if (!editedUser?.role_id) {
+          toast.error("Designation / Role is required");
+          return;
+        }
+        if (!editProfileData?.staff_type_id) {
+          toast.error("Staff type is required");
+          return;
+        }
+        if (!editProfileData?.staff_category_id) {
+          toast.error("Staff category is required");
+          return;
+        }
+        if (!editProfileData?.staff_id?.trim()) {
+          toast.error("Staff ID is required");
+          return;
+        }
+
+        // --- Append strictly Professional alignments ---
+        formData.append("group", editedUser.group || "");
+        formData.append("role", editedUser.role || "");
+        if (editedUser.role_id) formData.append("role_id", editedUser.role_id.toString());
+        if (editedUser.group_id) formData.append("group_id", editedUser.group_id.toString());
+
+        if (editProfileData) {
+          const profileData = {
+            staff_type: editProfileData.staff_type_id,
+            staff_category: editProfileData.staff_category_id,
+            staff_id: editProfileData.staff_id,
+          };
+          formData.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "contact") {
+        // --- Validate primary channels ---
+        const primaryMobile = editedUser?.mobile?.trim() || '';
+        if (!primaryMobile) {
+          toast.error("Primary mobile number is required");
+          return;
+        }
+        if (!isValidMobile(primaryMobile)) {
+          toast.error("Primary mobile number must be exactly 10 digits");
+          return;
+        }
+
+        const primaryEmail = editedUser?.email?.trim() || '';
+        if (!primaryEmail) {
+          toast.error("Email address is required");
+          return;
+        }
+        if (!isValidEmail(primaryEmail)) {
+          toast.error("Please enter a valid email address (e.g., name@example.com)");
+          return;
+        }
+
+        // --- Validate alternative communication if supplied ---
+        const altMobile = editProfileData?.alternate_mobile?.trim();
+        if (altMobile && !isValidMobile(altMobile)) {
+          toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
+          return;
+        }
+
+        const altEmail = editProfileData?.alternate_email?.trim();
+        if (altEmail && !isValidEmail(altEmail)) {
+          toast.error("Alternate email must be a valid email address (or leave empty)");
+          return;
+        }
+
+        // --- Append strictly Communication details ---
+        formData.append("email", primaryEmail);
+        formData.append("mobile", primaryMobile);
+
+        if (editProfileData) {
+          const profileData = {
+            alternate_mobile: editProfileData.alternate_mobile,
+            alternate_email: editProfileData.alternate_email,
+          };
+          formData.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "family") {
+        // --- Validate family & emergency channels ---
+        for (const guardian of guardians) {
+          const phone = guardian.phone?.trim();
+          if (phone && !isValidMobile(phone)) {
+            toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
+            return;
+          }
+        }
+
+        // --- Process Family Guardians ---
+        let guardiansToSend = guardians
+          .filter((g: any) => g.name?.trim())
+          .map((g: any) => ({
+            ...(g.id ? { id: g.id } : {}),
+            employee: user.id,
+            name: g.name,
+            phone: g.phone || '',
+            relationship_type: g.relationship_type,
+            is_guardian: !!g.is_guardian,
+          }));
+
+        if (!familyIsMarried) {
+          guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
+        }
+
+        // --- Append strictly Family configurations ---
+        formData.append("guardians", JSON.stringify(guardiansToSend));
+      } 
+      
+      else if (editingSection === "address") {
+        // --- Append strictly Local Physical Coordinates ---
+        if (editProfileData) {
+          formData.append("present_address", JSON.stringify(ensureAddressDefaults(editProfileData.present_address_details)));
+          formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(editProfileData.permanent_address_details)));
+        }
       }
 
-      // 4. Append Sub-Arrays
-      formData.append("guardians", JSON.stringify(guardiansToSend));
-      formData.append("qualifications", JSON.stringify(qualsToSend));
-      formData.append("experiences", JSON.stringify(experiencesToSend));
-      formData.append("bank_details", JSON.stringify(banksToSend));
+      else if (editingSection === "education") {
+        if (editQualifications) {
+          const qualsToSend = editQualifications.map((q: any) => ({
+            ...(q.id ? { id: q.id } : {}),
+            user: user.id,
+            qualification_level: q.qualification_level,
+            specialization: q.specialization,
+            institution_name: q.institution_name,
+            university: q.university || '',
+            location: q.location || '',
+            start_date: q.start_date || null,
+            completion_date: q.completion_date || null,
+            percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
+          }));
+          formData.append("qualifications", JSON.stringify(qualsToSend));
 
-      // 5. Append Binary Files (Profile Picture)
-      if (imageFile) {
-        formData.append('prof_img', imageFile);
+          editQualifications.forEach((q: any, index: number) => {
+            if (q.certificate_file instanceof File) {
+              formData.append(`certificate_${index}`, q.certificate_file);
+            }
+          });
+        }
       }
 
-      // 6. Append Binary Files (Qualification Certificates)
-      editQualifications.forEach((q: any, index: number) => {
-        if (q.certificate_file instanceof File) {
-          formData.append(`certificate_${index}`, q.certificate_file);
-        }
-      });
+      else if (editingSection === "experience") {
+        if (editExperiences) {
+          const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
+            const cleanedExp: any = {
+              ...(exp.id ? { id: exp.id } : {}),
+              company_name: exp.company_name || '',
+              location: exp.location || '',
+              start_year: exp.start_year,
+              end_year: exp.end_year || null,
+              is_internal: !!exp.is_internal,
+              designations: (exp.designations || []).map((des: DesignationItem) => {
+                if (exp.is_internal) {
+                  return {
+                    ...(des.id ? { id: des.id } : {}),
+                    company_role: des.company_role || null,
+                    company_group: des.company_group || null,
+                    start_date: des.start_date,
+                    end_date: des.end_date || null,
+                    change_type: des.change_type || 'Joined',
+                  };
+                } else {
+                  return {
+                    ...(des.id ? { id: des.id } : {}),
+                    designation: des.designation || '',
+                    company_group_text: des.company_group_text || '',
+                    start_date: des.start_date,
+                    end_date: des.end_date || null,
+                    change_type: des.change_type || 'Joined',
+                  };
+                }
+              }),
+            };
+            if (!exp.is_internal) {
+              cleanedExp.designations = cleanedExp.designations.map((d: any) => {
+                delete d.company_role;
+                delete d.company_group;
+                return d;
+              });
+            }
+            return cleanedExp;
+          });
+          formData.append("experiences", JSON.stringify(experiencesToSend));
 
-      // 6. Binary Document Attachments (Experience Letters)
-      editExperiences.forEach((exp: ExperienceItem, index: number) => {
-        if (exp.experience_letter instanceof File) {
-          formData.append(`experience_letter_${index}`, exp.experience_letter);
+          editExperiences.forEach((exp: ExperienceItem, index: number) => {
+            if (exp.experience_letter instanceof File) {
+              formData.append(`experience_letter_${index}`, exp.experience_letter);
+            }
+          });
         }
-      });
+      }
 
-      /// 7. Request Pipeline Dispatch
+      else if (editingSection === "legal") {
+        if (editProfileData) {
+          const profileData = {
+            aadhar_no: editProfileData.aadhar_no || null,
+            pan_no: editProfileData.pan_no || null,
+            aicte_id: editProfileData.aicte_id || null,
+            ktu_id: editProfileData.ktu_id || null,
+          };
+          formData.append("profile", JSON.stringify(profileData));
+        }
+      }
+      
+      else if (editingSection === "bank") {
+        if (editBankDetails) {
+          const banksToSend = editBankDetails.map((b: any) => ({
+            ...(b.id ? { id: b.id } : {}),
+            user: user.id,
+            acc_holder_name: b.acc_holder_name,
+            bank_name: b.bank_name,
+            account_number: b.account_number,
+            ifsc_code: b.ifsc_code,
+            branch_name: b.branch_name || '',
+            is_primary: !!b.is_primary,
+          }));
+          formData.append("bank_details", JSON.stringify(banksToSend));
+        }
+      }
+
+      else if (editingSection === "preference") {
+        // Append notification preferences configurations
+        formData.append("is_whatsapp", String(editedUser?.is_whatsapp || false));
+        formData.append("is_sms", String(editedUser?.is_sms || false));
+        formData.append("is_wfh", String(editedUser?.is_wfh || false));
+      } 
+      
+      else {
+        // Fallback exclusively triggers profile image updates
+        const imageFile = fileInputRef.current?.files?.[0] || null;
+        if (imageFile) {
+          const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+          if (!allowedTypes.includes(imageFile.type)) {
+            toast.error('Only JPEG, PNG, or WEBP images are allowed');
+            return;
+          }
+          if (imageFile.size > 2 * 1024 * 1024) {
+            toast.error('Image must be smaller than 2MB');
+            return;
+          }
+          formData.append('prof_img', imageFile);
+        }
+      }
+
+      // ==========================================
+      // DISPATCH REQUEST PIPELINE
+      // ==========================================
       const response = await fetch("/api/employee-with-profile/", {
         method: "PUT",
         headers: { 
@@ -873,7 +959,6 @@ export default function ProfilePage() {
       setIsSaving(false);
     }
   };
-
 
   const createEmptyProfile = async () => {
     if (!user?.id || !company?.id) return;
@@ -1424,6 +1509,7 @@ export default function ProfilePage() {
                           {fullProfile?.permanent_address_details ? (
                             <div className="text-sm font-semibold text-gray-800 space-y-1">
                               <p>{fullProfile.permanent_address_details.address_line_1}</p>
+                              <p>{fullProfile.permanent_address_details.address_line_2}</p>
                               <p>{fullProfile.permanent_address_details.city}, {fullProfile.permanent_address_details.district}</p>
                               <p>{fullProfile.permanent_address_details.state}, {fullProfile.permanent_address_details.country}</p>
                               <p className="text-blue-600 mt-2 font-bold">{fullProfile.permanent_address_details.pincode}</p>
@@ -1620,7 +1706,24 @@ export default function ProfilePage() {
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
                     {bankDetails && bankDetails.length > 0 ? bankDetails.map((bank: any) => (<div key={bank.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 relative">
-                      {bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}<div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span><p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span><p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span><p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p></div><div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span><p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p></div></div>)) : <p className="text-sm text-gray-500 text-center py-4">No financial billing accounts connected.</p>}
+                      {bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span>
+                        <p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span>
+                        <p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span>
+                        <p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span>
+                        <p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p>
+                      </div>
+                    </div>)) : <p className="text-sm text-gray-500 text-center py-4">No financial billing accounts connected.</p>}
                   </div>
                 </div>
               </div>
