@@ -235,14 +235,14 @@ class EmployeeExperienceSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeExperience
         fields = [
-            'id', 'user', 'company_name', 'location', 
-            'start_year', 'end_year', 'experience_letter', 
+            'id', 'user', 'company_name', 'location',
+            'category', 'is_aicte_approved','is_after_pg',
+            'start_year', 'end_year', 'experience_letter',
             'is_internal', 'designations', 'created_at', 'updated_at'
         ]
-        
+
     def validate(self, data):
         is_internal = data.get('is_internal', getattr(self.instance, 'is_internal', False))
-        if is_internal and not data.get('company_name'):
-            data['company_name'] = "Internal Organization"
-            
+        if is_internal:
+            data['company_name'] = None
         return data

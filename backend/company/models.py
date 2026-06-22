@@ -9,37 +9,38 @@ class Company(models.Model):
     INTERVAL_CHOICES = [
         ('W', 'Weekly'),
         ('M', 'Monthly'),
-    
     ]
+
+    REQUIRED_FIELDS = ['company_name','company_img']
+
+    company_name = models.CharField(max_length=100)
+    company_img = models.ImageField(upload_to="company_images")
+
     enable_sms = models.BooleanField(default=False)
     enable_whatsapp = models.BooleanField(default=False)
     soft_disable = models.BooleanField(default=False, help_text="Disable all SMS & WhatsApp services when True")
+
     allow_individual_sms = models.BooleanField(default=True)
     allow_individual_whatsapp = models.BooleanField(default=True)
-    last_sync = models.DateTimeField(null=True,default=None)
 
-    # Strict enable mode
     strict_sms = models.BooleanField(default=False, help_text="Force enable SMS for all employees")
     strict_whatsapp = models.BooleanField(default=False, help_text="Force enable WhatsApp for all employees")
 
+    aicte_approved = models.BooleanField(default=False)
     perimeter = models.FloatField(default= 3.5)
     travel_speed_threshold = models.FloatField(default=10)
-    company_name = models.CharField(max_length=100)
-    latitude = models.FloatField(null=True,default=None)
-    longitude = models.FloatField(null=True,default=None)
     daily_working_hours = models.IntegerField(default=8)
     work_summary_interval = models.CharField(max_length=10,choices=INTERVAL_CHOICES,default='W')
-    REQUIRED_FIELDS = ['company_name','company_img']
-    company_img = models.ImageField(upload_to="company_images")
-    punch_mode = models.CharField(
-    max_length=20,
-    choices=[('S', 'Single Punch'), ('M', 'Multiple Punch')],
-    default='S'
-)
+    punch_mode = models.CharField( max_length=20, choices=[('S', 'Single Punch'), ('M', 'Multiple Punch')], default='S')
+
+    latitude = models.FloatField(null=True,default=None)
+    longitude = models.FloatField(null=True,default=None)
+    last_sync = models.DateTimeField(null=True,default=None)
 
 
     def __str__(self):
         return self.company_name
+
     
 
 
