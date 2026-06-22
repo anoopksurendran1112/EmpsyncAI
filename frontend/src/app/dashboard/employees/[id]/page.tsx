@@ -11,7 +11,7 @@ import {
   CheckCircle, XCircle, Settings, Key, Globe, Layout, UserPlus, Fingerprint,
   Heart, GraduationCap, Building2, Landmark, Smartphone, MessageCircle, Edit3, Users,
   Calendar, Eye, History, Trash2, Milestone, FileText, GraduationCap as GradIcon,
-  BriefcaseBusiness, MessageSquareDot, PlusCircle, MinusCircle
+  BriefcaseBusiness, MessageSquareDot, PlusCircle, MinusCircle, IdCard
 } from "lucide-react";
 import FullCalendarView from "@/components/FullCalendarView";
 import Link from "next/link";
@@ -89,6 +89,7 @@ interface EmployeeFullProfile {
   caste_name?: string | null;
   staff_type?: string | null;
   staff_category?: string | null;
+  staff_id?: string | null;
   ktu_id?: string | null;
   aicte_id?: string | null;
   pan_no?: string | null;
@@ -110,6 +111,7 @@ interface EditableProfile {
   caste_id: number | null;
   staff_type_id: number | null;
   staff_category_id: number | null;
+  staff_id: string | null;
   ktu_id: string;
   aicte_id: string;
   pan_no: string;
@@ -451,6 +453,7 @@ export default function EmployeeDetailsPage() {
       caste_id: casteId,
       staff_type_id: staffTypeId,
       staff_category_id: staffCategoryId,
+      staff_id: fullProfile?.staff_id || null,
       ktu_id: fullProfile?.ktu_id || "",
       aicte_id: fullProfile?.aicte_id || "",
       pan_no: fullProfile?.pan_no || "",
@@ -534,225 +537,304 @@ export default function EmployeeDetailsPage() {
     }
   };
 
-  // --- Save Logic (integrated with image upload) ---
+  
   const handleSave = async () => {
     if (!formData || !company) return;
 
-    // --- Validations ---
-    const primaryMobile = formData.mobile?.trim() || '';
-    if (!primaryMobile || !isValidMobile(primaryMobile)) {
-      toast.error("Primary mobile number must be exactly 10 digits");
-      return;
-    }
-    const primaryEmail = formData.email?.trim() || '';
-    if (!primaryEmail || !isValidEmail(primaryEmail)) {
-      toast.error("Please enter a valid email address");
-      return;
-    }
-    const altMobile = editProfileData?.alternate_mobile?.trim();
-    if (altMobile && !isValidMobile(altMobile)) {
-      toast.error("Alternate mobile must be exactly 10 digits or empty");
-      return;
-    }
-    const altEmail = editProfileData?.alternate_email?.trim();
-    if (altEmail && !isValidEmail(altEmail)) {
-      toast.error("Alternate email must be valid or empty");
-      return;
-    }
-
-    // Validate guardian phones
-    for (const guardian of guardians) {
-      const phone = guardian.phone?.trim();
-      if (phone && !isValidMobile(phone)) {
-        toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile must be 10 digits`);
-        return;
-      }
-    }
-
-    // --- Process Image File (integrated) ---
-    const imageFile = fileInputRef.current?.files?.[0] || null;
-    if (imageFile) {
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
-      if (!allowedTypes.includes(imageFile.type)) {
-        toast.error('Only JPEG, PNG, or WEBP images are allowed');
-        return;
-      }
-      if (imageFile.size > 2 * 1024 * 1024) {
-        toast.error('Image must be smaller than 2MB');
-        return;
-      }
-    }
-
-    // --- Process Guardians ---
-    let guardiansToSend = guardians
-      .filter((g: any) => g.name?.trim())
-      .map((g: any) => ({
-        ...(g.id ? { id: g.id } : {}),
-        employee: Number(employeeId),
-        name: g.name,
-        phone: g.phone || '',
-        relationship_type: g.relationship_type,
-        is_guardian: !!g.is_guardian,
-      }));
-
-    if (!familyIsMarried) {
-      guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
-    }
-
-    // --- Process Qualifications (use edit data only if editing that section) ---
-    const currentQualifications = editingSection === 'education' ? editQualifications : qualifications;
-    const qualsToSend = currentQualifications.map((q: any) => ({
-      ...(q.id ? { id: q.id } : {}),
-      user: Number(employeeId),
-      qualification_level: q.qualification_level,
-      specialization: q.specialization,
-      institution_name: q.institution_name,
-      university: q.university || '',
-      location: q.location || '',
-      start_date: q.start_date || null,
-      completion_date: q.completion_date || null,
-      percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
-    }));
-
-    // --- Process Experiences (use edit data only if editing that section) ---
-    const currentExperiences = editingSection === 'experience' ? editExperiences : experiences;
-    const experiencesToSend = currentExperiences.map((exp: ExperienceItem) => {
-      const cleanedExp: any = {
-        ...(exp.id ? { id: exp.id } : {}),
-        company_name: exp.company_name || '',
-        location: exp.location || '',
-        start_year: exp.start_year,
-        end_year: exp.end_year || null,
-        is_internal: !!exp.is_internal,
-        designations: (exp.designations || []).map((des: DesignationItem) => {
-          if (exp.is_internal) {
-            return {
-              ...(des.id ? { id: des.id } : {}),
-              company_role: des.company_role || null,
-              company_group: des.company_group || null,
-              start_date: des.start_date,
-              end_date: des.end_date || null,
-              change_type: des.change_type || 'Joined',
-            };
-          } else {
-            return {
-              ...(des.id ? { id: des.id } : {}),
-              designation: des.designation || '',
-              company_group_text: des.company_group_text || '',
-              start_date: des.start_date,
-              end_date: des.end_date || null,
-              change_type: des.change_type || 'Joined',
-            };
-          }
-        }),
-      };
-      if (!exp.is_internal) {
-        cleanedExp.designations = cleanedExp.designations.map((d: any) => {
-          delete d.company_role;
-          delete d.company_group;
-          return d;
-        });
-      }
-      return cleanedExp;
-    });
-
-    // --- Process Bank Details (use edit data only if editing that section) ---
-    const currentBankDetails = editingSection === 'bank' ? editBankDetails : bankDetails;
-    const banksToSend = currentBankDetails.map((b: any) => ({
-      ...(b.id ? { id: b.id } : {}),
-      user: Number(employeeId),
-      acc_holder_name: b.acc_holder_name,
-      bank_name: b.bank_name,
-      account_number: b.account_number,
-      ifsc_code: b.ifsc_code,
-      branch_name: b.branch_name || '',
-      is_primary: !!b.is_primary,
-    }));
-
     setIsSaving(true);
-    setUploadingImage(true);
     try {
       const formDataPayload = new FormData();
 
-      // 1. Core Identification
+      
       formDataPayload.append("user_id", employeeId);
 
-      // 2. User base fields
-      formDataPayload.append("first_name", formData.first_name || "");
-      formDataPayload.append("last_name", formData.last_name || "");
-      formDataPayload.append("email", formData.email || "");
-      formDataPayload.append("mobile", formData.mobile || "");
-      formDataPayload.append("role", formData.role || "");
-      formDataPayload.append("gender", formData.gender || "");
-      formDataPayload.append("group", formData.group || "");
-      formDataPayload.append("is_wfh", String(formData.is_wfh || false));
-      formDataPayload.append("is_active", String(formData.is_active ?? true));
-      formDataPayload.append("is_whatsapp", String(formData.is_whatsapp || false));
-      formDataPayload.append("is_sms", String(formData.is_sms || false));
-      if (formData.role_id) formDataPayload.append("role_id", formData.role_id.toString());
-      if (formData.group_id) formDataPayload.append("group_id", formData.group_id.toString());
 
-      // 3. Profile sub-object & addresses
-      if (editProfileData) {
-        const profileData = {
-          dob: nullIfEmpty(editProfileData.dob),
-          guardian_name: editProfileData.guardian_name,
-          guardian_phone: editProfileData.guardian_phone,
-          religion: editProfileData.religion_id,
-          caste: editProfileData.caste_id,
-          staff_type: editProfileData.staff_type_id,
-          staff_category: editProfileData.staff_category_id,
-          ktu_id: editProfileData.ktu_id,
-          aicte_id: editProfileData.aicte_id,
-          pan_no: editProfileData.pan_no,
-          aadhar_no: editProfileData.aadhar_no,
-          blood_group: editProfileData.blood_group,
-          alternate_mobile: editProfileData.alternate_mobile,
-          alternate_email: editProfileData.alternate_email,
-        };
-        formDataPayload.append("profile", JSON.stringify(profileData));
-        
-        const presentAddr = { ...editProfileData.present_address_details };
-        const permanentAddr = { ...editProfileData.permanent_address_details };
-        // Ensure required fields have default values
-        ['address_line_1','city','district','state','country','pincode'].forEach(f => {
-          if (!presentAddr[f as keyof AddressDetails] || (presentAddr[f as keyof AddressDetails] as string)?.trim() === '') {
-            (presentAddr as any)[f] = f === 'pincode' ? '000000' : 'Not provided';
+      if (editingSection === "personal") {
+        if (!formData.first_name?.trim()) {
+          toast.error("First name is required");
+          return;
+        }
+        if (!formData.last_name?.trim()) {
+          toast.error("Last name is required");
+          return;
+        }
+        if (!editProfileData?.dob) {
+          toast.error("Date of birth is required");
+          return;
+        }
+        if (!formData.gender) {
+          toast.error("Gender selection is required");
+          return;
+        }
+
+        formDataPayload.append("first_name", formData.first_name);
+        formDataPayload.append("last_name", formData.last_name);
+        formDataPayload.append("gender", formData.gender);
+
+        if (editProfileData) {
+          const profileData = {
+            dob: nullIfEmpty(editProfileData.dob),
+            religion: editProfileData.religion_id,
+            caste: editProfileData.caste_id,
+            blood_group: editProfileData.blood_group,
+          };
+          formDataPayload.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "professional") {
+        if (!formData.group_id) {
+          toast.error("Department / Group is required");
+          return;
+        }
+        if (!formData.role_id) {
+          toast.error("Designation / Role is required");
+          return;
+        }
+        if (!editProfileData?.staff_type_id) {
+          toast.error("Staff type is required");
+          return;
+        }
+        if (!editProfileData?.staff_category_id) {
+          toast.error("Staff category is required");
+          return;
+        }
+        if (!editProfileData?.staff_id?.trim()) {
+          toast.error("Staff ID is required");
+          return;
+        }
+
+        formDataPayload.append("group", formData.group || "");
+        formDataPayload.append("role", formData.role || "");
+        if (formData.role_id) formDataPayload.append("role_id", formData.role_id.toString());
+        if (formData.group_id) formDataPayload.append("group_id", formData.group_id.toString());
+
+        if (editProfileData) {
+          const profileData = {
+            staff_type: editProfileData.staff_type_id,
+            staff_category: editProfileData.staff_category_id,
+            staff_id: editProfileData.staff_id,
+          };
+          formDataPayload.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "contact") {
+        const primaryMobile = formData.mobile?.trim() || '';
+        if (!primaryMobile) {
+          toast.error("Primary mobile number is required");
+          return;
+        }
+        if (!isValidMobile(primaryMobile)) {
+          toast.error("Primary mobile number must be exactly 10 digits");
+          return;
+        }
+
+        const primaryEmail = formData.email?.trim() || '';
+        if (!primaryEmail) {
+          toast.error("Email address is required");
+          return;
+        }
+        if (!isValidEmail(primaryEmail)) {
+          toast.error("Please enter a valid email address (e.g., name@example.com)");
+          return;
+        }
+
+        const altMobile = editProfileData?.alternate_mobile?.trim();
+        if (altMobile && !isValidMobile(altMobile)) {
+          toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
+          return;
+        }
+
+        const altEmail = editProfileData?.alternate_email?.trim();
+        if (altEmail && !isValidEmail(altEmail)) {
+          toast.error("Alternate email must be a valid email address (or leave empty)");
+          return;
+        }
+
+        formDataPayload.append("email", primaryEmail);
+        formDataPayload.append("mobile", primaryMobile);
+
+        if (editProfileData) {
+          const profileData = {
+            alternate_mobile: editProfileData.alternate_mobile,
+            alternate_email: editProfileData.alternate_email,
+          };
+          formDataPayload.append("profile", JSON.stringify(profileData));
+        }
+      } 
+      
+      else if (editingSection === "family") {
+        for (const guardian of guardians) {
+          const phone = guardian.phone?.trim();
+          if (phone && !isValidMobile(phone)) {
+            toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
+            return;
           }
-          if (!permanentAddr[f as keyof AddressDetails] || (permanentAddr[f as keyof AddressDetails] as string)?.trim() === '') {
-            (permanentAddr as any)[f] = f === 'pincode' ? '000000' : 'Not provided';
+        }
+
+        let guardiansToSend = guardians
+          .filter((g: any) => g.name?.trim())
+          .map((g: any) => ({
+            ...(g.id ? { id: g.id } : {}),
+            employee: Number(employeeId),
+            name: g.name,
+            phone: g.phone || '',
+            relationship_type: g.relationship_type,
+            is_guardian: !!g.is_guardian,
+          }));
+
+        if (!familyIsMarried) {
+          guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
+        }
+
+        formDataPayload.append("guardians", JSON.stringify(guardiansToSend));
+      } 
+      
+      else if (editingSection === "address") {
+        if (editProfileData) {
+          const presentAddr = { ...editProfileData.present_address_details };
+          const permanentAddr = { ...editProfileData.permanent_address_details };
+          
+          ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'].forEach(f => {
+            if (!presentAddr[f as keyof AddressDetails] || (presentAddr[f as keyof AddressDetails] as string)?.trim() === '') {
+              (presentAddr as any)[f] = f === 'pincode' ? '000000' : 'Not provided';
+            }
+            if (!permanentAddr[f as keyof AddressDetails] || (permanentAddr[f as keyof AddressDetails] as string)?.trim() === '') {
+              (permanentAddr as any)[f] = f === 'pincode' ? '000000' : 'Not provided';
+            }
+          });
+          formDataPayload.append("present_address", JSON.stringify(presentAddr));
+          formDataPayload.append("permanent_address", JSON.stringify(permanentAddr));
+        }
+      }
+
+      else if (editingSection === "education") {
+        const qualsToSend = editQualifications.map((q: any) => ({
+          ...(q.id ? { id: q.id } : {}),
+          user: Number(employeeId),
+          qualification_level: q.qualification_level,
+          specialization: q.specialization,
+          institution_name: q.institution_name,
+          university: q.university || '',
+          location: q.location || '',
+          start_date: q.start_date || null,
+          completion_date: q.completion_date || null,
+          percentage: q.percentage !== '' && q.percentage != null ? Number(q.percentage) : null,
+        }));
+        formDataPayload.append("qualifications", JSON.stringify(qualsToSend));
+
+        editQualifications.forEach((q: any, index: number) => {
+          if (q.certificate_file instanceof File) {
+            formDataPayload.append(`certificate_${index}`, q.certificate_file);
           }
         });
-        formDataPayload.append("present_address", JSON.stringify(presentAddr));
-        formDataPayload.append("permanent_address", JSON.stringify(permanentAddr));
       }
 
-      // 4. Sub-arrays (as JSON)
-      formDataPayload.append("guardians", JSON.stringify(guardiansToSend));
-      formDataPayload.append("qualifications", JSON.stringify(qualsToSend));
-      formDataPayload.append("experiences", JSON.stringify(experiencesToSend));
-      formDataPayload.append("bank_details", JSON.stringify(banksToSend));
+      else if (editingSection === "experience") {
+        const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
+          const cleanedExp: any = {
+            ...(exp.id ? { id: exp.id } : {}),
+            company_name: exp.company_name || '',
+            location: exp.location || '',
+            start_year: exp.start_year,
+            end_year: exp.end_year || null,
+            is_internal: !!exp.is_internal,
+            designations: (exp.designations || []).map((des: DesignationItem) => {
+              if (exp.is_internal) {
+                return {
+                  ...(des.id ? { id: des.id } : {}),
+                  company_role: des.company_role || null,
+                  company_group: des.company_group || null,
+                  start_date: des.start_date,
+                  end_date: des.end_date || null,
+                  change_type: des.change_type || 'Joined',
+                };
+              } else {
+                return {
+                  ...(des.id ? { id: des.id } : {}),
+                  designation: des.designation || '',
+                  company_group_text: des.company_group_text || '',
+                  start_date: des.start_date,
+                  end_date: des.end_date || null,
+                  change_type: des.change_type || 'Joined',
+                };
+              }
+            }),
+          };
+          if (!exp.is_internal) {
+            cleanedExp.designations = cleanedExp.designations.map((d: any) => {
+              delete d.company_role;
+              delete d.company_group;
+              return d;
+            });
+          }
+          return cleanedExp;
+        });
+        formDataPayload.append("experiences", JSON.stringify(experiencesToSend));
 
-      // 5. Profile image file (integrated)
-      if (imageFile) {
-        formDataPayload.append('prof_img', imageFile);
+        editExperiences.forEach((exp: ExperienceItem, index: number) => {
+          if (exp.experience_letter instanceof File) {
+            formDataPayload.append(`experience_letter_${index}`, exp.experience_letter);
+          }
+        });
       }
 
-      // 6. Qualification certificate files
-      editQualifications.forEach((q: any, index: number) => {
-        if (q.certificate_file instanceof File) {
-          formDataPayload.append(`certificate_${index}`, q.certificate_file);
+      else if (editingSection === "legal") {
+        if (editProfileData) {
+          const profileData = {
+            ktu_id: editProfileData.ktu_id || null,
+            aicte_id: editProfileData.aicte_id || null,
+            pan_no: editProfileData.pan_no || null,
+            aadhar_no: editProfileData.aadhar_no || null,
+          };
+          formDataPayload.append("profile", JSON.stringify(profileData));
         }
-      });
+      }
+      
+      else if (editingSection === "bank") {
+        const banksToSend = editBankDetails.map((b: any) => ({
+          ...(b.id ? { id: b.id } : {}),
+          user: Number(employeeId),
+          acc_holder_name: b.acc_holder_name,
+          bank_name: b.bank_name,
+          account_number: b.account_number,
+          ifsc_code: b.ifsc_code,
+          branch_name: b.branch_name || '',
+          is_primary: !!b.is_primary,
+        }));
+        formDataPayload.append("bank_details", JSON.stringify(banksToSend));
+      }
 
-      // 7. Experience letter files
-      editExperiences.forEach((exp: ExperienceItem, index: number) => {
-        if (exp.experience_letter instanceof File) {
-          formDataPayload.append(`experience_letter_${index}`, exp.experience_letter);
+      else if (editingSection === "preferences") {
+        formDataPayload.append("is_wfh", String(formData.is_wfh || false));
+        formDataPayload.append("is_whatsapp", String(formData.is_whatsapp || false));
+        formDataPayload.append("is_sms", String(formData.is_sms || false));
+      }
+
+      else if (editingSection === "hero") {
+        formDataPayload.append("is_active", String(formData.is_active ?? true));
+      }
+      
+      else {
+        setUploadingImage(true);
+        const imageFile = fileInputRef.current?.files?.[0] || null;
+        if (imageFile) {
+          const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+          if (!allowedTypes.includes(imageFile.type)) {
+            toast.error('Only JPEG, PNG, or WEBP images are allowed');
+            setUploadingImage(false);
+            return;
+          }
+          if (imageFile.size > 2 * 1024 * 1024) {
+            toast.error('Image must be smaller than 2MB');
+            setUploadingImage(false);
+            return;
+          }
+          formDataPayload.append('prof_img', imageFile);
         }
-      });
+      }
 
-      // 8. Dispatch
       const response = await fetch("/api/employee-with-profile/", {
         method: "PUT",
         headers: { "x-company-id": company.id.toString() },
@@ -761,7 +843,13 @@ export default function EmployeeDetailsPage() {
 
       const result = await response.json();
       if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to update employee");
+        let errorMsg = result.message || "Failed to update employee";
+        if (result.errors && typeof result.errors === 'string') {
+          errorMsg = result.errors;
+        } else if (result.errors && result.errors.staff_id) {
+          errorMsg = result.errors.staff_id.join(' ');
+        }
+        throw new Error(errorMsg);
       }
 
       toast.success("Employee information updated successfully!");
@@ -770,13 +858,8 @@ export default function EmployeeDetailsPage() {
       setExpFormOpen(false);
       setBankFormOpen(false);
 
-      // Update local state
-      if (result.data?.user) {
-        setFormData(result.data.user);
-      }
-      if (result.data?.profile) {
-        setFullProfile(result.data.profile);
-      }
+      if (result.data?.user) setFormData(result.data.user);
+      if (result.data?.profile) setFullProfile(result.data.profile);
       if (result.data?.qualifications) setQualifications(result.data.qualifications);
       if (result.data?.experiences) setExperiences(result.data.experiences);
       if (result.data?.bank_details) setBankDetails(result.data.bank_details);
@@ -789,7 +872,6 @@ export default function EmployeeDetailsPage() {
     } finally {
       setIsSaving(false);
       setUploadingImage(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -804,10 +886,11 @@ export default function EmployeeDetailsPage() {
           dob: "1900-01-01",
           guardian_name: "",
           guardian_phone: "",
-          religion_id: null,
-          caste_id: null,
-          staff_type_id: null,
-          staff_category_id: null,
+          religion: null,
+          caste: null,
+          staff_type: null,
+          staff_category: null,
+          staff_id: null,
           ktu_id: "",
           aicte_id: "",
           pan_no: "",
@@ -936,7 +1019,6 @@ export default function EmployeeDetailsPage() {
                 )}
               </div>
 
-              {/* Camera button with loading state */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage}
@@ -1051,7 +1133,7 @@ export default function EmployeeDetailsPage() {
             { label: "User ID", val: `#${formData?.id}`, icon: Hash, color: "blue" },
             { label: "Biometric ID", val: formData?.biometric_id || "--", icon: Fingerprint, color: "green" },
             { label: "Current Group", val: getGroupName(formData?.group_id || formData?.group), icon: Users, color: "purple" },
-            { label: "Staff Type", val: fullProfile ? getStaffTypeName(fullProfile.staff_type) : "Pending", icon: Layout, color: "amber" }
+            { label: "College Staff ID", val: fullProfile?.staff_id || "---", icon: IdCard, color: "amber" }
           ].map((s, idx) => (
             <div key={idx} className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between group hover:border-blue-200 transition-all">
               <div>
@@ -1573,13 +1655,13 @@ export default function EmployeeDetailsPage() {
           <DialogContent className="max-w-2xl bg-white rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="p-8 bg-blue-600 text-white relative">
               <DialogTitle className="text-2xl font-black">Professional Profile Edit</DialogTitle>
-              <DialogDescription className="text-blue-100 opacity-80 font-bold">Update designation, categorization, and system IDs.</DialogDescription>
+              <DialogDescription className="text-blue-100 opacity-80 font-bold">Update designation, categorization, and staff identifiers.</DialogDescription>
               <div className="absolute top-8 right-8 text-blue-400 opacity-20"><Briefcase className="h-16 w-16" /></div>
             </DialogHeader>
             <div className="p-8 space-y-6 max-h-[60vh] overflow-auto">
               <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label>Designation / Role</Label>
+                    <Label>Designation / Role <span className="text-red-500">*</span></Label>
                     <Select value={formData?.role_id?.toString() || "none"} onValueChange={(val) => {
                       const selected = roles.find(r => r.id.toString() === val);
                       if (val === "none") {
@@ -1595,7 +1677,7 @@ export default function EmployeeDetailsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Organizational Group</Label>
+                    <Label>Organizational Group <span className="text-red-500">*</span></Label>
                     <Select value={formData?.group_id?.toString() || "none"} onValueChange={(val) => {
                         const selected = groups.find(g => g.id.toString() === val);
                         if (val === "none") {
@@ -1613,14 +1695,14 @@ export default function EmployeeDetailsPage() {
               </div>
               <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label>Staff Type</Label>
+                    <Label>Staff Type <span className="text-red-500">*</span></Label>
                     <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_type_id", val ? Number(val) : null)}>
                         <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="rounded-xl">{staffTypes.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Staff Category</Label>
+                    <Label>Staff Category <span className="text-red-500">*</span></Label>
                     <Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_category_id", val ? Number(val) : null)}>
                         <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="rounded-xl">{staffCategories.map(sc => <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>)}</SelectContent>
@@ -1628,8 +1710,15 @@ export default function EmployeeDetailsPage() {
                   </div>
               </div>
               <div className="space-y-2">
-                  <Label>Biometric Fingerprint ID</Label>
-                  <Input value={formData?.biometric_id || ""} onChange={(e) => handleInputChange("biometric_id", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" />
+                <Label>College Staff ID <span className="text-red-500">*</span></Label>
+                <Input 
+                  value={editProfileData?.staff_id || ""} 
+                  onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
+                  className="rounded-xl h-11 border-slate-200 font-bold" 
+                  placeholder="Enter unique Staff ID"
+                  required
+                />
+                <p className="text-xs text-gray-500">Must be unique across the organisation.</p>
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50 flex gap-4">
@@ -1649,11 +1738,11 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
             <div className="p-8 space-y-6">
               <div className="space-y-2">
-                  <Label>Primary Professional Email</Label>
+                  <Label>Primary Professional Email <span className="text-red-500">*</span></Label>
                   <Input value={formData?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" />
               </div>
               <div className="space-y-2">
-                  <Label>Official Mobile Presence</Label>
+                  <Label>Official Mobile Presence <span className="text-red-500">*</span></Label>
                   <Input value={formData?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" maxLength={10} />
               </div>
               <Separator />
@@ -1684,14 +1773,14 @@ export default function EmployeeDetailsPage() {
             <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label>Date of Birth</Label>
+                    <Label>Date of Birth <span className="text-red-500">*</span></Label>
                     <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
                     {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
                       <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Gender</Label>
+                    <Label>Gender <span className="text-red-500">*</span></Label>
                     <Select value={formData?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}>
                         <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
@@ -1701,7 +1790,19 @@ export default function EmployeeDetailsPage() {
               <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Blood Group</Label>
-                    <Input value={editProfileData?.blood_group || ""} onChange={(e) => handleProfileChange("blood_group", e.target.value)} className="rounded-xl h-11 font-bold" placeholder="O+" />
+                    <Select value={editProfileData?.blood_group || ""} onValueChange={(val) => handleProfileChange("blood_group", val)}>
+                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue placeholder="Select blood group" /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="A+">A+</SelectItem>
+                        <SelectItem value="A-">A−</SelectItem>
+                        <SelectItem value="B+">B+</SelectItem>
+                        <SelectItem value="B-">B−</SelectItem>
+                        <SelectItem value="O+">O+</SelectItem>
+                        <SelectItem value="O-">O−</SelectItem>
+                        <SelectItem value="AB+">AB+</SelectItem>
+                        <SelectItem value="AB-">AB−</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label>Religion</Label>
@@ -2246,12 +2347,14 @@ export default function EmployeeDetailsPage() {
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button 
+                        type="button"
                         onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
                         className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                       >
                         Edit
                       </button>
                       <button 
+                        type="button"
                         onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
                         className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                       >
@@ -2467,25 +2570,49 @@ export default function EmployeeDetailsPage() {
                   {/* Form Node Actions */}
                   <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
                     <Button 
+                      type="button"
                       onClick={() => {
-                        if (!currentExp.start_year) { toast.error("Start year is required."); return; }
-                        if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; }
+                        if (!currentExp.start_year) { 
+                          toast.error("Start year is required."); 
+                          return; 
+                        }
+                        if (!currentExp.designations || currentExp.designations.length === 0) { 
+                          toast.error("At least one role/designation is required."); 
+                          return; 
+                        }
                         for (let i = 0; i < currentExp.designations.length; i++) {
                           const des = currentExp.designations[i];
-                          if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } 
-                          else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } }
-                          if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; }
+                          if (currentExp.is_internal) { 
+                            if (!des.company_role || !des.company_group) { 
+                              toast.error(`Role #${i+1}: Please select both Role and Group.`); 
+                              return; 
+                            } 
+                          } else { 
+                            if (!des.designation || des.designation.trim() === '') { 
+                              toast.error(`Role #${i+1}: Designation title is required.`); 
+                              return; 
+                            } 
+                          }
+                          if (!des.start_date) { 
+                            toast.error(`Role #${i+1}: Start date is required.`); 
+                            return; 
+                          }
                         }
                         const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
-                        if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
-                        else setEditExperiences(prev => [...prev, currentExp]);
-                        setCurrentExp(null); setExpFormOpen(false);
+                        if (existingIndex !== -1) {
+                          setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
+                        } else {
+                          setEditExperiences(prev => [...prev, currentExp]);
+                        }
+                        setCurrentExp(null); 
+                        setExpFormOpen(false);
                       }} 
                       className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                     >
                       {currentExp.id ? 'Update Record' : 'Add Record'}
                     </Button>
                     <Button 
+                      type="button"
                       variant="outline" 
                       onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
                       className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
@@ -2499,7 +2626,18 @@ export default function EmployeeDetailsPage() {
               {/* Trigger Node to Reveal Form */}
               {!expFormOpen && (
                 <button 
-                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} 
+                  type="button"
+                  onClick={() => { 
+                    setCurrentExp({ 
+                      is_internal: false, 
+                      company_name: "", 
+                      location: "", 
+                      designations: [],
+                      start_year: "",
+                      end_year: null,
+                    }); 
+                    setExpFormOpen(true); 
+                  }} 
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" /> Add Experience Record
@@ -2509,6 +2647,7 @@ export default function EmployeeDetailsPage() {
 
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
               <Button 
+                type="button"
                 variant="outline" 
                 onClick={handleCancel} 
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
@@ -2516,6 +2655,7 @@ export default function EmployeeDetailsPage() {
                 Cancel
               </Button>
               <Button 
+                type="button"
                 onClick={handleSave} 
                 disabled={isSaving} 
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
@@ -2572,12 +2712,14 @@ export default function EmployeeDetailsPage() {
                     {/* Action Row */}
                     <div className="flex gap-1 shrink-0">
                       <button 
+                        type="button"
                         onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
                         className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                       >
                         Edit
                       </button>
                       <button 
+                        type="button"
                         onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
                         className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                       >
@@ -2677,6 +2819,7 @@ export default function EmployeeDetailsPage() {
                   {/* Form Action Controls */}
                   <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
                     <Button 
+                      type="button"
                       onClick={() => { 
                         if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
                           toast.error("Bank name, account number and IFSC code are required."); 
@@ -2696,6 +2839,7 @@ export default function EmployeeDetailsPage() {
                       {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
                     </Button>
                     <Button 
+                      type="button"
                       variant="outline" 
                       onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
                       className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
@@ -2709,6 +2853,7 @@ export default function EmployeeDetailsPage() {
               {/* Trigger Node to Reveal Form */}
               {!bankFormOpen && (
                 <button 
+                  type="button"
                   onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
@@ -2719,6 +2864,7 @@ export default function EmployeeDetailsPage() {
 
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
               <Button 
+                type="button"
                 variant="outline" 
                 onClick={handleCancel} 
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
@@ -2726,6 +2872,7 @@ export default function EmployeeDetailsPage() {
                 Cancel
               </Button>
               <Button 
+                type="button"
                 onClick={handleSave} 
                 disabled={isSaving} 
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
@@ -2758,7 +2905,7 @@ export default function EmployeeDetailsPage() {
                 </div>
               ))}
             </div>
-            <DialogFooter className="p-8 bg-slate-50"><Button onClick={handleSave} className="bg-slate-900 w-full h-12 font-black rounded-xl text-white">Sync Preferences</Button></DialogFooter>
+            <DialogFooter className="p-8 bg-slate-50"><Button type="button" onClick={handleSave} className="bg-slate-900 w-full h-12 font-black rounded-xl text-white">Sync Preferences</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
