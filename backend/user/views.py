@@ -6,6 +6,8 @@ import logging
 import requests
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from dateutil.relativedelta import relativedelta
+
 
 # 2. Django Core Imports
 from django.conf import settings
@@ -2438,6 +2440,22 @@ def available_id(request):
     return Response({"available": is_available}, status=status.HTTP_200_OK)
 
 
+def calculate_total_experience(queryset):
+    total_years = 0
+    total_months = 0
+    for exp in queryset:
+        start = exp.start_year
+        end = exp.end_year or date.today()
+        delta = relativedelta(end, start)
+        total_years += delta.years
+        total_months += delta.months
+    
+    # Normalize months
+    total_years += total_months // 12
+    total_months = total_months % 12
+    return total_years, total_months
+
+
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def employee_with_profile(request):
@@ -2857,7 +2875,6 @@ def employee_with_profile(request):
 
                 def upsert_guardians(guardian_items, user):
                     incoming_ids = [ _parse_int(item.get('id'))  for item in guardian_items  if _parse_int(item.get('id')) is not None ]
-                    # Fix: Deletes old profiles only if the payload parameter is verified present
                     EmployeeGuardian.objects.filter(employee=user).exclude(id__in=incoming_ids).delete()
 
                     saved = []
@@ -2935,7 +2952,8 @@ def employee_with_profile(request):
                             serializer = EmployeeQualificationSerializer(data=item)
 
                         if serializer.is_valid():
-                            saved_instance = serializer.save(user=user) if not qual_id else serializer.save()
+                            # user is already set in item['user'] before serialization; no kwarg needed
+                            saved_instance = serializer.save()
                             
                             if certificate_file:
                                 saved_instance.certificate = certificate_file
@@ -2964,16 +2982,31 @@ def employee_with_profile(request):
 
                         ExperienceDesignation.objects.filter(experience__user=user).exclude(id__in=incoming_des_ids).delete()
                         EmployeeExperience.objects.filter(user=user).exclude(id__in=incoming_exp_ids).delete()
-                        
                         saved = []
+
                         for idx, item in enumerate(experience_items):
                             item['user'] = user.id
-                            if 'is_internal' in item:
-                                item['is_internal'] = _parse_bool(item.get('is_internal'))
+
+                            if 'category' in item:
+                                item['category'] = item.get('category', 'Other')
+
+                            item['is_internal'] = _parse_bool(item.get('is_internal', False))
                             
-                            exp_letter_key = f'experience_letter_{idx}'
+                            if item['is_internal']:
+                                is_approved = getattr(user.parent_company, 'is_aicte_approved', False) if user.parent_company else False
+                                item['is_aicte_approved'] = is_approved
+                            else:
+                                item['is_aicte_approved'] = _parse_bool(item.get('is_aicte_approved'))
+                            
+                            item['is_after_pg'] = _parse_bool(item.get('is_after_pg'))
+                            
+                            # Support both key formats: structured (matches POST) and legacy flat key
+                            exp_letter_key = f'experiences[{idx}][experience_letter]'
+                            exp_letter_key_legacy = f'experience_letter_{idx}'
                             if exp_letter_key in request.FILES:
                                 item['experience_letter'] = request.FILES[exp_letter_key]
+                            elif exp_letter_key_legacy in request.FILES:
+                                item['experience_letter'] = request.FILES[exp_letter_key_legacy]
                             
                             designations = item.pop('designations', [])
                             exp_id = _parse_int(item.get('id'))
@@ -2988,8 +3021,8 @@ def employee_with_profile(request):
                                 raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
                             
                             exp_obj = exp_serializer.save()
-                            
                             des_list = []
+
                             for des in designations:
                                 des['experience'] = exp_obj.id
                                 if 'company_role' in des:
@@ -3008,10 +3041,8 @@ def employee_with_profile(request):
                                     raise ValueError(f"Designation validation failed: {des_serializer.errors}")
                                 
                                 des_obj = des_serializer.save()
-                                des_list.append(des_obj)
-                                
+                                des_list.append(des_obj) 
                             saved.append((exp_obj, des_list))
-
                         return saved
 
                 # Safe Guard Processing: Execute sub-routines only if key was explicit in request payload

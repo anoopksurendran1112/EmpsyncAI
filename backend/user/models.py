@@ -85,24 +85,14 @@ class CustomUser(AbstractUser):
     prof_img = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     biometric_id = models.CharField(max_length=20,null=True,blank=True)
     gender = models.CharField(max_length=2, choices=GENDER_CHOICES, default='N')
-    # `company` ManyToMany defined once (with related_name) below
     shift = models.ForeignKey(c.CompanyShift,blank=True,null=True,on_delete=models.CASCADE)
     weekly_avg_working_hour = models.FloatField(default=0)
     monthly_avg_working_hour = models.FloatField(default=0)
     monthly_days_count = models.IntegerField(default=0)
     weekly_days_count = models.IntegerField(default=0)
     last_avg_calculated_date = models.DateField(null=True, blank=True)
-    company = models.ManyToManyField(
-        c.Company,
-        blank=True,
-        related_name='users_company'
-    )
-    parent_company = models.ForeignKey(
-        c.Company,
-        blank=True,
-         null=True,
-        on_delete=models.SET_NULL
-    )
+    company = models.ManyToManyField( c.Company, blank=True, related_name='users_company')
+    parent_company = models.ForeignKey(c.Company,blank=True, null=True,on_delete=models.SET_NULL)
     is_active = models.BooleanField(default=True)
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name','last_name','mobile'] 
@@ -237,10 +227,20 @@ class EmployeeQualification(models.Model):
 
 
 class EmployeeExperience(models.Model):
+    TYPE_CHOICES = [
+        ('Industry', 'Industry'),
+        ('Institution', 'Institution'),
+        ('Other', 'Other')
+    ]
+
     user = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='experiences')
     company_name = models.CharField(max_length=200, null=True, blank=True, help_text="Leave blank or fill if external")
     is_internal = models.BooleanField(default=False, help_text="Designates if this career timeline experience is within the current company")
     
+    category = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Other')
+    is_aicte_approved = models.BooleanField(default=False)
+    is_after_pg = models.BooleanField( default=False, help_text="Check if this experience was acquired AFTER acquiring your PG degree")
+
     location = models.CharField(max_length=100, null=True, blank=True)
     start_year = models.DateField()
     end_year = models.DateField(null=True, blank=True)
