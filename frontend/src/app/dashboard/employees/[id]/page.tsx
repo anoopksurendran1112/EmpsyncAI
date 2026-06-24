@@ -68,6 +68,7 @@ interface DesignationItem {
   change_type_display?: string;
 }
 
+// --- UPDATED ExperienceItem to include new fields ---
 interface ExperienceItem {
   id?: number;
   company_name: string;
@@ -77,6 +78,9 @@ interface ExperienceItem {
   is_internal: boolean;
   designations: DesignationItem[];
   experience_letter?: string | File;
+  category?: string;            // "Institution", "Industry", "Other"
+  is_aicte_approved?: boolean;
+  is_after_pg?: boolean;
 }
 
 interface EmployeeFullProfile {
@@ -740,6 +744,10 @@ export default function EmployeeDetailsPage() {
             start_year: exp.start_year,
             end_year: exp.end_year || null,
             is_internal: !!exp.is_internal,
+            
+            category: exp.category || 'Other',
+            is_aicte_approved: !!exp.is_aicte_approved,
+            is_after_pg: !!exp.is_after_pg,
             designations: (exp.designations || []).map((des: DesignationItem) => {
               if (exp.is_internal) {
                 return {
@@ -1479,6 +1487,14 @@ export default function EmployeeDetailsPage() {
                               <span>Experience Letter</span>
                             </a>
                           )}
+                          {/* Display new fields */}
+                          {!exp.is_internal && (
+                            <>
+                              {exp.category && <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">{exp.category}</span>}
+                              {exp.is_aicte_approved && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">AICTE Approved</span>}
+                              {exp.is_after_pg && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">After PG</span>}
+                            </>
+                          )}
                         </div>
 
                         {/* Multiple designations timeline */}
@@ -1648,7 +1664,7 @@ export default function EmployeeDetailsPage() {
           )}
         </div>
 
-        {/* ========== ALL EDIT DIALOGS ========== */}
+        {/* ALL EDIT DIALOGS*/}
 
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
@@ -2335,6 +2351,16 @@ export default function EmployeeDetailsPage() {
                         <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
                           {exp.company_name || 'Company'}
                         </span>
+                        {!exp.is_internal && exp.category && (
+                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                            {exp.category}
+                          </span>
+                        )}
+                        {!exp.is_internal && exp.is_aicte_approved && (
+                          <span className="text-[10px] font-bold uppercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                            AICTE Approved
+                          </span>
+                        )}
                       </div>
                       <p className="text-[12px] text-[#7a8ba0]">
                         {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
@@ -2409,7 +2435,10 @@ export default function EmployeeDetailsPage() {
                           ...currentExp, 
                           is_internal: isInternal,
                           company_name: newCompanyName,
-                          location: newLocation
+                          location: newLocation,
+                          // When internal, reset category and AICTE fields 
+                          category: isInternal ? 'Other' : currentExp.category || 'Other',
+                          is_aicte_approved: isInternal ? false : (currentExp.is_aicte_approved || false),
                         });
                       }}
                       className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
@@ -2442,6 +2471,59 @@ export default function EmployeeDetailsPage() {
                       />
                     </div>
                   </div>
+
+                  {/* NEW FIELDS: Category & AICTE Approved (only for external) */}
+                  {!currentExp.is_internal && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                            Category <span className="text-red-500">*</span>
+                          </Label>
+                          <Select
+                            value={currentExp.category || 'Other'}
+                            onValueChange={(val) => setCurrentExp({ ...currentExp, category: val })}
+                          >
+                            <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] bg-white">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Institution">Institutional</SelectItem>
+                              <SelectItem value="Industry">Industrial</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5 flex items-end">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="aicte-approved"
+                              checked={currentExp.is_aicte_approved || false}
+                              onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_aicte_approved: !!checked })}
+                              disabled={currentExp.category !== 'Institution'}
+                              className={`h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 ${currentExp.category !== 'Institution' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            />
+                            <Label htmlFor="aicte-approved" className={`text-[13px] font-semibold ${currentExp.category !== 'Institution' ? 'text-gray-400' : 'text-[#434655]'} cursor-pointer`}>
+                              AICTE Approved
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Optional: After PG checkbox */}
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="after-pg"
+                          checked={currentExp.is_after_pg || false}
+                          onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_after_pg: !!checked })}
+                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
+                        />
+                        <Label htmlFor="after-pg" className="text-[13px] font-semibold text-[#434655] cursor-pointer">
+                          Experience acquired after PG degree
+                        </Label>
+                      </div>
+                    </>
+                  )}
 
                   {/* Tenure Lifespan */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2592,6 +2674,11 @@ export default function EmployeeDetailsPage() {
                               toast.error(`Role #${i+1}: Designation title is required.`); 
                               return; 
                             } 
+                            // For external, category is required
+                            if (!currentExp.category || currentExp.category === '') {
+                              toast.error("Please select a Category for this experience.");
+                              return;
+                            }
                           }
                           if (!des.start_date) { 
                             toast.error(`Role #${i+1}: Start date is required.`); 
@@ -2635,6 +2722,9 @@ export default function EmployeeDetailsPage() {
                       designations: [],
                       start_year: "",
                       end_year: null,
+                      category: "Other",
+                      is_aicte_approved: false,
+                      is_after_pg: false,
                     }); 
                     setExpFormOpen(true); 
                   }} 
