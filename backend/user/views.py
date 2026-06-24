@@ -2966,84 +2966,81 @@ def employee_with_profile(request):
                     return saved
                     
                 def upsert_experiences(experience_items, user, request):
-                    with transaction.atomic():
-                        incoming_exp_ids = []
-                        incoming_des_ids = []
+                    incoming_exp_ids = []
+                    incoming_des_ids = []
 
-                        for item in experience_items:
-                            exp_id = _parse_int(item.get('id'))
-                            if exp_id:
-                                incoming_exp_ids.append(exp_id)
+                    for item in experience_items:
+                        exp_id = _parse_int(item.get('id'))
+                        if exp_id:
+                            incoming_exp_ids.append(exp_id)
                             
-                            for des in item.get('designations', []):
-                                des_id = _parse_int(des.get('id'))
-                                if des_id:
-                                    incoming_des_ids.append(des_id)
+                        for des in item.get('designations', []):
+                            des_id = _parse_int(des.get('id'))
+                            if des_id:
+                                incoming_des_ids.append(des_id)
 
-                        ExperienceDesignation.objects.filter(experience__user=user).exclude(id__in=incoming_des_ids).delete()
-                        EmployeeExperience.objects.filter(user=user).exclude(id__in=incoming_exp_ids).delete()
-                        saved = []
+                    ExperienceDesignation.objects.filter(experience__user=user).exclude(id__in=incoming_des_ids).delete()
+                    EmployeeExperience.objects.filter(user=user).exclude(id__in=incoming_exp_ids).delete()
+                    saved = []
 
-                        for idx, item in enumerate(experience_items):
-                            item['user'] = user.id
+                    for idx, item in enumerate(experience_items):
+                        item['user'] = user.id
 
-                            if 'category' in item:
-                                item['category'] = item.get('category', 'Other')
-
-                            item['is_internal'] = _parse_bool(item.get('is_internal', False))
+                        item['category'] = item.get('category') or 'Other'
+                        item['is_internal'] = _parse_bool(item.get('is_internal', False))
                             
-                            if item['is_internal']:
-                                is_approved = getattr(user.parent_company, 'is_aicte_approved', False) if user.parent_company else False
-                                item['is_aicte_approved'] = is_approved
-                            else:
-                                item['is_aicte_approved'] = _parse_bool(item.get('is_aicte_approved'))
+                        if item['is_internal']:
+                            is_approved = getattr(user.parent_company, 'aicte_approved', False) if user.parent_company else False
+                            item['is_aicte_approved'] = is_approved
+                        else:
+                            item['is_aicte_approved'] = _parse_bool(item.get('is_aicte_approved'))
                             
-                            item['is_after_pg'] = _parse_bool(item.get('is_after_pg'))
+                        item['is_after_pg'] = _parse_bool(item.get('is_after_pg'))
                             
-                            # Support both key formats: structured (matches POST) and legacy flat key
-                            exp_letter_key = f'experiences[{idx}][experience_letter]'
-                            exp_letter_key_legacy = f'experience_letter_{idx}'
-                            if exp_letter_key in request.FILES:
-                                item['experience_letter'] = request.FILES[exp_letter_key]
-                            elif exp_letter_key_legacy in request.FILES:
-                                item['experience_letter'] = request.FILES[exp_letter_key_legacy]
+                        # Support both key formats: structured (matches POST) and legacy flat key
+                        exp_letter_key = f'experiences[{idx}][experience_letter]'
+                        exp_letter_key_legacy = f'experience_letter_{idx}'
+                        if exp_letter_key in request.FILES:
+                            item['experience_letter'] = request.FILES[exp_letter_key]
+                        elif exp_letter_key_legacy in request.FILES:
+                            item['experience_letter'] = request.FILES[exp_letter_key_legacy]
                             
-                            designations = item.pop('designations', [])
-                            exp_id = _parse_int(item.get('id'))
+                        designations = item.pop('designations', [])
+                        exp_id = _parse_int(item.get('id'))
                             
-                            if exp_id:
-                                exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
-                                exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
-                            else:
-                                exp_serializer = EmployeeExperienceSerializer(data=item)
+                        if exp_id:
+                            exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
+                            exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
+                        else:
+                            exp_serializer = EmployeeExperienceSerializer(data=item)
                                 
-                            if not exp_serializer.is_valid():
-                                raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
+                        if not exp_serializer.is_valid():
+                            raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
                             
-                            exp_obj = exp_serializer.save()
-                            des_list = []
+                        exp_obj = exp_serializer.save()
+                        des_list = []
 
-                            for des in designations:
-                                des['experience'] = exp_obj.id
-                                if 'company_role' in des:
-                                    des['company_role'] = _parse_int(des.get('company_role'))
-                                if 'company_group' in des:
-                                    des['company_group'] = _parse_int(des.get('company_group'))
+                        for des in designations:
+                            des['experience'] = exp_obj.id
+                            if 'company_role' in des:
+                                des['company_role'] = _parse_int(des.get('company_role'))
+                            if 'company_group' in des:
+                                des['company_group'] = _parse_int(des.get('company_group'))
                                 
-                                des_id = _parse_int(des.get('id'))
-                                if des_id:
-                                    des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
-                                    des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
-                                else:
-                                    des_serializer = ExperienceDesignationSerializer(data=des)
+                            des_id = _parse_int(des.get('id'))
+                            if des_id:
+                                des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
+                                des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
+                            else:
+                                des_serializer = ExperienceDesignationSerializer(data=des)
                                     
-                                if not des_serializer.is_valid():
-                                    raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                            if not des_serializer.is_valid():
+                                raise ValueError(f"Designation validation failed: {des_serializer.errors}")
                                 
-                                des_obj = des_serializer.save()
-                                des_list.append(des_obj) 
-                            saved.append((exp_obj, des_list))
-                        return saved
+                            des_obj = des_serializer.save()
+                            des_list.append(des_obj) 
+                        saved.append((exp_obj, des_list))
+                    return saved
 
                 # Safe Guard Processing: Execute sub-routines only if key was explicit in request payload
                 if has_guardians and guardians is not None:

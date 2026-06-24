@@ -89,7 +89,9 @@ interface EmployeeFullProfile {
   dob?: string | null;
   guardian_name?: string | null;
   guardian_phone?: string | null;
+  religion?: number | null;
   religion_name?: string | null;
+  caste?: number | null;
   caste_name?: string | null;
   staff_type?: string | null;
   staff_category?: string | null;
@@ -2436,9 +2438,8 @@ export default function EmployeeDetailsPage() {
                           is_internal: isInternal,
                           company_name: newCompanyName,
                           location: newLocation,
-                          // When internal, reset category and AICTE fields 
+                          // When internal, reset category
                           category: isInternal ? 'Other' : currentExp.category || 'Other',
-                          is_aicte_approved: isInternal ? false : (currentExp.is_aicte_approved || false),
                         });
                       }}
                       className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
