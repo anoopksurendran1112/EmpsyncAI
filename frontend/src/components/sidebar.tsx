@@ -91,6 +91,7 @@ export function Sidebar({ className }: SidebarProps) {
         {
           title: "Workforce", icon: Users,
           children: [
+            { title: "Candidate Requests", icon: UserPlus, href: "/dashboard/settings/candidate_req" },
             { title: "Add Employee", icon: UserPlus, href: "/dashboard/settings/add_employees" },
             { title: "Employee Report", icon: FileText, href: "/dashboard/settings/report" },
           ]
