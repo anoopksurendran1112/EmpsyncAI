@@ -73,6 +73,9 @@ interface ExperienceItem {
   is_internal: boolean;
   designations: DesignationItem[];
   experience_letter?: string | File;
+  category?: string | null;
+  is_aicte_approved?: boolean | null;
+  is_after_pg?: boolean | null;
 }
 
 interface EmployeeFullProfile {
@@ -833,6 +836,9 @@ export default function ProfilePage() {
               start_year: exp.start_year,
               end_year: exp.end_year || null,
               is_internal: !!exp.is_internal,
+              is_after_pg: !!exp.is_after_pg,
+              category: exp.category || null,
+              is_aicte_approved: !!exp.is_aicte_approved,
               designations: (exp.designations || []).map((des: DesignationItem) => {
                 if (exp.is_internal) {
                   return {
@@ -2854,7 +2860,8 @@ export default function ProfilePage() {
                           ...currentExp, 
                           is_internal: isInternal,
                           company_name: newCompanyName,
-                          location: newLocation
+                          location: newLocation,
+                          category: isInternal ? 'Other' : currentExp.category || 'Other',
                         });
                       }}
                       className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
@@ -2887,6 +2894,59 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
+
+                  {/* NEW FIELDS: Category & AICTE Approved (only for external) */}
+                  {!currentExp.is_internal && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                            Category <span className="text-red-500">*</span>
+                          </Label>
+                          <Select
+                            value={currentExp.category || 'Other'}
+                            onValueChange={(val) => setCurrentExp({ ...currentExp, category: val })}
+                          >
+                            <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] bg-white">
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Institution">Institutional</SelectItem>
+                              <SelectItem value="Industry">Industrial</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5 flex items-end">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="aicte-approved"
+                              checked={currentExp.is_aicte_approved || false}
+                              onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_aicte_approved: !!checked })}
+                              disabled={currentExp.category !== 'Institution'}
+                              className={`h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 ${currentExp.category !== 'Institution' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            />
+                            <Label htmlFor="aicte-approved" className={`text-[13px] font-semibold ${currentExp.category !== 'Institution' ? 'text-gray-400' : 'text-[#434655]'} cursor-pointer`}>
+                              AICTE Approved
+                            </Label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Optional: After PG checkbox */}
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="after-pg"
+                          checked={currentExp.is_after_pg || false}
+                          onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_after_pg: !!checked })}
+                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
+                        />
+                        <Label htmlFor="after-pg" className="text-[13px] font-semibold text-[#434655] cursor-pointer">
+                          Experience acquired after PG degree
+                        </Label>
+                      </div>
+                    </>
+                  )}
 
                   {/* Tenure Lifespan */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -245,4 +245,9 @@ class EmployeeExperienceSerializer(serializers.ModelSerializer):
         is_internal = data.get('is_internal', getattr(self.instance, 'is_internal', False))
         if is_internal:
             data['company_name'] = None
+        
+        category = data.get('category')
+        if category and category not in ['Institution', 'Industry', 'Other']:
+            raise serializers.ValidationError({'category': 'Invalid category. Must be one of Institution, Industry, Other.'})
+            
         return data
