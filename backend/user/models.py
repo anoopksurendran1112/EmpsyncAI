@@ -5,6 +5,31 @@ from company import models as c
 from dateutil.relativedelta import relativedelta
 
 
+class CandidateApplications(models.Model):
+    status_choices = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+
+    company = models.ForeignKey(c.Company,on_delete=models.CASCADE)
+    group = models.ForeignKey(c.CompanyGroup,on_delete=models.SET_NULL,null=True)
+    role = models.ForeignKey(c.CompanyRole,on_delete=models.SET_NULL,null=True)
+    status = models.CharField(max_length=20, choices=status_choices, default='pending')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+
+
 class Religion(models.Model):
     name = models.CharField(max_length=255, unique=True)
 
