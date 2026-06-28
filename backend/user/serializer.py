@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser
 from company.models import CompanyRole,CompanyGroup, CompanyUser
-from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian
+from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -82,6 +82,12 @@ class LoginSerializer(serializers.Serializer):
 
     class Meta:
         fields = ['email','password']
+
+
+class CandidateApplicationsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CandidateApplications
+        fields = '__all__'
 
 
 class ReligionSerializer(serializers.ModelSerializer):

@@ -762,7 +762,7 @@ export default function LeavesPage() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Stats</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Leave Statistics</h1>
           <p className="text-sm text-gray-500 mt-1">
             {viewMode === "user" 
               ? "Overview of your leaves and leave records" 
