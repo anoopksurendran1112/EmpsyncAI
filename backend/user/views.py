@@ -803,6 +803,7 @@ def delete_user(request):
 
 
 @api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
 def candidateApplication(request):
 
     if request.method == 'GET':
@@ -849,6 +850,57 @@ def candidateApplication(request):
         
         return Response({ 'success': False, 'message': 'Invalid data', 
                         'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        app_id = request.data.get('application_id')
+        status = request.data.get('status')
+
+        if not app_id or not status:
+            return Response({'success': False, 'message': 'Application ID and status are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            app = CandidateApplications.objects.get(id=app_id)
+        except CandidateApplications.DoesNotExist:
+            return Response({'success': False, 'message': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            try:
+                app.status = status
+                app.save()
+
+                if status == 'approved':
+                    company = Company.objects.get(id=app.company_id)                    
+                    password = request.data.get('password')
+                    
+                    if not password:
+                        return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
+
+                    last_user = CustomUser.objects.filter(company=company).aggregate(Max('biometric_id'))
+                    last_biometric_id = last_user['biometric_id__max'] or 0
+                    new_biometric_id = last_biometric_id + 1
+
+                    user, created = CustomUser.objects.get_or_create(email=app.email)
+                    
+                    user.set_password(password)
+                    user.biometric_id = new_biometric_id
+                    user.first_name = app.first_name
+                    user.last_name = app.last_name
+                    user.mobile = app.phone
+                    user.role = app.role
+                    user.group = app.group
+                    user.is_active = True
+                    user.is_employee = True
+                    
+                    user.company.add(company)
+                    
+                    if not user.parent_company:
+                        user.parent_company = company
+                    user.save()
+
+            except Exception as e:
+                return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'success': True, 'message': 'Application status updated successfully'}, status=status.HTTP_200_OK)
+
 
     
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))

@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { User, Mail, Phone, Building, Users, Briefcase } from 'lucide-react';
-
-interface Company {
-  id: number;
-  company_name: string;
-}
+import { useParams } from 'next/navigation';
 
 interface Group {
   id: number;
@@ -33,7 +29,9 @@ interface CandidateFormData {
 }
 
 export default function CandidateApplicationPage() {
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const params = useParams();
+  const companyId = parseInt(params.cand_appl as string, 10) || 0;
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
 
@@ -42,7 +40,7 @@ export default function CandidateApplicationPage() {
     last_name: '',
     email: '',
     phone: '',
-    company_id: 0,
+    company_id: companyId,
     group: 0,
     role: 0,
     status: 'pending',
@@ -76,35 +74,13 @@ export default function CandidateApplicationPage() {
     return [];
   };
 
-  // Fetch companies
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/company');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const companiesArray = extractArray(json);
-        setCompanies(companiesArray);
-        if (companiesArray.length > 0) {
-          setForm(prev => ({ ...prev, company_id: companiesArray[0].id }));
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load companies');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCompanies();
-  }, []);
-
   // Fetch groups & roles
   useEffect(() => {
-    if (!form.company_id) {
+    if (!companyId) {
       setGroups([]);
       setRoles([]);
       setForm(prev => ({ ...prev, group: 0, role: 0 }));
-      setError(null);
+      setError('Invalid company ID in the URL.');
       return;
     }
 
@@ -112,12 +88,12 @@ export default function CandidateApplicationPage() {
       setLoading(true);
       setError(null);
       try {
-        const groupUrl = `/api/settings/groups/${form.company_id}`;
-        const roleUrl = `/api/settings/roles/${form.company_id}`;
+        const groupUrl = `/api/settings/groups/${companyId}`;
+        const roleUrl = `/api/settings/roles/${companyId}`;
 
         const [groupsRes, rolesRes] = await Promise.all([
-          fetch(groupUrl, { headers: { 'x-company-id': form.company_id.toString() } }),
-          fetch(roleUrl, { headers: { 'x-company-id': form.company_id.toString() } }),
+          fetch(groupUrl, { headers: { 'x-company-id': companyId.toString() } }),
+          fetch(roleUrl, { headers: { 'x-company-id': companyId.toString() } }),
         ]);
 
         if (!groupsRes.ok) throw new Error(`Groups endpoint returned ${groupsRes.status}`);
@@ -141,7 +117,7 @@ export default function CandidateApplicationPage() {
     };
 
     fetchGroupsAndRoles();
-  }, [form.company_id]);
+  }, [companyId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -150,7 +126,7 @@ export default function CandidateApplicationPage() {
     setForm(prev => ({
       ...prev,
       [name]:
-        name === 'company_id' || name === 'group' || name === 'role'
+        name === 'group' || name === 'role'
           ? parseInt(value, 10) || 0
           : value,
     }));
@@ -211,13 +187,11 @@ export default function CandidateApplicationPage() {
         last_name: '',
         email: '',
         phone: '',
-        company_id: form.company_id,
+        company_id: companyId,
         group: 0,
         role: 0,
         status: 'pending',
       });
-      setGroups([]);
-      setRoles([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submission error');
     } finally {
@@ -357,32 +331,6 @@ export default function CandidateApplicationPage() {
             </div>
           </div>
 
-          {/* Company */}
-          <div className="space-y-1.5">
-            <label htmlFor="company_id" className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <Building className="h-4 w-4 text-blue-500" />
-              Company <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                id="company_id"
-                name="company_id"
-                value={form.company_id || ''}
-                onChange={handleChange}
-                disabled={loading || companies.length === 0}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
-                required
-              >
-                <option value="">Select company</option>
-                {companies.map(comp => (
-                  <option key={comp.id} value={comp.id}>
-                    {comp.company_name || comp.name || `Company ${comp.id}`}
-                  </option>
-                ))}
-              </select>
-              <Building className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
-            </div>
-          </div>
 
           {/* Group */}
           <div className="space-y-1.5">
@@ -396,7 +344,7 @@ export default function CandidateApplicationPage() {
                 name="group"
                 value={form.group || ''}
                 onChange={handleChange}
-                disabled={!form.company_id || loading || groups.length === 0}
+                disabled={!companyId || loading || groups.length === 0}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
                 required
               >
@@ -409,7 +357,7 @@ export default function CandidateApplicationPage() {
               </select>
               <Users className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
             </div>
-            {form.company_id && groups.length === 0 && !loading && (
+            {companyId && groups.length === 0 && !loading && (
               <p className="mt-1.5 text-xs text-amber-600">No groups available for this company</p>
             )}
           </div>
@@ -426,7 +374,7 @@ export default function CandidateApplicationPage() {
                 name="role"
                 value={form.role || ''}
                 onChange={handleChange}
-                disabled={!form.company_id || loading || roles.length === 0}
+                disabled={!companyId || loading || roles.length === 0}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
                 required
               >
@@ -439,7 +387,7 @@ export default function CandidateApplicationPage() {
               </select>
               <Briefcase className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
             </div>
-            {form.company_id && roles.length === 0 && !loading && (
+            {companyId && roles.length === 0 && !loading && (
               <p className="mt-1.5 text-xs text-amber-600">No roles available for this company</p>
             )}
           </div>
