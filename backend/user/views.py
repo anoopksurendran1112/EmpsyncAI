@@ -42,35 +42,24 @@ from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
-    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer, EmployeeGuardianSerializer
+    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer, EmployeeGuardianSerializer, CandidateApplicationsSerializer
 )
 
 
 logger = logging.getLogger(__name__)
 
 def generate_token_user(user):
-
     token = RefreshToken.for_user(user)
-
     access_token = token.access_token
-
     company_user = c.CompanyUser.objects.filter(user=user).first()
     access_token['admin'] = company_user.is_admin if company_user else False 
-
     access_token['super_user'] = user.is_superuser
 
-
-    
-
-    # Return both the refresh and access tokens
-    return {
-        'refresh_token': str(token),  # Return the refresh token as string
-        'access_token': str(access_token),  # Return the access token as string with added claims
-    }
+    return { 'refresh_token': str(token), 'access_token': str(access_token), }
 
 
 @api_view(['GET'])
@@ -297,7 +286,6 @@ def privacy_policy(request):
 )
 @api_view(['POST'])
 @permission_classes([AllowAny])
-
 def request_otp(request):
     email = request.data.get('email')
     User = get_user_model()
@@ -413,28 +401,20 @@ def reset_password(request):
     return Response({'message': 'Password reset successful.'}, status=200)
 
 
-
 @extend_schema(request=UserSerializer,responses=UserSerializer)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def signUp(request):
-   
     data = request.data.copy()
 
-   
     try:
         validate_email(data['email'])
-       
     except ValidationError:
         return Response({'message': 'Enter a valid email', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
    
-
     if CustomUser.objects.filter(email=data.get('email')).exists():
-      
-        return Response({'message': 'Email already exists.', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
-    
+        return Response({'message': 'Email already exists.', 'success': False}, status=status.HTTP_400_BAD_REQUEST) 
     if CustomUser.objects.filter(mobile=data.get('mobile')).exists():
-        
         return Response({'message': 'Mobile number already exists.', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
 
     biometric_id = data.get('biometric_id')
@@ -443,7 +423,6 @@ def signUp(request):
     if biometric_id and CustomUser.objects.filter(biometric_id=biometric_id, company__id=company_id).exists():
         return Response({'message': 'Oops! This Biometric ID is already linked to this company', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
 
-    
     if role_id and c.CompanyRole.objects.filter(id=role_id).exists():
         role = c.CompanyRole.objects.get(id=role_id)
 
@@ -457,13 +436,10 @@ def signUp(request):
 
     try:
         company = c.Company.objects.get(id=company_id)
-        
     except c.Company.DoesNotExist:
         return Response({'message': 'Invalid company ID.', 'success': False,'status': status.HTTP_400_BAD_REQUEST})
-
   
     data.pop('fcm_token', None)
-
     serializer = UserSerializer(data=data)
 
     if serializer.is_valid():
@@ -473,13 +449,8 @@ def signUp(request):
         user.role = role
         if group_obj:
             user.group = group_obj
-
-       
         user.save()
-
-        user.company.set([company])  # ✅ This fixes your error
-        
-
+        user.company.set([company])
         if not user.parent_company:
             user.parent_company = company
         user.role = role
@@ -487,16 +458,9 @@ def signUp(request):
 
         if 'fcm_token' in data:
           FcmToken.objects.update_or_create(user=user, fcm_token=data['fcm_token'])
-
-
         token = generate_token_user(user)
-
         companySerializer = CompanySerializer(company)
-
-       
-
         return Response({
-
             'message': 'Signup success',
             'status': status.HTTP_201_CREATED,
             'success': True,
@@ -507,10 +471,7 @@ def signUp(request):
                 'company': companySerializer.data
             }
         },status=status.HTTP_201_CREATED)
-
     else:
-    
-
         return Response({
             'message': serializer.errors,
             'success': False,
@@ -518,12 +479,10 @@ def signUp(request):
         })
 
 
-
 @extend_schema(request=LoginSerializer,responses=LoginSerializer)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
-      # Allow anyone to access this view (no authentication required)
 
     if request.method == 'POST':
 
@@ -670,9 +629,7 @@ def request_login_otp(request):
             'status': 404,
             'message': 'User with this mobile does not exist.'
         }, status=404)
-    
-    
-    
+      
 
 @extend_schema(
     request={
@@ -832,6 +789,7 @@ def logout_view(request):
             'message': 'Logout failed',
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 @api_view(['POST'])
 def delete_user(request):
     user_id = request.data.get('user_id')
@@ -844,7 +802,55 @@ def delete_user(request):
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
+@api_view(['GET', 'POST'])
+def candidateApplication(request):
 
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+
+        if not company_id:
+            return Response({ 'success': False, 'message': 'company_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST)
+            
+        applications = CandidateApplications.objects.filter(company=company_id)
+        serializer = CandidateApplicationsSerializer(applications, many=True)
+        
+        return Response({ 'success': True, 'data': serializer.data }, 
+            status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        data = request.data.copy()
+        email = data.get('email')
+        phone = data.get('phone')
+        
+        if not email or not phone:
+            return Response({'success': False, 'message': 'Email and phone are required'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if CustomUser.objects.filter(Q(email=email) | Q(mobile=phone)).exists():
+            return Response({'success': False, 'message': 'An user with this email or phone already exists'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        existing_app = CandidateApplications.objects.filter(
+            Q(email=email) | Q(phone=phone)).filter(status__in=['pending', 'approved'])
+
+        if existing_app.exists():
+            return Response({'success': False, 'message': 'An active application with this email or phone already exists'}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        company_id = data.get('company_id')
+        data['company'] = company_id
+        serializer = CandidateApplicationsSerializer(data=data)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({ 'success': True, 'message': 'Application submitted successfully',
+                            'data': serializer.data}, status=status.HTTP_201_CREATED)
+        
+        return Response({ 'success': False, 'message': 'Invalid data', 
+                        'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+
+    
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllUsers(request, page):
@@ -991,174 +997,6 @@ def getAllUsers(request, page):
     })
 
 
-
-# @extend_schema(request=GetUserSerializer, responses=GetUserSerializer(many=True))
-# @api_view(['POST'])
-# def getAllUsers(request, page):
-#     company_id = request.data.get('company_id')
-
-#     if not c.CompanyUser.objects.get(user=request.user, company=company_id).is_admin:
-#         return Response({
-#             'status': status.HTTP_403_FORBIDDEN,
-#             'success': False,
-#             'message': 'Unauthorized access.'
-#         })
-
-#     gender = request.data.get('gender')  # string
-#     is_active = request.data.get('is_active')  # boolean
-#     roles = request.data.get('roles', [])  # List of role IDs
-#     groups = request.data.get('groups', [])  # List of role IDs
-
-#     avg_hour_filter = request.data.get('avg_hour_filter')
-#     company = Company.objects.get(id=company_id)
-#     avg_interval = company.work_summary_interval
-#     punch_mode = company.punch_mode  # Get the punch mode: 'M' or 'S'
-#     search = request.data.get('search', '').strip()
-
-#     filters = Q(company__id=company_id)
-
-#     if gender:
-#         filters &= Q(gender__in=gender)
-#     if is_active is not None:
-#         filters &= Q(is_active=is_active)
-#     if roles:
-#         filters &= Q(role_id__in=roles)
-#     if groups:
-#         filters &= Q(group_id__in=groups)
-#     if search:
-#         filters &= (
-#             Q(first_name__icontains=search) |
-#             Q(last_name__icontains=search) |
-#             Q(email__icontains=search)
-#         )
-
-
-#     # users = CustomUser.objects.filter(filters).order_by('group__group', 'role__role').exclude(id=request.user.id).exclude(is_active=False).distinct()
-#     users = CustomUser.objects.filter(filters).exclude(id=request.user.id).exclude(is_active=False).distinct()
-
-    
-#     # Calculate gender counts
-#     male_count = users.filter(gender='M').count()
-#     female_count = users.filter(gender='F').count()
-#     others_count = users.filter(gender='O').count()
-
-#     devices = Device.objects.filter(company=company_id)
-#     device_ids = list(devices.values_list('device_id', flat=True))
-#     today = date.today()
-
-#     if avg_interval == 'W':
-#         # Weekly: from Monday to Sunday of current week
-#         start_date = today - timedelta(days=today.weekday())
-#         end_date = start_date + timedelta(days=6)
-#     elif avg_interval == 'M':
-#         # Monthly: from the 1st of the month to today
-#         start_date = today.replace(day=1)
-#         end_date = today
-#     else:
-#         # Fallback to weekly if undefined
-#         start_date = today - timedelta(days=today.weekday())
-#         end_date = start_date + timedelta(days=6)
-
-#     if not users.exists():
-#         return Response({
-#             'status': status.HTTP_200_OK,
-#             'total': 0,
-#             'page': page,
-#             'total_page': 0,
-#             'success': True,
-#             'message': 'No users found.',
-#             'male_count': 0,
-#             'female_count': 0,
-#             'others_count': 0,
-#             'data': []
-#         })
-
-#     user_data = []
-
-#     for user in users:
-#         biometric_id = user.biometric_id
-#         serialized_user = UserSerializer(user).data
-        
-#         # Calculate today's Check-In and Check-Out
-#         today_punches = PunchRecords.objects.using('secondary').filter(
-#             user_id=biometric_id,
-#             device_id__in=device_ids,
-#             punch_time__date=today
-#         ).order_by('punch_time')
-
-
-#         if company.work_summary_interval == 'W':
-#             avg_hour = user.weekly_avg_working_hour
-#         else:  # Monthly
-#             avg_hour = user.monthly_avg_working_hour
-
-#         serialized_user['avg_working_hour'] = round(avg_hour, 2)
-#         role_working_hour = user.role.working_hour if user.role and user.role.working_hour is not None else None
-#         threshold_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
-#         serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
-
-#         punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
-#         punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
-
-#         check_in = min(punch_ins) if punch_ins else None
-#         check_out = max(punch_outs) if punch_outs else None
-
-#         serialized_user['check_in'] = check_in
-#         serialized_user['check_out'] = check_out
-
-#         # Calculate punch pairs
-#         punch_pairs = []
-#         remaining_check_ins = punch_ins.copy()
-#         remaining_check_outs = punch_outs.copy()
-
-
-#         if company.punch_mode == 'M':
-
-#             while remaining_check_ins and remaining_check_outs:
-#                 earliest_in = min(remaining_check_ins)
-#                 next_out = min((p for p in remaining_check_outs if p > earliest_in), default=None)
-#                 if next_out:
-#                     punch_pairs.append({
-#                         "check_in": earliest_in.isoformat(),
-#                         "check_out": next_out.isoformat()
-#                     })
-#                     remaining_check_ins.remove(earliest_in)
-#                     remaining_check_outs.remove(next_out)
-#                 else:
-#                     remaining_check_ins.remove(earliest_in)
-
-#         serialized_user['punch_pairs'] = punch_pairs
-
-#         user_data.append(serialized_user)  # Add user with punch_pairs to the list
-#     user_data = sorted(
-#     user_data,
-#     key=lambda x: (
-#         x.get('group') is None,   # False < True → non-nulls first
-#         x.get('group') or "",
-#         x.get('role') or ""
-#     )
-# )
-
-
-
-#     # Pagination
-#     paginator = Paginator(user_data, 10)
-#     page_data = paginator.get_page(page)
-
-#     return Response({
-#         'status': status.HTTP_200_OK,
-#         'total': paginator.count,
-#         'page': page,
-#         'total_page': paginator.num_pages,
-#         'male_count': male_count,
-#         'female_count': female_count,
-#         'others_count': others_count,
-#         'success': True,
-#         'message': 'No users found.' if paginator.count == 0 else 'Success',
-#         'data': page_data.object_list
-#     })
-
-
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllEmployees(request, page):
@@ -1293,210 +1131,16 @@ def getAllEmployees(request, page):
     })
 
 
-# @extend_schema(request=GetUserSerializer, responses=GetUserSerializer(many=True))
-# @api_view(['POST'])
-# def getAllEmployees(request, page):
-#     company_id = request.data.get('company_id')
-
-#     if not c.CompanyUser.objects.get(user= request.user,company = company_id).is_admin:
-#         return Response({
-#             'status': status.HTTP_403_FORBIDDEN,
-#             'success': False,
-#             'message': 'Unauthorized access.'
-#         })
-
-#     gender = request.data.get('gender')   # string
-#     is_active = request.data.get('is_active')   # boolean
-#     roles = request.data.get('roles', [])   # List of role IDs
-#     avg_hour_filter = request.data.get('avg_hour_filter')
-#     company = Company.objects.get(id=company_id)
-#     avg_interval = company.work_summary_interval
-#     punch_mode = company.punch_mode   # Get the punch mode: 'M' or 'S'
-#     search = request.data.get('search', '').strip()
-
-#     filters = Q(company__id=company_id)
-
-#     if gender:
-#         filters &= Q(gender__in=gender)
-#     if is_active is not None:
-#         filters &= Q(is_active=is_active)
-#     if roles:
-#         filters &= Q(role_id__in=roles)
-#     if search:
-#         filters &= (
-#             Q(first_name__icontains=search) |
-#             Q(last_name__icontains=search) |
-#             Q(email__icontains=search)
-#         )
-
-#     users = CustomUser.objects.filter(filters).exclude(id=request.user.id)
-#     devices = Device.objects.filter(company=company_id)
-#     device_ids = list(devices.values_list('device_id', flat=True))
-#     today = date.today()
-
-#     if avg_interval == 'W':
-#         # Weekly: from Monday to Friday of current week
-#         start_date = today - timedelta(days=today.weekday())
-#         end_date = start_date + timedelta(days=6)
-#     elif avg_interval == 'M':
-#         # Monthly: from the 1st of the month to today
-#         start_date = today.replace(day=1)
-#         end_date = today
-#     else:
-#         # Fallback to weekly if undefined
-#         start_date = today - timedelta(days=today.weekday())
-#         end_date = start_date + timedelta(days=6)
-
-#     if not users.exists():
-#         return Response({
-#             'status': status.HTTP_200_OK,
-#             'total': 0,
-#             'page': page,
-#             'total_page': 0,
-#             'success': True,
-#             'message': 'No users found.',
-#             'data': []
-#         })
-
-#     user_data = []
-
-#     for user in users:
-#         biometric_id = user.biometric_id
-#         serialized_user = UserSerializer(user).data
-
-#         # Calculate average working hours from Monday to Friday
-#         week_punches = PunchRecords.objects.using('secondary').filter(
-#             user_id=biometric_id,
-#             device_id__in=device_ids,
-#             punch_time__date__gte=start_date,
-#             punch_time__date__lte=end_date
-#         ).order_by('punch_time')
-
-#         daily_hours = []
-#         worked_days = 0
-#         current_date = start_date
-#         while current_date <= end_date:
-#             day_punches = week_punches.filter(punch_time__date=current_date)
-#             check_ins = [p for p in day_punches if p.status == 'Check-In']
-#             check_outs = [p for p in day_punches if p.status == 'Check-Out']
-#             if check_ins and check_outs:   # User worked this day
-#                 worked_days += 1
-#                 if punch_mode == 'M':
-#                     # Multi-punch mode: Sum durations of all Check-In to Check-Out pairs
-#                     total_daily_duration = 0
-#                     check_in_index = 0
-#                     while check_in_index < len(check_ins):
-#                         in_time = check_ins[check_in_index].punch_time
-#                         # Find the next Check-Out after this Check-In
-#                         next_out_index = next((i for i, out in enumerate(check_outs) if out.punch_time > in_time), None)
-#                         if next_out_index is not None:
-#                             out_time = check_outs[next_out_index].punch_time
-#                             duration = (out_time - in_time).total_seconds() / 3600   # In hours
-#                             total_daily_duration += duration
-#                             # Remove the used Check-Out to avoid reuse
-#                             check_outs.pop(next_out_index)
-#                             check_in_index += 1
-#                         daily_hours.append(total_daily_duration)
-#                 else:
-#                     # Single-punch mode: Use max Check-Out minus min Check-In
-#                     daily_duration = (max(check_outs, key=lambda x: x.punch_time).punch_time - 
-#                                     min(check_ins, key=lambda x: x.punch_time).punch_time).total_seconds() / 3600
-#                     daily_hours.append(daily_duration)
-
-#                 current_date += timedelta(days=1)
-
-#             # Avoid division by zero if the user didn't work any days
-#             avg_working_hours = sum(daily_hours) / worked_days if worked_days else 0
-#             company = Company.objects.get(id=company_id)
-
-#             if company.work_summary_interval == 'W':
-#                 avg_hour = user.weekly_avg_working_hour
-#             else:   # Monthly
-#                 avg_hour = user.monthly_avg_working_hour
-
-#             serialized_user['avg_working_hour'] = round(avg_hour, 2)
-#             if user.role and user.role.working_hour is not None:
-#                 serialized_user['is_below_avg_hours'] = avg_hour < user.role.working_hour
-#             else:
-#                 serialized_user['is_below_avg_hours'] = avg_hour < company.daily_working_hours
-
-#             # Calculate today's Check-In and Check-Out
-#             today_punches = PunchRecords.objects.using('secondary').filter(
-#                 user_id=biometric_id,
-#                 device_id__in=device_ids,
-#                 punch_time__date=today
-#             ).order_by('punch_time')
-
-#             punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
-#             punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
-
-#             check_in = min(punch_ins) if punch_ins else None
-#             check_out = max(punch_outs) if punch_outs else None
-
-#             serialized_user['check_in'] = check_in
-#             serialized_user['check_out'] = check_out
-
-#             user_data.append(serialized_user)   # Add user to the list
-
-#         # Apply the avg_hour_filter after collecting all users
-#         if avg_hour_filter is not None:
-#             company = Company.objects.get(id=company_id)
-#             filtered_user_data = []
-
-#             for user in user_data:
-#                 # Get user role working hour if available, else fallback to company working hour
-#                 role_working_hour = getattr(user.get('role'), 'working_hour', None)
-#                 working_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
-
-#                 if avg_hour_filter and user['avg_working_hour'] > working_hour:
-#                     filtered_user_data.append(user)
-#                 elif not avg_hour_filter and user['avg_working_hour'] <= working_hour:
-#                     filtered_user_data.append(user)
-
-#             user_data = filtered_user_data
-
-#         user_data = sorted(
-#             user_data,
-#             key=lambda x: (
-#                 x.get('group') is None,   # False < True → non-nulls first
-#                 x.get('group') or "",
-#                 x.get('role') or ""
-#             )
-# )
-
-#         # Pagination
-#         paginator = Paginator(user_data, 10)
-#         page_data = paginator.get_page(page)
-
-#         return Response({
-#             'status': status.HTTP_200_OK,
-#             'total': paginator.count,
-#             'page': page,
-#             'total_page': paginator.num_pages,
-#             'success': True,
-#             'message': 'No users found.' if paginator.count == 0 else 'Success',
-#             'data': page_data.object_list
-#         })
-
-
-
-
-
-
 @extend_schema(request=GetUserSerializer, responses=GetUserSerializer(many=True))
 @api_view(['POST'])
 def todaysActiveUsers(request, page):
-
     company_id = request.data.get('company_id')
-
     if not c.CompanyUser.objects.get(user= request.user,company = company_id).is_admin:
-
         return Response({
             'status': status.HTTP_401_UNAUTHORIZED,
             'success': False,
             'message': 'Unauthorized access.'
         })
-    
     if  company_id == 6:
         with connections['secondary'].cursor() as cursor:
             cursor.execute("""
@@ -1511,14 +1155,12 @@ def todaysActiveUsers(request, page):
             """)
 
     today = date.today()
-
     company_id = request.data.get('company_id')
     avg_hour_filter = request.data.get('avg_hour_filter')
     company = Company.objects.get(id=company_id)
     avg_interval = company.work_summary_interval
-    punch_mode = company.punch_mode  # Get the punch mode: 'M' or 'S'
+    punch_mode = company.punch_mode  
 
-    # Define date range
     if avg_interval == 'W':
         start_date = today - timedelta(days=today.weekday())
         end_date = start_date + timedelta(days=6)
@@ -1546,24 +1188,17 @@ def todaysActiveUsers(request, page):
         })
 
     punches = PunchRecords.objects.using('secondary').filter(
-        user_id__in=biometric_ids,
-        device_id__in=device_ids,
-        punch_time__date=today
-    ).order_by('punch_time')
+        user_id__in=biometric_ids, device_id__in=device_ids, punch_time__date=today
+        ).order_by('punch_time')
 
     active_biometric_ids = list(punches.values_list('user_id', flat=True).distinct())
     active_users = users.filter(biometric_id__in=active_biometric_ids).order_by('group__group', 'role__role')
     male_count = active_users.filter(gender='M').count()
     female_count = active_users.filter(gender='F').count()
     others_count = active_users.filter(gender='O').count()
-
     user_data = []
 
     for user in active_users:
-
-
-
-
         biometric_id = user.biometric_id
         user_punches = punches.filter(user_id=biometric_id)
 
@@ -1611,10 +1246,7 @@ def todaysActiveUsers(request, page):
             avg_hour = user.monthly_avg_working_hour
 
         serialized_user['avg_working_hour'] = round(avg_hour, 2)
-        # serialized_user['is_below_avg_hours'] = avg_working_hour < threshold_hour
         serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
-
-
         user_data.append(serialized_user)
 
     # Apply avg_hour_filter
@@ -1631,17 +1263,15 @@ def todaysActiveUsers(request, page):
         user_data = filtered_user_data
    
     user_data = sorted(
-    user_data,
-    key=lambda x: (
-        x.get('group') is None,   # False < True → non-nulls first
-        x.get('group') or "",
-        x.get('role') or ""
-    )
-)
+        user_data,
+        key=lambda x: (
+            x.get('group') is None,
+            x.get('group') or "", 
+            x.get('role') or ""
+        ))
+
     paginator = Paginator(user_data, 10)
     page_data = paginator.get_page(page)
-
-
 
     return Response({
         'status': status.HTTP_200_OK,
@@ -1862,11 +1492,6 @@ def get_team_members(request, page):
     })
 
 
-
-
-
-
-
 @extend_schema(request=UserSerializer, responses=UserSerializer)
 @api_view(['GET', 'PUT'])
 def profile(request, id):
@@ -1974,9 +1599,9 @@ def profile(request, id):
 
         # Serialize user data and add average working hours
         serializer = UserSerializer(user,context={
-    'request': request,
-    'company_id': company_id
-})
+            'request': request,
+            'company_id': company_id
+        })
         response_data = serializer.data
         company_user = c.CompanyUser.objects.filter(user=request.user).first()
         response_data['admin'] = company_user.is_admin if company_user else False
@@ -2000,190 +1625,6 @@ def profile(request, id):
             'data': response_data,
         })
 
-    # elif request.method == 'PUT':
-
-      
-
-    #     data = request.data.copy()  # To handle possible file uploads
-        
-    #     if 'prof_img' in request.FILES:
-    #         data['prof_img'] = request.FILES['prof_img']
-
-    #     role_id = request.data.get('role_id')
-    #     is_admin = request.data.get('is_admin')
-
-    #     group_id = request.data.get('group_id')
-
-
-
-       
-
-    #     if role_id:
-    #         try:
-    #             role = c.CompanyRole.objects.get(id=role_id)
-    #             user.role = role
-    #             user.save()  # Save the user to persist the role
-    #         except c.CompanyRole.DoesNotExist:
-    #             return Response({
-    #                 'success': False,
-    #                 'errors': {'role_id': 'Invalid role ID'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-    #         except ValueError:
-    #             return Response({
-    #                 'success': False,
-    #                 'errors': {'role_id': 'Role ID must be a valid integer'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     if group_id:
-    #         try:
-    #             group = c.CompanyGroup.objects.get(id=group_id)
-    #             if user.parent_company and user.parent_company == company:
-    #                 user.group = group
-    #                 user.save()
-    #             else:
-    #         # Update group in CompanyUser relation
-    #                 try:
-    #                     company_user = CompanyUser.objects.get(user=user, company=company)
-    #                     company_user.group = group
-    #                     company_user.save()
-    #                 except CompanyUser.DoesNotExist:
-    #                     return Response({
-    #                         'success': False,
-    #                         'message': {'group_id': 'User not assigned to this company'},
-    #                     }, status=status.HTTP_400_BAD_REQUEST)
-    #         except c.CompanyGroup.DoesNotExist:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': {'group_id': 'Invalid group ID'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-    #         except ValueError:
-    #             return Response({
-    #                 'success': False,
-    #                 'errors': {'group_id': 'Group ID must be a valid integer'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-        
-    #     if 'is_admin' in request.data:
-    #         company_user, created = CompanyUser.objects.update_or_create(
-    #             user=user,
-    #             company=company,
-    #             defaults={
-    #                 "is_admin": is_admin
-    #             }
-    #         )
-
-
-
-
-            
-    #     if role_id:
-    #         try:
-    #             role = c.CompanyRole.objects.get(id=role_id)
-
-    #             if user.parent_company and user.parent_company == company:
-    #                 user.role = role
-    #                 user.save()
-    #             else:
-    #                 company_user = CompanyUser.objects.filter(user=user, company=company).first()
-
-    #                 if not company_user:
-    #                     return Response({
-    #                         'success': False,
-    #                         'errors': {'role_id': 'User not assigned to this company'},
-    #                     }, status=status.HTTP_400_BAD_REQUEST)
-
-    #                 company_user.role = role
-    #                 company_user.save()
-
-    #         except c.CompanyRole.DoesNotExist:
-    #             return Response({
-    #                 'success': False,
-    #                 'errors': {'role_id': 'Invalid role ID'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-    #         except ValueError:
-    #             return Response({
-    #                 'success': False,
-    #                 'errors': {'role_id': 'Role ID must be a valid integer'},
-    #             }, status=status.HTTP_400_BAD_REQUEST)
-            
-    #     is_sms = request.data.get('is_sms')
-    #     is_whatsapp = request.data.get('is_whatsapp')
-
-    #     if company.soft_disable:
-    #         return Response({
-    #             'success': False,
-    #             'message': 'Messaging services are temporarily disabled by your company.'
-    #         })
-
-    #     # --- SMS control ---
-    #     if 'is_sms' in request.data:
-    #         if company.strict_sms:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': 'SMS service is strictly enabled for all users. You cannot modify it.'
-    #             })
-    #         elif not company.enable_sms:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': 'SMS service is disabled for your company.'
-    #             })
-    #         elif not company.allow_individual_sms:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': 'You are not allowed to change your SMS preference individually.'
-    #             })
-    #         else:
-    #             user.is_sms = is_sms
-    #             user.save()
-
-    #     # --- WhatsApp control ---
-    #     if 'is_whatsapp' in request.data:
-    #         if company.strict_whatsapp:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': 'WhatsApp service is strictly enabled for all users. You cannot modify it.'
-    #             }, status=status.HTTP_403_FORBIDDEN)
-    #         elif not company.enable_whatsapp:
-    #             return Response({
-    #                 'success': False,
-    #                 'message': 'WhatsApp service is disabled for your company.'
-    #             }, status=status.HTTP_403_FORBIDDEN)
-    #         elif not company.allow_individual_whatsapp:
-    #             return Response({
-    #                 'status':status.HTTP_403_FORBIDDEN,
-    #                 'success': False,
-    #                 'message': 'You are not allowed to change your WhatsApp preference individually.'
-    #             }, status=status.HTTP_403_FORBIDDEN)
-    #         else:
-    #             user.is_whatsapp = is_whatsapp
-    #             user.save()
-
-            
-    #     # Use the serializer to validate and update the user
-    #     serializer = UserSerializer(user, data=data, partial=True)
-
-        
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response({
-    #             'status': status.HTTP_200_OK,
-    #             'success': True,
-    #             'message': 'Profile updated successfully',
-    #             'data': serializer.data,
-    #         })
-    #     else:
-           
-
-    #         # Return validation errors if the data is invalid
-    #         return Response({
-    #             'success': False,
-    #             'errors': serializer.errors,
-    #         }, status=status.HTTP_400_BAD_REQUEST)
-
-    # # If the method is not GET or PUT, return a 405 Method Not Allowed response
-    # return Response({
-    #     'success': False,
-    #     'message': 'Method not allowed'
-    # }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
     elif request.method == 'PUT':
 
         data = request.data.copy()  # To handle possible file uploads
@@ -2343,7 +1784,6 @@ def profile(request, id):
             'success': False,
             'message': 'Method not allowed'
         }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
 
 
 @api_view(['POST'])
