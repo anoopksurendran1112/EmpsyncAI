@@ -802,7 +802,7 @@ def delete_user(request):
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def candidateApplication(request):
 
@@ -853,9 +853,9 @@ def candidateApplication(request):
 
     elif request.method == 'PUT':
         app_id = request.data.get('application_id')
-        status = request.data.get('status')
+        app_status = request.data.get('status')
 
-        if not app_id or not status:
+        if not app_id or not app_status:
             return Response({'success': False, 'message': 'Application ID and status are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -865,10 +865,10 @@ def candidateApplication(request):
 
         with transaction.atomic():
             try:
-                app.status = status
+                app.status = app_status
                 app.save()
 
-                if status == 'approved':
+                if app_status == 'approved':
                     company = Company.objects.get(id=app.company_id)                    
                     password = request.data.get('password')
                     
