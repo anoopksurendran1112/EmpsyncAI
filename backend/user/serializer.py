@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser
-from company.models import CompanyRole,CompanyGroup, CompanyUser
+from company.models import CompanyRole,CompanyGroup, CompanyUser, Company
 from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
 
 class UserSerializer(serializers.ModelSerializer):
@@ -85,9 +85,31 @@ class LoginSerializer(serializers.Serializer):
 
 
 class CandidateApplicationsSerializer(serializers.ModelSerializer):
+    company = serializers.PrimaryKeyRelatedField(queryset=Company.objects.all())
+    group = serializers.PrimaryKeyRelatedField(queryset=CompanyGroup.objects.all(), allow_null=True)
+    role = serializers.PrimaryKeyRelatedField(queryset=CompanyRole.objects.all(), allow_null=True)
+
     class Meta:
         model = CandidateApplications
         fields = '__all__'
+
+    def to_representation(self, instance):
+        try:
+            representation = super().to_representation(instance)
+            
+            if isinstance(instance, dict):
+                pass
+            else:
+                representation['group'] = instance.group.group if hasattr(instance, 'group') and instance.group else None
+                representation['role'] = instance.role.role if hasattr(instance, 'role') and instance.role else None
+                representation['company'] = instance.company.company_name if hasattr(instance, 'company') and instance.company else None
+                
+            return representation
+        except Exception as e:
+            import traceback
+            return {"error_in_to_representation": str(e), "traceback": traceback.format_exc()}
+
+
 
 
 class ReligionSerializer(serializers.ModelSerializer):

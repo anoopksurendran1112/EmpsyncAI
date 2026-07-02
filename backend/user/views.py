@@ -17,7 +17,7 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.http import HttpResponse
 from django.core.mail import send_mail
-from django.db.models import Q, F, Value
+from django.db.models import Q, F, Value, Max
 from django.core.paginator import Paginator
 from django.db import connections, transaction
 from django.db.models.functions import Coalesce
@@ -802,7 +802,7 @@ def delete_user(request):
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def candidateApplication(request):
 
@@ -853,9 +853,9 @@ def candidateApplication(request):
 
     elif request.method == 'PUT':
         app_id = request.data.get('application_id')
-        status = request.data.get('status')
+        app_status = request.data.get('status')
 
-        if not app_id or not status:
+        if not app_id or not app_status:
             return Response({'success': False, 'message': 'Application ID and status are required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
@@ -865,10 +865,10 @@ def candidateApplication(request):
 
         with transaction.atomic():
             try:
-                app.status = status
+                app.status = app_status
                 app.save()
 
-                if status == 'approved':
+                if app_status == 'approved':
                     company = Company.objects.get(id=app.company_id)                    
                     password = request.data.get('password')
                     
@@ -876,20 +876,31 @@ def candidateApplication(request):
                         return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
 
                     last_user = CustomUser.objects.filter(company=company).aggregate(Max('biometric_id'))
-                    last_biometric_id = last_user['biometric_id__max'] or 0
+                    last_biometric_id = last_user['biometric_id__max']
+                    try:
+                        last_biometric_id = int(last_biometric_id) if last_biometric_id else 0
+                    except ValueError:
+                        last_biometric_id = 0
                     new_biometric_id = last_biometric_id + 1
 
-                    user, created = CustomUser.objects.get_or_create(email=app.email)
+                    user, created = CustomUser.objects.get_or_create(
+                        email=app.email,
+                        defaults={
+                            'mobile': app.phone,
+                            'first_name': app.first_name,
+                            'last_name': app.last_name,
+                        }
+                    )
                     
                     user.set_password(password)
-                    user.biometric_id = new_biometric_id
+                    user.biometric_id = str(new_biometric_id)
                     user.first_name = app.first_name
                     user.last_name = app.last_name
                     user.mobile = app.phone
                     user.role = app.role
                     user.group = app.group
+                    user.is_wfh= request.data.get('wfh')
                     user.is_active = True
-                    user.is_employee = True
                     
                     user.company.add(company)
                     
