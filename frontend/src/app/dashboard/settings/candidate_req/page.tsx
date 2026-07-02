@@ -4,32 +4,10 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import {
-  Clock,
-  History,
-  CalendarCheck,
-  Send,
-  X,
-  Facebook,
-  Linkedin,
-  Twitter,
-  Link2,
-} from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 
 interface Request {
   id: number;
@@ -39,6 +17,7 @@ interface Request {
   phone: string;
   role: string;
   group: string;
+  is_wfh: boolean;
   status: "pending" | "approved" | "rejected";
   created_at: string;
 }
@@ -55,6 +34,7 @@ export default function CandidateRequestPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<Request | null>(null);
   const [password, setPassword] = useState("");
+  const [wfhEnabled, setWfhEnabled] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   const fetchRequests = async () => {
@@ -106,15 +86,16 @@ export default function CandidateRequestPage() {
     setUpdating(true);
 
     try {
-      const res = await fetch("/api/candidate_request", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          application_id: appId,
-          status: "approved",
-          password: password.trim(),
-        }),
-      });
+    const res = await fetch("/api/candidate_request", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        application_id: appId,
+        status: "approved",
+        wfh: wfhEnabled,
+        password: password.trim(),
+      }),
+    });
 
       
       await fetchRequests();
@@ -279,13 +260,11 @@ export default function CandidateRequestPage() {
                           {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                         </span>
                         {req.status === "pending" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 text-xs hover:bg-amber-50 text-amber-800 ml-2"
+                          <Button variant="ghost" size="sm" className="h-8 text-xs hover:bg-amber-50 text-amber-800 ml-2"
                             onClick={() => {
                               setSelectedApplication(req);
                               setPassword("");
+                              setWfhEnabled(req.is_wfh); 
                               setDetailDialogOpen(true);
                             }}
                           >
@@ -391,40 +370,40 @@ export default function CandidateRequestPage() {
                   <label htmlFor="password" className="text-xs font-semibold text-gray-500 uppercase">
                     Set Password (for approved candidates)
                   </label>
-                  <Input
-                    id="password"
-                    type="text"
-                    placeholder="Enter a secure password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-gray-50"
-                  />
+                  <Input id="password" type="password" placeholder="Enter a secure password" value={password} 
+                         onChange={(e) => setPassword(e.target.value)} 
+                         className="bg-gray-50" />
                   <p className="text-xs text-gray-400">
                     This password will be given to the candidate for login.
                   </p>
                 </div>
 
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="is_wfh" className="text-xs font-semibold text-gray-500 uppercase">
+                      Enable for Work From Home
+                    </label>
+                    <Switch 
+                      id="is_wfh" 
+                      checked={wfhEnabled} 
+                      onCheckedChange={setWfhEnabled} 
+                    />
+                  </div>
+                </div>
+
+
                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <Button
-                    variant="outline"
-                    onClick={() => setDetailDialogOpen(false)}
-                    className="border-[#dde3ec] text-[#434655]"
-                  >
+                  <Button variant="outline" onClick={() => setDetailDialogOpen(false)} className="border-[#dde3ec] text-[#434655]">
                     Cancel
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleReject}
+
+                  <Button variant="destructive" onClick={handleReject}
                     disabled={updating}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
+                    className="bg-red-600 hover:bg-red-700 text-white">
                     {updating ? "Updating..." : "Reject"}
                   </Button>
-                  <Button
-                    onClick={handleAccept}
-                    disabled={updating}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
+
+                  <Button onClick={handleAccept} disabled={updating} className="bg-blue-600 hover:bg-blue-700 text-white">
                     {updating ? "Updating..." : "Accept"}
                   </Button>
                 </div>
