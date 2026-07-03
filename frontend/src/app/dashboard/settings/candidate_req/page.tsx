@@ -14,7 +14,7 @@ import {
   Facebook,
   Linkedin,
   Twitter,
-  Link2,
+  Mail,
   Filter,
   Search,
   ChevronLeft,
@@ -137,6 +137,14 @@ export default function CandidateRequestPage() {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(shareableUrl);
     alert("Link copied!");
+  };
+
+  const emailShareLink = () => {
+    const subject = encodeURIComponent("Candidate request link");
+    const body = encodeURIComponent(
+      `Please use this candidate request link: ${shareableUrl}`,
+    );
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
 
   //Accept handler
@@ -425,66 +433,69 @@ export default function CandidateRequestPage() {
 
         {/* Share Dialog */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-  <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-    <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-      <DialogTitle className="text-[18px] font-bold text-indigo-700 tracking-tight">
-        Share Profile
-      </DialogTitle>
-    </DialogHeader>
-    <div className="p-6 space-y-6">
-      <div className="space-y-2">
-        <label className="text-xs font-semibold text-gray-500 uppercase">
-          Profile Link
-        </label>
-        <div className="flex gap-2">
-          <Input readOnly value={shareableUrl} className="bg-gray-50" />
-          <Button onClick={copyToClipboard} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-            Copy
-          </Button>
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        <Button
-          variant="outline"
-          onClick={() => window.open(socialLinks.twitter, "_blank")}
-          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-        >
-          <Twitter className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.open(socialLinks.facebook, "_blank")}
-          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-        >
-          <Facebook className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => window.open(socialLinks.linkedin, "_blank")}
-          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-        >
-          <Linkedin className="h-5 w-5" />
-        </Button>
-        <Button
-          variant="outline"
-          onClick={copyToClipboard}
-          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-        >
-          <Link2 className="h-5 w-5" />
-        </Button>
-      </div>
-    </div>
-    <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-      <Button
-        variant="outline"
-        onClick={() => setIsModalOpen(false)}
-        className="px-4 py-2 border border-indigo-200 text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 h-10 transition-colors"
-      >
-        Close
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+              <DialogTitle className="text-[18px] font-bold text-indigo-700 tracking-tight">
+                Share Profile
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase">
+                  Profile Link
+                </label>
+                <div className="flex gap-2">
+                  <Input readOnly value={shareableUrl} className="bg-gray-50" />
+                  <Button
+                    onClick={copyToClipboard}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(socialLinks.twitter, "_blank")}
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <Twitter className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(socialLinks.facebook, "_blank")}
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <Facebook className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(socialLinks.linkedin, "_blank")}
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <Linkedin className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={emailShareLink}
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <Mail className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 border border-indigo-200 text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 h-10 transition-colors"
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Detail Dialog */}
         <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
