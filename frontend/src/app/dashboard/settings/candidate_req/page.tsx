@@ -11,9 +11,10 @@ import {
   CalendarCheck,
   Send,
   X,
-  Facebook,
   Linkedin,
   Twitter,
+  MessageCircle,
+  Phone,
   Mail,
   Filter,
   Search,
@@ -145,6 +146,13 @@ export default function CandidateRequestPage() {
       `Please use this candidate request link: ${shareableUrl}`,
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const whatsappShareLink = () => {
+    const message = encodeURIComponent(
+      `Please use this candidate request link: ${shareableUrl}`,
+    );
+    window.open(`https://wa.me/?text=${message}`, "_blank");
   };
 
   //Accept handler
@@ -462,13 +470,7 @@ export default function CandidateRequestPage() {
                 >
                   <Twitter className="h-5 w-5" />
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(socialLinks.facebook, "_blank")}
-                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
-                >
-                  <Facebook className="h-5 w-5" />
-                </Button>
+
                 <Button
                   variant="outline"
                   onClick={() => window.open(socialLinks.linkedin, "_blank")}
@@ -476,6 +478,21 @@ export default function CandidateRequestPage() {
                 >
                   <Linkedin className="h-5 w-5" />
                 </Button>
+                <Button
+  variant="outline"
+  onClick={whatsappShareLink}
+  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+>
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className="h-6 w-6"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+    <path d="M12.05 2C6.5 2 2 6.5 2 12.05c0 1.906.531 3.759 1.535 5.36L2 22l4.732-1.502a10.05 10.05 0 0 0 5.317 1.503h.001c5.549 0 10.049-4.5 10.049-10.05C22.099 6.5 17.599 2 12.05 2zm0 18.28h-.001a8.212 8.212 0 0 1-4.19-1.147l-.3-.178-3.12.998 1.017-3.043-.196-.311a8.198 8.198 0 0 1-1.263-4.4c0-4.542 3.696-8.238 8.257-8.238a8.19 8.19 0 0 1 5.83 2.414 8.19 8.19 0 0 1 2.412 5.83c0 4.542-3.696 8.075-8.446 8.075z" />
+  </svg>
+</Button>
                 <Button
                   variant="outline"
                   onClick={emailShareLink}
