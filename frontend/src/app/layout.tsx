@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
+import { Toaster } from "sonner";
 import Providers from "@/providers/query-client"
 import { AuthProvider } from "@/context/AuthContext"
 import { CompanyProvider } from "@/context/CompanyContext" // ✅ import company context
@@ -32,6 +33,7 @@ export default function RootLayout({
               <Providers>
                 {children}
               </Providers>
+              <Toaster richColors position="top-right" />
             </CompanyProvider>
           </AuthProvider>
         </ThemeProvider>
