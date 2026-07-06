@@ -27,7 +27,28 @@ import { Separator } from "@/components/ui/separator";
 // --- Helper validation functions ---
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const isValidMobile = (mobile: string) => /^\d{10}$/.test(mobile.trim());
+const isValidName = (name: string) =>
+  /^[A-Za-z\s]+$/.test(name.trim());
 
+const isFutureDate = (date: string) => {
+  if (!date) return false;
+  return new Date(date) > new Date();
+};
+
+const isValidPAN = (pan: string) =>
+  /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan.toUpperCase());
+
+const isValidAadhaar = (aadhaar: string) =>
+  /^\d{12}$/.test(aadhaar);
+
+const isValidPincode = (pincode: string) =>
+  /^\d{6}$/.test(pincode);
+
+const isOnlyLetters = (value: string) =>
+  /^[A-Za-z\s]+$/.test(value.trim());
+
+const isValidStaffId = (staffId: string) =>
+  /^[A-Za-z0-9_-]+$/.test(staffId.trim());
 // --- Interfaces ---
 interface AddressDetails {
   id: number;
@@ -133,6 +154,7 @@ export default function ProfilePage() {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editedUser, setEditedUser] = useState<User | null>(user ? { ...user } : null);
   const [isSaving, setIsSaving] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -532,6 +554,7 @@ export default function ProfilePage() {
   // --- Edit handlers ---
   const handleEditExtended = (section: string) => {
     if (!user) return;
+    setValidationErrors({});
     let religionId = null, casteId = null;
     if (fullProfile) {
       religionId = fullProfile.religion ?? null;
@@ -591,10 +614,54 @@ export default function ProfilePage() {
 
   const handleProfileChange = (field: keyof EditableProfile, value: any) => {
     setEditProfileData(prev => prev ? { ...prev, [field]: value } : null);
+    if (field === "alternate_email") {
+      if (value && !isValidEmail(value)) {
+        setValidationErrors(prev => ({ ...prev, alternate_email: "Alternate email must be a valid email address (e.g., name@example.com)" }));
+      } else {
+        setValidationErrors(prev => {
+          const next = { ...prev };
+          delete next.alternate_email;
+          return next;
+        });
+      }
+    } else if (field === "alternate_mobile") {
+      if (value && !isValidMobile(value)) {
+        setValidationErrors(prev => ({ ...prev, alternate_mobile: "Alternate mobile number must be exactly 10 digits" }));
+      } else {
+        setValidationErrors(prev => {
+          const next = { ...prev };
+          delete next.alternate_mobile;
+          return next;
+        });
+      }
+    }
   };
 
   const handleAddressChange = (type: "present_address_details" | "permanent_address_details", field: keyof AddressDetails, value: string) => {
     setEditProfileData(prev => prev ? { ...prev, [type]: { ...prev[type], [field]: value } } : null);
+    if (type === "present_address_details") {
+      const fieldName = `present_${field}`;
+      if (!value.trim()) {
+        const readableNames: Record<string, string> = {
+          address_line_1: "Address Line 1",
+          city: "City",
+          district: "District",
+          state: "State",
+          country: "Country",
+          pincode: "Pincode"
+        };
+        const displayName = readableNames[field] || field;
+        setValidationErrors(prev => ({ ...prev, [fieldName]: `${displayName} is required` }));
+      } else if (field === "pincode" && !/^\d{6}$/.test(value.trim())) {
+        setValidationErrors(prev => ({ ...prev, [fieldName]: "Pincode must be exactly 6 digits" }));
+      } else {
+        setValidationErrors(prev => {
+          const next = { ...prev };
+          delete next[fieldName];
+          return next;
+        });
+      }
+    }
   };
 
   const handleCancel = () => {
@@ -606,10 +673,36 @@ export default function ProfilePage() {
     setCurrentQual({});
     setCurrentExp(null);
     setCurrentBank({});
+    setValidationErrors({});
   };
 
   const handleInputChange = (field: string, value: any) => {
     setEditedUser(prev => prev ? { ...prev, [field]: value } : null);
+    if (field === "email") {
+      if (!value.trim()) {
+        setValidationErrors(prev => ({ ...prev, email: "Email address is required" }));
+      } else if (!isValidEmail(value)) {
+        setValidationErrors(prev => ({ ...prev, email: "Please enter a valid email address (e.g., name@example.com)" }));
+      } else {
+        setValidationErrors(prev => {
+          const next = { ...prev };
+          delete next.email;
+          return next;
+        });
+      }
+    } else if (field === "mobile") {
+      if (!value.trim()) {
+        setValidationErrors(prev => ({ ...prev, mobile: "Mobile number is required" }));
+      } else if (!isValidMobile(value)) {
+        setValidationErrors(prev => ({ ...prev, mobile: "Mobile number must be exactly 10 digits" }));
+      } else {
+        setValidationErrors(prev => {
+          const next = { ...prev };
+          delete next.mobile;
+          return next;
+        });
+      }
+    }
   };
 
   const handleGroupChange = (groupId: string) => {
@@ -637,31 +730,64 @@ export default function ProfilePage() {
 
       // 1. Core Identification Key (Always Required)
       formData.append("user_id", user.id.toString());
-
       // ==========================================
       // CONDITIONAL VALIDATION & DATA PROCESSING
       // ==========================================
 
       if (editingSection === "personal") {
-        // --- Validate core identity indicators ---
+
         if (!editedUser?.first_name?.trim()) {
           toast.error("First name is required");
           return;
         }
+
+        if (!isValidName(editedUser.first_name)) {
+          toast.error("First name should contain only alphabets");
+          return;
+        }
+
+        if (editedUser.first_name.trim().length < 2) {
+          toast.error("First name must contain at least 2 characters");
+          return;
+        }
+
         if (!editedUser?.last_name?.trim()) {
           toast.error("Last name is required");
           return;
         }
-        if (!editProfileData?.dob) {
-          toast.error("Date of birth is required");
+
+        if (!isValidName(editedUser.last_name)) {
+          toast.error("Last name should contain only alphabets");
           return;
         }
+
+        if (!editProfileData?.dob) {
+          toast.error("Date of Birth is required");
+          return;
+        }
+
+        if (isFutureDate(editProfileData.dob)) {
+          toast.error("Date of Birth cannot be in the future");
+          return;
+        }
+
+        const age = calculateAge(editProfileData.dob);
+
+        if (age !== null && age < 18) {
+          toast.error("Employee must be at least 18 years old");
+          return;
+        }
+
+        if (age !== null && age > 80) {
+          toast.error("Please enter a valid Date of Birth");
+          return;
+        }
+
         if (!editedUser?.gender) {
           toast.error("Gender selection is required");
           return;
         }
 
-        // --- Append strictly Personal parameters ---
         formData.append("first_name", editedUser.first_name);
         formData.append("last_name", editedUser.last_name);
         formData.append("gender", editedUser.gender);
@@ -675,80 +801,142 @@ export default function ProfilePage() {
           };
           formData.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+
+      }
+
       else if (editingSection === "professional") {
-        // --- Validate structural fields ---
+
         if (!editedUser?.group_id) {
-          toast.error("Department / Group is required");
+          toast.error("Please select a Department / Group");
           return;
         }
+
         if (!editedUser?.role_id) {
-          toast.error("Designation / Role is required");
+          toast.error("Please select a Designation");
           return;
         }
+
         if (!editProfileData?.staff_type_id) {
-          toast.error("Staff type is required");
+          toast.error("Please select a Staff Type");
           return;
         }
+
         if (!editProfileData?.staff_category_id) {
-          toast.error("Staff category is required");
+          toast.error("Please select a Staff Category");
           return;
         }
-        if (!editProfileData?.staff_id?.trim()) {
+
+        const staffId = editProfileData?.staff_id?.trim() || "";
+
+        if (!staffId) {
           toast.error("Staff ID is required");
           return;
         }
 
-        // --- Append strictly Professional alignments ---
+        if (!isValidStaffId(staffId)) {
+          toast.error("Staff ID can contain only letters, numbers, '-' and '_'");
+          return;
+        }
+
+        if (staffId.length < 3) {
+          toast.error("Staff ID must contain at least 3 characters");
+          return;
+        }
+
+        if (staffId.length > 20) {
+          toast.error("Staff ID cannot exceed 20 characters");
+          return;
+        }
+
         formData.append("group", editedUser.group || "");
         formData.append("role", editedUser.role || "");
-        if (editedUser.role_id) formData.append("role_id", editedUser.role_id.toString());
-        if (editedUser.group_id) formData.append("group_id", editedUser.group_id.toString());
+
+        if (editedUser.role_id) {
+          formData.append("role_id", editedUser.role_id.toString());
+        }
+
+        if (editedUser.group_id) {
+          formData.append("group_id", editedUser.group_id.toString());
+        }
 
         if (editProfileData) {
           const profileData = {
             staff_type: editProfileData.staff_type_id,
             staff_category: editProfileData.staff_category_id,
-            staff_id: editProfileData.staff_id,
+            staff_id: staffId,
           };
+
           formData.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+
+      }
       else if (editingSection === "contact") {
         // --- Validate primary channels ---
         const primaryMobile = editedUser?.mobile?.trim() || '';
+        // if (!/^[6-9]\d{9}$/.test(primaryMobile)) {
+        //   toast.error("Primary mobile number must start with 6, 7, 8 or 9");
+        //   return;
+        // }
         if (!primaryMobile) {
+          setValidationErrors(prev => ({ ...prev, mobile: "Primary mobile number is required" }));
           toast.error("Primary mobile number is required");
           return;
         }
         if (!isValidMobile(primaryMobile)) {
+          setValidationErrors(prev => ({ ...prev, mobile: "Primary mobile number must be exactly 10 digits" }));
           toast.error("Primary mobile number must be exactly 10 digits");
           return;
         }
 
         const primaryEmail = editedUser?.email?.trim() || '';
+        if (primaryEmail.length > 100) {
+          toast.error("Email address cannot exceed 100 characters");
+          return;
+        }
         if (!primaryEmail) {
+          setValidationErrors(prev => ({ ...prev, email: "Email address is required" }));
           toast.error("Email address is required");
           return;
         }
         if (!isValidEmail(primaryEmail)) {
+          setValidationErrors(prev => ({ ...prev, email: "Please enter a valid email address (e.g., name@example.com)" }));
           toast.error("Please enter a valid email address (e.g., name@example.com)");
           return;
         }
 
         // --- Validate alternative communication if supplied ---
         const altMobile = editProfileData?.alternate_mobile?.trim();
-        if (altMobile && !isValidMobile(altMobile)) {
-          toast.error("Alternate mobile number must be exactly 10 digits (or leave empty)");
-          return;
-        }
 
+        if (altMobile) {
+
+          // if (!/^[6-9]\d{9}$/.test(altMobile)) {
+          //   toast.error("Alternate mobile number must start with 6, 7, 8 or 9");
+          //   return;
+          // }
+
+          if (altMobile === primaryMobile) {
+            toast.error("Alternate mobile number cannot be the same as Primary mobile number");
+            return;
+          }
+        }
         const altEmail = editProfileData?.alternate_email?.trim();
-        if (altEmail && !isValidEmail(altEmail)) {
-          toast.error("Alternate email must be a valid email address (or leave empty)");
-          return;
+
+        if (altEmail) {
+
+          if (!isValidEmail(altEmail)) {
+            toast.error("Alternate email must be a valid email address");
+            return;
+          }
+
+          if (altEmail.toLowerCase() === primaryEmail.toLowerCase()) {
+            toast.error("Alternate email cannot be the same as Primary email");
+            return;
+          }
+
+          if (altEmail.length > 100) {
+            toast.error("Alternate email cannot exceed 100 characters");
+            return;
+          }
         }
 
         // --- Append strictly Communication details ---
@@ -762,16 +950,70 @@ export default function ProfilePage() {
           };
           formData.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+      }
+
       else if (editingSection === "family") {
         // --- Validate family & emergency channels ---
+        // ------------------------------
+        // Family Validation
+        // ------------------------------
+
+        const guardianNames = new Set<string>();
+
         for (const guardian of guardians) {
-          const phone = guardian.phone?.trim();
-          if (phone && !isValidMobile(phone)) {
-            toast.error(`${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`);
+
+          // Guardian Name
+          if (!guardian.name?.trim()) {
+            toast.error("Guardian name is required");
             return;
           }
+
+          if (!isOnlyLetters(guardian.name)) {
+            toast.error("Guardian name should contain only alphabets");
+            return;
+          }
+
+          if (guardian.name.trim().length < 3) {
+            toast.error("Guardian name must contain at least 3 characters");
+            return;
+          }
+
+          // Duplicate Guardian
+          const guardianName = guardian.name.trim().toLowerCase();
+
+          if (guardianNames.has(guardianName)) {
+            toast.error("Duplicate guardian names are not allowed");
+            return;
+          }
+
+          guardianNames.add(guardianName);
+
+          // Relationship
+          if (!guardian.relationship_type) {
+            toast.error("Relationship is required");
+            return;
+          }
+
+          // Mobile
+          const phone = guardian.phone?.trim() || "";
+
+          if (!phone) {
+            toast.error("Guardian mobile number is required");
+            return;
+          }
+
+          if (!isValidMobile(phone)) {
+            toast.error(
+              `${guardian.relationship_type_display || guardian.relationship_type}'s mobile number must be exactly 10 digits`
+            );
+            return;
+          }
+
+          if (!/^[6-9]\d{9}$/.test(phone)) {
+            toast.error("Guardian mobile number must start with 6, 7, 8 or 9");
+            return;
+          }
+
         }
 
         // --- Process Family Guardians ---
@@ -792,18 +1034,171 @@ export default function ProfilePage() {
 
         // --- Append strictly Family configurations ---
         formData.append("guardians", JSON.stringify(guardiansToSend));
-      } 
-      
+      }
+
       else if (editingSection === "address") {
-        // --- Append strictly Local Physical Coordinates ---
-        if (editProfileData) {
-          formData.append("present_address", JSON.stringify(ensureAddressDefaults(editProfileData.present_address_details)));
-          formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(editProfileData.permanent_address_details)));
+        if (!editProfileData) return;
+
+        const presentAddr = editProfileData.present_address_details;
+        const requiredFields: Array<keyof AddressDetails> = ["address_line_1", "city", "district", "state", "country", "pincode"];
+        let hasErrors = false;
+        const newErrors: Record<string, string> = {};
+
+        requiredFields.forEach(field => {
+          const val = presentAddr[field];
+          const fieldName = `present_${field}`;
+          if (!val || !String(val).trim()) {
+            const readableNames: Record<string, string> = {
+              address_line_1: "Address Line 1",
+              city: "City",
+              district: "District",
+              state: "State",
+              country: "Country",
+              pincode: "Pincode"
+            };
+            const displayName = readableNames[field] || field;
+            newErrors[fieldName] = `${displayName} is required`;
+            hasErrors = true;
+          } else if (field === "pincode" && !/^\d{6}$/.test(String(val).trim())) {
+            newErrors[fieldName] = "Pincode must be exactly 6 digits";
+            hasErrors = true;
+          }
+        });
+
+        if (hasErrors) {
+          setValidationErrors(prev => ({ ...prev, ...newErrors }));
+          toast.error("Please fill in all required present address fields");
+          return;
         }
+        // ------------------------------
+        // Additional Address Validations
+        // ------------------------------
+
+        if (presentAddr.address_line_1.trim().length < 5) {
+          toast.error("Address Line 1 must contain at least 5 characters");
+          return;
+        }
+
+        if (!isOnlyLetters(presentAddr.city)) {
+          toast.error("City should contain only alphabets");
+          return;
+        }
+
+        if (!isOnlyLetters(presentAddr.district)) {
+          toast.error("District should contain only alphabets");
+          return;
+        }
+
+        if (!isOnlyLetters(presentAddr.state)) {
+          toast.error("State should contain only alphabets");
+          return;
+        }
+
+        if (!isOnlyLetters(presentAddr.country)) {
+          toast.error("Country should contain only alphabets");
+          return;
+        }
+
+        const permanentAddr = editProfileData.permanent_address_details;
+
+        if (
+          permanentAddr.address_line_1 &&
+          permanentAddr.address_line_1.trim().length < 5
+        ) {
+          toast.error("Permanent Address Line 1 must contain at least 5 characters");
+          return;
+        }
+
+        // --- Append strictly Local Physical Coordinates ---
+        formData.append("present_address", JSON.stringify(ensureAddressDefaults(presentAddr)));
+        formData.append("permanent_address", JSON.stringify(ensureAddressDefaults(editProfileData.permanent_address_details)));
       }
 
       else if (editingSection === "education") {
         if (editQualifications) {
+          // ------------------------------
+          // Education Validation
+          // ------------------------------
+
+          for (const qualification of editQualifications) {
+
+            // Qualification Level
+            if (!qualification.qualification_level) {
+              toast.error("Qualification Level is required");
+              return;
+            }
+
+            // Specialization
+            if (!qualification.specialization?.trim()) {
+              toast.error("Specialization is required");
+              return;
+            }
+
+            // Institution
+            if (!qualification.institution_name?.trim()) {
+              toast.error("Institution Name is required");
+              return;
+            }
+
+            if (qualification.institution_name.trim().length < 3) {
+              toast.error("Institution Name must contain at least 3 characters");
+              return;
+            }
+
+            // University
+            if (!qualification.university?.trim()) {
+              toast.error("University Name is required");
+              return;
+            }
+
+            // Location
+            if (!qualification.location?.trim()) {
+              toast.error("Location is required");
+              return;
+            }
+
+            // Start Date
+            if (!qualification.start_date) {
+              toast.error("Start Date is required");
+              return;
+            }
+
+            // Completion Date
+            if (!qualification.completion_date) {
+              toast.error("Completion Date is required");
+              return;
+            }
+
+            // Date Validation
+            if (
+              new Date(qualification.completion_date) <
+              new Date(qualification.start_date)
+            ) {
+              toast.error("Completion Date cannot be before Start Date");
+              return;
+            }
+
+            // Percentage
+            if (
+              qualification.percentage !== "" &&
+              qualification.percentage != null
+            ) {
+
+              const percentage = Number(qualification.percentage);
+
+              if (isNaN(percentage)) {
+                toast.error("Percentage must be numeric");
+                return;
+              }
+
+              if (percentage < 0 || percentage > 100) {
+                toast.error("Percentage must be between 0 and 100");
+                return;
+              }
+
+            }
+
+          }
           const qualsToSend = editQualifications.map((q: any) => ({
             ...(q.id ? { id: q.id } : {}),
             user: user.id,
@@ -828,6 +1223,24 @@ export default function ProfilePage() {
 
       else if (editingSection === "experience") {
         if (editExperiences) {
+
+          // ---------------- Experience Validation ----------------
+          for (const exp of editExperiences) {
+
+            // Company / Organization
+            if (!exp.company_name?.trim()) {
+              toast.error("Company / Organization is required");
+              return;
+            }
+
+            // Location
+            if (!exp.location?.trim()) {
+              toast.error("Location is required");
+              return;
+            }
+
+          }
+
           const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
             const cleanedExp: any = {
               ...(exp.id ? { id: exp.id } : {}),
@@ -882,6 +1295,53 @@ export default function ProfilePage() {
 
       else if (editingSection === "legal") {
         if (editProfileData) {
+          // ------------------------------
+          // Legal Validation
+          // ------------------------------
+
+          // Aadhaar
+          if (!editProfileData.aadhar_no?.trim()) {
+            toast.error("Aadhaar Number is required");
+            return;
+          }
+
+          if (!isValidAadhaar(editProfileData.aadhar_no)) {
+            toast.error("Aadhaar Number must contain exactly 12 digits");
+            return;
+          }
+
+          // PAN
+          if (!editProfileData.pan_no?.trim()) {
+            toast.error("PAN Number is required");
+            return;
+          }
+
+          if (!isValidPAN(editProfileData.pan_no)) {
+            toast.error("Invalid PAN Number");
+            return;
+          }
+
+          // AICTE ID
+          if (!editProfileData.aicte_id?.trim()) {
+            toast.error("AICTE ID is required");
+            return;
+          }
+
+          if (editProfileData.aicte_id.trim().length < 3) {
+            toast.error("AICTE ID must contain at least 3 characters");
+            return;
+          }
+
+          // KTU ID
+          if (!editProfileData.ktu_id?.trim()) {
+            toast.error("KTU ID is required");
+            return;
+          }
+
+          if (editProfileData.ktu_id.trim().length < 3) {
+            toast.error("KTU ID must contain at least 3 characters");
+            return;
+          }
           const profileData = {
             aadhar_no: editProfileData.aadhar_no || null,
             pan_no: editProfileData.pan_no || null,
@@ -891,9 +1351,61 @@ export default function ProfilePage() {
           formData.append("profile", JSON.stringify(profileData));
         }
       }
-      
+
       else if (editingSection === "bank") {
         if (editBankDetails) {
+          // ------------------------------
+          // Bank Validation
+          // ------------------------------
+
+          for (const bank of editBankDetails) {
+
+            // Account Holder
+            if (!bank.acc_holder_name?.trim()) {
+              toast.error("Account Holder Name is required");
+              return;
+            }
+
+            if (!isOnlyLetters(bank.acc_holder_name)) {
+              toast.error("Account Holder Name should contain only alphabets");
+              return;
+            }
+
+            // Bank Name
+            if (!bank.bank_name?.trim()) {
+              toast.error("Bank Name is required");
+              return;
+            }
+
+            // Account Number
+            if (!bank.account_number?.trim()) {
+              toast.error("Account Number is required");
+              return;
+            }
+
+            if (!/^\d{9,18}$/.test(bank.account_number)) {
+              toast.error("Account Number must contain 9 to 18 digits");
+              return;
+            }
+
+            // IFSC Code
+            if (!bank.ifsc_code?.trim()) {
+              toast.error("IFSC Code is required");
+              return;
+            }
+
+            if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank.ifsc_code.toUpperCase())) {
+              toast.error("Invalid IFSC Code");
+              return;
+            }
+
+            // Branch Name
+            if (!bank.branch_name?.trim()) {
+              toast.error("Branch Name is required");
+              return;
+            }
+
+          }
           const banksToSend = editBankDetails.map((b: any) => ({
             ...(b.id ? { id: b.id } : {}),
             user: user.id,
@@ -913,8 +1425,8 @@ export default function ProfilePage() {
         formData.append("is_whatsapp", String(editedUser?.is_whatsapp || false));
         formData.append("is_sms", String(editedUser?.is_sms || false));
         formData.append("is_wfh", String(editedUser?.is_wfh || false));
-      } 
-      
+      }
+
       else {
         // Fallback exclusively triggers profile image updates
         const imageFile = fileInputRef.current?.files?.[0] || null;
@@ -937,8 +1449,8 @@ export default function ProfilePage() {
       // ==========================================
       const response = await fetch("/api/employee-with-profile/", {
         method: "PUT",
-        headers: { 
-          "x-company-id": company.id.toString() 
+        headers: {
+          "x-company-id": company.id.toString()
         },
         body: formData,
       });
@@ -957,7 +1469,7 @@ export default function ProfilePage() {
         updateUser(safeUser);
         setEditedUser(safeUser);
       }
-      
+
       await fetchProfile();
     } catch (err: any) {
       toast.error(err.message);
@@ -1053,7 +1565,7 @@ export default function ProfilePage() {
   //   setIsSaving(true);
   //   try {
   //     const formData = new FormData();
-      
+
   //     const qualsToSend = editQualifications.map((q: any) => ({
   //       ...(q.id ? { id: q.id } : {}),
   //       user: user.id,
@@ -1084,7 +1596,7 @@ export default function ProfilePage() {
 
   //     const result = await res.json();
   //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to save");
-      
+
   //     toast.success("Education records updated!");
   //     setEditingSection(null);
   //     setQualFormOpen(false);
@@ -1100,11 +1612,11 @@ export default function ProfilePage() {
   // const handleSaveExperience = async () => {
   //   if (!user || !company) return;
   //   setIsSaving(true);
-    
+
   //   try {
   //     const formData = new FormData();
   //     formData.append("user_id", user.id.toString());
-      
+
   //     const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
   //       const cleanedExp: any = {
   //         ...(exp.id ? { id: exp.id } : {}),
@@ -1144,9 +1656,9 @@ export default function ProfilePage() {
   //       }
   //       return cleanedExp;
   //     });
-      
+
   //     formData.append("experiences", JSON.stringify(experiencesToSend));
-      
+
   //     editExperiences.forEach((exp: ExperienceItem, index: number) => {
   //       if (exp.experience_letter instanceof File) {
   //         formData.append(`experience_letter_${index}`, exp.experience_letter);
@@ -1161,7 +1673,7 @@ export default function ProfilePage() {
 
   //     const result = await res.json();
   //     if (!res.ok || !result.success) throw new Error(result.message || "Failed to save");
-      
+
   //     toast.success("Experience records updated!");
   //     setEditingSection(null);
   //     await fetchProfile();
@@ -1321,7 +1833,7 @@ export default function ProfilePage() {
 
           {/* Tab Content Dynamic Execution */}
           <div className="transition-all duration-300 ease-in-out">
-            
+
             {/* TAB 1: General Details */}
             {activeTab === 'general' && (
               <>
@@ -1479,7 +1991,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-8 animate-fadeIn">
                   {/* Physical Address Matrix */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1586,13 +2098,13 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
                   {experiences && experiences.length > 0 ? (
                     experiences.map((exp: ExperienceItem) => {
-                      const sortedDesignations = exp.designations 
+                      const sortedDesignations = exp.designations
                         ? [...exp.designations].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
                         : [];
-                      const latestTitle = sortedDesignations[0] 
-                        ? (exp.is_internal 
-                            ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
-                            : sortedDesignations[0].designation || "Unknown")
+                      const latestTitle = sortedDesignations[0]
+                        ? (exp.is_internal
+                          ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
+                          : sortedDesignations[0].designation || "Unknown")
                         : "No designation";
                       return (
                         <div key={exp.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 shadow-3xs transition-all space-y-3">
@@ -1662,7 +2174,7 @@ export default function ProfilePage() {
                                         </span>
                                       </div>
                                       <p className="text-gray-400 pl-3 text-[11px] leading-relaxed">
-                                        {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''} 
+                                        {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
                                         {des.end_date ? ` - ${new Date(des.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' - Present'}
                                       </p>
                                     </div>
@@ -1766,7 +2278,7 @@ export default function ProfilePage() {
         {/* PERSONAL EDIT DIALOG */}
         <Dialog open={editingSection === "personal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -1780,24 +2292,24 @@ export default function ProfilePage() {
 
             {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* First Name & Last Name */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">First Name<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input 
-                    value={editedUser?.first_name || ""} 
-                    onChange={(e) => handleInputChange("first_name", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  <Input
+                    value={editedUser?.first_name || ""}
+                    onChange={(e) => handleInputChange("first_name", e.target.value)}
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     required
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Last Name<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input 
-                    value={editedUser?.last_name || ""} 
-                    onChange={(e) => handleInputChange("last_name", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  <Input
+                    value={editedUser?.last_name || ""}
+                    onChange={(e) => handleInputChange("last_name", e.target.value)}
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     required
                   />
                 </div>
@@ -1807,11 +2319,11 @@ export default function ProfilePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input 
-                    type="date" 
-                    value={editProfileData?.dob || ""} 
-                    onChange={(e) => handleProfileChange("dob", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  <Input
+                    type="date"
+                    value={editProfileData?.dob || ""}
+                    onChange={(e) => handleProfileChange("dob", e.target.value)}
+                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     required
                   />
                   {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
@@ -1844,7 +2356,7 @@ export default function ProfilePage() {
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent className="rounded-lg border-[#dde3ec]">
-                      {["A+","A-","B+","B-","O+","O-","AB+","AB-"].map(bg => (
+                      {["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map(bg => (
                         <SelectItem key={bg} value={bg}>{bg}</SelectItem>
                       ))}
                     </SelectContent>
@@ -1881,16 +2393,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving Personal Details..." : "Save Personal Details"}
@@ -1903,7 +2415,7 @@ export default function ProfilePage() {
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -1917,7 +2429,7 @@ export default function ProfilePage() {
 
             {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Department & Designation */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1987,10 +2499,10 @@ export default function ProfilePage() {
               {/* Staff ID Field */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Staff ID<span className="text-red-500 -ml-1">*</span></Label>
-                <Input 
-                  value={editProfileData?.staff_id || ""} 
-                  onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                <Input
+                  value={editProfileData?.staff_id || ""}
+                  onChange={(e) => handleProfileChange("staff_id", e.target.value)}
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                   required
                 />
               </div>
@@ -1998,16 +2510,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving Professional Details..." : "Save Professional Details"}
@@ -2020,7 +2532,7 @@ export default function ProfilePage() {
         {/* CONTACT EDIT DIALOG */}
         <Dialog open={editingSection === "contact"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -2034,31 +2546,43 @@ export default function ProfilePage() {
 
             {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Primary Channels Section */}
               <div className="space-y-3.5">
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
                   Primary Communication
                 </h4>
-                
+
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Email<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input 
-                    value={editedUser?.email || ""} 
-                    onChange={(e) => handleInputChange("email", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  <Input
+                    value={editedUser?.email || ""}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.email
+                      ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                      : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                      }`}
                     required
                   />
+                  {validationErrors.email && (
+                    <span className="text-[11px] text-red-500 font-semibold">{validationErrors.email}</span>
+                  )}
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Primary Mobile<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input 
-                    value={editedUser?.mobile || ""} 
-                    onChange={(e) => handleInputChange("mobile", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  <Input
+                    value={editedUser?.mobile || ""}
+                    onChange={(e) => handleInputChange("mobile", e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 font-mono ${validationErrors.mobile
+                      ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                      : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                      }`}
                     minLength={10} maxLength={10} required
                   />
+                  {validationErrors.mobile && (
+                    <span className="text-[11px] text-red-500 font-semibold">{validationErrors.mobile}</span>
+                  )}
                 </div>
               </div>
 
@@ -2067,40 +2591,52 @@ export default function ProfilePage() {
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#004ac6] border-b border-[#dde3ec] pb-1">
                   Alternative Communication
                 </h4>
-                
+
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Email</Label>
-                  <Input 
-                    value={editProfileData?.alternate_email || ""} 
-                    onChange={(e) => handleProfileChange("alternate_email", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                  <Input
+                    value={editProfileData?.alternate_email || ""}
+                    onChange={(e) => handleProfileChange("alternate_email", e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.alternate_email
+                      ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                      : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                      }`}
                   />
+                  {validationErrors.alternate_email && (
+                    <span className="text-[11px] text-red-500 font-semibold">{validationErrors.alternate_email}</span>
+                  )}
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Alternate Mobile</Label>
-                  <Input 
-                    value={editProfileData?.alternate_mobile || ""} 
-                    onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} 
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                  <Input
+                    value={editProfileData?.alternate_mobile || ""}
+                    onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 font-mono ${validationErrors.alternate_mobile
+                      ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                      : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                      }`}
                     minLength={10} maxLength={10}
                   />
+                  {validationErrors.alternate_mobile && (
+                    <span className="text-[11px] text-red-500 font-semibold">{validationErrors.alternate_mobile}</span>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Savinging Communication Details..." : "Save Communication Details"}
@@ -2113,7 +2649,7 @@ export default function ProfilePage() {
         {/* GUARDIAN EDIT DIALOG */}
         <Dialog open={editingSection === "family"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -2132,29 +2668,29 @@ export default function ProfilePage() {
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
                   Primary Emergency Node Configuration
                 </Label>
-                
-                <RadioGroup 
-                  value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
-                  onValueChange={(relationshipType) => { 
-                    const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
-                    setGuardians(updated); 
-                  }} 
+
+                <RadioGroup
+                  value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""}
+                  onValueChange={(relationshipType) => {
+                    const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType }));
+                    setGuardians(updated);
+                  }}
                   className="space-y-3"
                 >
                   <div className="grid grid-cols-2 gap-3">
                     {/* Father Node */}
                     <div>
-                      {(() => { 
-                        const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
-                        const updateFather = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...father, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
+                      {(() => {
+                        const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false };
+                        const updateFather = (fields: any) => {
+                          let exists = false;
+                          const updated = (guardians || []).map((g: any) => {
+                            if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; }
+                            return g;
+                          });
+                          if (!exists) updated.push({ ...father, ...fields });
+                          setGuardians(updated);
+                        };
                         return (
                           <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
                             <div className="flex items-center justify-between">
@@ -2177,23 +2713,23 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           </div>
-                        ); 
+                        );
                       })()}
                     </div>
-                    
+
                     {/* Mother Node */}
                     <div>
-                      {(() => { 
-                        const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
-                        const updateMother = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...mother, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
+                      {(() => {
+                        const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false };
+                        const updateMother = (fields: any) => {
+                          let exists = false;
+                          const updated = (guardians || []).map((g: any) => {
+                            if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; }
+                            return g;
+                          });
+                          if (!exists) updated.push({ ...mother, ...fields });
+                          setGuardians(updated);
+                        };
                         return (
                           <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
                             <div className="flex items-center justify-between">
@@ -2216,12 +2752,12 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           </div>
-                        ); 
+                        );
                       })()}
                     </div>
 
                     {/* Marital Status Banner */}
-                    <div>  
+                    <div>
                       <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
                         <div className="space-y-0.5">
                           <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
@@ -2229,28 +2765,28 @@ export default function ProfilePage() {
                           </Label>
                           <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
                         </div>
-                        <Checkbox 
-                          id="is_married" 
-                          checked={familyIsMarried} 
-                          onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
-                          className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                        <Checkbox
+                          id="is_married"
+                          checked={familyIsMarried}
+                          onCheckedChange={(checked) => setFamilyIsMarried(!!checked)}
+                          className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20"
                         />
                       </div>
                     </div>
-                      
+
                     {/* Spouse Node (Conditional) */}
-                    <div>  
-                      {familyIsMarried && (() => { 
-                        const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
-                        const updateSpouse = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...spouse, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
+                    <div>
+                      {familyIsMarried && (() => {
+                        const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false };
+                        const updateSpouse = (fields: any) => {
+                          let exists = false;
+                          const updated = (guardians || []).map((g: any) => {
+                            if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; }
+                            return g;
+                          });
+                          if (!exists) updated.push({ ...spouse, ...fields });
+                          setGuardians(updated);
+                        };
                         return (
                           <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
                             <div className="flex items-center justify-between">
@@ -2273,7 +2809,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           </div>
-                        ); 
+                        );
                       })()}
                     </div>
                   </div>
@@ -2282,17 +2818,17 @@ export default function ProfilePage() {
             </div>
 
             {/* Modal Footer */}
-              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Updating Changes..." : "Save Changes"}
@@ -2305,7 +2841,7 @@ export default function ProfilePage() {
         {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-4xl  bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -2319,7 +2855,7 @@ export default function ProfilePage() {
 
             {/* Modal Body / Form - Dual Column Layout */}
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* PRESENT RESIDENCE SECTION */}
               <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
                 <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
@@ -2335,21 +2871,27 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1<span className="text-red-500 -ml-1">*</span></Label>
-                    <Input 
-                      placeholder="House number, apartment, street" 
-                      value={editProfileData?.present_address_details?.address_line_1 || ""} 
-                      onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)} 
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
-                      required 
+                    <Input
+                      placeholder="House number, apartment, street"
+                      value={editProfileData?.present_address_details?.address_line_1 || ""}
+                      onChange={(e) => handleAddressChange("present_address_details", "address_line_1", e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.present_address_line_1
+                        ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                        : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                        }`}
+                      required
                     />
+                    {validationErrors.present_address_line_1 && (
+                      <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_address_line_1}</span>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 2</Label>
-                    <Input 
-                      placeholder="House number, apartment, street" 
-                      value={editProfileData?.present_address_details?.address_line_2 || ""} 
-                      onChange={(e) => handleAddressChange("present_address_details", "address_line_2", e.target.value)} 
+                    <Input
+                      placeholder="House number, apartment, street"
+                      value={editProfileData?.present_address_details?.address_line_2 || ""}
+                      onChange={(e) => handleAddressChange("present_address_details", "address_line_2", e.target.value)}
                       className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     />
                   </div>
@@ -2357,58 +2899,88 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        placeholder="City" 
-                        value={editProfileData?.present_address_details?.city || ""} 
-                        onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="City"
+                        value={editProfileData?.present_address_details?.city || ""}
+                        onChange={(e) => handleAddressChange("present_address_details", "city", e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.present_city
+                          ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                          : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                          }`}
                         required
                       />
+                      {validationErrors.present_city && (
+                        <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_city}</span>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">District<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        placeholder="District" 
-                        value={editProfileData?.present_address_details?.district || ""} 
-                        onChange={(e) => handleAddressChange("present_address_details", "district", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="District"
+                        value={editProfileData?.present_address_details?.district || ""}
+                        onChange={(e) => handleAddressChange("present_address_details", "district", e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.present_district
+                          ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                          : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                          }`}
                         required
                       />
+                      {validationErrors.present_district && (
+                        <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_district}</span>
+                      )}
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        placeholder="State" 
-                        value={editProfileData?.present_address_details?.state || ""} 
-                        onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="State"
+                        value={editProfileData?.present_address_details?.state || ""}
+                        onChange={(e) => handleAddressChange("present_address_details", "state", e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.present_state
+                          ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                          : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                          }`}
                         required
                       />
+                      {validationErrors.present_state && (
+                        <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_state}</span>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        placeholder="Country" 
-                        value={editProfileData?.present_address_details?.country || "India"} 
-                        onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="Country"
+                        value={editProfileData?.present_address_details?.country || "India"}
+                        onChange={(e) => handleAddressChange("present_address_details", "country", e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 ${validationErrors.present_country
+                          ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                          : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                          }`}
                         required
                       />
+                      {validationErrors.present_country && (
+                        <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_country}</span>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode<span className="text-red-500 -ml-1">*</span></Label>
-                    <Input 
-                      placeholder="Postal code" 
-                      value={editProfileData?.present_address_details?.pincode || ""} 
-                      onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)} 
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
-                      minLength={6} maxLength={6} 
+                    <Input
+                      placeholder="Postal code"
+                      value={editProfileData?.present_address_details?.pincode || ""}
+                      onChange={(e) => handleAddressChange("present_address_details", "pincode", e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 outline-none transition-all h-10 font-mono ${validationErrors.present_pincode
+                        ? "border-red-500 focus:ring-red-500/20 focus:border-red-500 animate-shake"
+                        : "border-[#dde3ec] focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6]"
+                        }`}
+                      minLength={6} maxLength={6}
                       required
                     />
+                    {validationErrors.present_pincode && (
+                      <span className="text-[11px] text-red-500 font-semibold">{validationErrors.present_pincode}</span>
+                    )}
                   </div>
 
                 </div>
@@ -2429,74 +3001,74 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 1</Label>
-                    <Input 
-                      placeholder="House number, native street, sector" 
-                      value={editProfileData?.permanent_address_details?.address_line_1 || ""} 
-                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} 
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    <Input
+                      placeholder="House number, native street, sector"
+                      value={editProfileData?.permanent_address_details?.address_line_1 || ""}
+                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)}
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     />
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Address Line 2</Label>
-                    <Input 
-                      placeholder="House number, native street, sector" 
-                      value={editProfileData?.permanent_address_details?.address_line_2 || ""} 
-                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_2", e.target.value)} 
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                    <Input
+                      placeholder="House number, native street, sector"
+                      value={editProfileData?.permanent_address_details?.address_line_2 || ""}
+                      onChange={(e) => handleAddressChange("permanent_address_details", "address_line_2", e.target.value)}
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">City</Label>
-                      <Input 
-                        placeholder="City" 
-                        value={editProfileData?.permanent_address_details?.city || ""} 
-                        onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="City"
+                        value={editProfileData?.permanent_address_details?.city || ""}
+                        onChange={(e) => handleAddressChange("permanent_address_details", "city", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                       />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">District</Label>
-                      <Input 
-                        placeholder="District" 
-                        value={editProfileData?.permanent_address_details?.district || ""} 
-                        onChange={(e) => handleAddressChange("permanent_address_details", "district", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="District"
+                        value={editProfileData?.permanent_address_details?.district || ""}
+                        onChange={(e) => handleAddressChange("permanent_address_details", "district", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                       />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">State</Label>
-                      <Input 
-                        placeholder="State" 
-                        value={editProfileData?.permanent_address_details?.state || ""} 
-                        onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="State"
+                        value={editProfileData?.permanent_address_details?.state || ""}
+                        onChange={(e) => handleAddressChange("permanent_address_details", "state", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Country</Label>
-                      <Input 
-                        placeholder="Country" 
-                        value={editProfileData?.permanent_address_details?.country || "India"} 
-                        onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10" 
+                      <Input
+                        placeholder="Country"
+                        value={editProfileData?.permanent_address_details?.country || "India"}
+                        onChange={(e) => handleAddressChange("permanent_address_details", "country", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Pincode</Label>
-                    <Input 
-                      placeholder="Postal code" 
-                      value={editProfileData?.permanent_address_details?.pincode || ""} 
-                      onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)} 
+                    <Input
+                      placeholder="Postal code"
+                      value={editProfileData?.permanent_address_details?.pincode || ""}
+                      onChange={(e) => handleAddressChange("permanent_address_details", "pincode", e.target.value)}
                       className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
-                      minLength={6} maxLength={6} 
+                      minLength={6} maxLength={6}
                     />
                   </div>
 
@@ -2507,16 +3079,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Updating Changes..." : "Save Changes"}
@@ -2529,7 +3101,7 @@ export default function ProfilePage() {
         {/* EDUCATION EDIT DIALOG */}
         <Dialog open={editingSection === "education"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -2543,21 +3115,21 @@ export default function ProfilePage() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Existing Education Qualifications Stack */}
               <div className="space-y-3">
-                {editQualifications.map((qual: any, idx: number) => { 
-                  const levelLabels: Record<string, string> = { 
-                    UG: 'UG', 
-                    PG: 'PG', 
-                    MPHIL: 'M.Phil', 
-                    PHD: 'Ph.D', 
-                    POSTDOC: 'Post Doc', 
-                    RESEARCH_OTHERS: 'Research', 
-                    OTHERS: 'Others' 
-                  }; 
-                  const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
-                  
+                {editQualifications.map((qual: any, idx: number) => {
+                  const levelLabels: Record<string, string> = {
+                    UG: 'UG',
+                    PG: 'PG',
+                    MPHIL: 'M.Phil',
+                    PHD: 'Ph.D',
+                    POSTDOC: 'Post Doc',
+                    RESEARCH_OTHERS: 'Research',
+                    OTHERS: 'Others'
+                  };
+                  const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth";
+
                   return (
                     <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
                       <div className="flex-1 min-w-0 space-y-1">
@@ -2588,19 +3160,19 @@ export default function ProfilePage() {
                         )}
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <button 
-                          onClick={() => { 
-                            let normalizedLevel = qual.qualification_level; 
-                            if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
-                            setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
-                            setQualFormOpen(true); 
-                          }} 
+                        <button
+                          onClick={() => {
+                            let normalizedLevel = qual.qualification_level;
+                            if (normalizedLevel === "B.Tech") normalizedLevel = "UG";
+                            setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx });
+                            setQualFormOpen(true);
+                          }}
                           className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                         >
                           Edit
                         </button>
-                        <button 
-                          onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                        <button
+                          onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))}
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
@@ -2623,7 +3195,7 @@ export default function ProfilePage() {
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
                     {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
                   </h4>
-                  
+
                   {/* Level & Specialty Block */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -2634,21 +3206,21 @@ export default function ProfilePage() {
                         </SelectTrigger>
                         <SelectContent>
                           {[
-                            ['UG','Undergraduate (UG)'],
-                            ['PG','Postgraduate (PG)'],
-                            ['MPHIL','M.Phil.'],
-                            ['PHD','Ph.D.'],
-                            ['POSTDOC','Post Doctoral'],
-                            ['RESEARCH_OTHERS','Research (Others)'],
-                            ['OTHERS','Others']
-                          ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                            ['UG', 'Undergraduate (UG)'],
+                            ['PG', 'Postgraduate (PG)'],
+                            ['MPHIL', 'M.Phil.'],
+                            ['PHD', 'Ph.D.'],
+                            ['POSTDOC', 'Post Doctoral'],
+                            ['RESEARCH_OTHERS', 'Research (Others)'],
+                            ['OTHERS', 'Others']
+                          ].map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
-                      required
+                      <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science"
+                        required
                       />
                     </div>
                   </div>
@@ -2699,25 +3271,86 @@ export default function ProfilePage() {
 
                   {/* Mutation Action Sub-block */}
                   <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
-                      type="button" 
-                      onClick={() => { 
-                        if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
-                        if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
-                        const { _idx, ...qualData } = currentQual; 
-                        if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
-                        else { setEditQualifications(prev => [...prev, qualData]); } 
-                        setCurrentQual({}); 
-                        setQualFormOpen(false); 
-                      }} 
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (!currentQual?.qualification_level) {
+                          toast.error("Qualification Level is required");
+                          return;
+                        }
+
+                        if (!currentQual?.specialization?.trim()) {
+                          toast.error("Specialization is required");
+                          return;
+                        }
+
+                        if (!currentQual?.institution_name?.trim()) {
+                          toast.error("Institution / College is required");
+                          return;
+                        }
+
+                        if (!currentQual?.university?.trim()) {
+                          toast.error("University is required");
+                          return;
+                        }
+
+                        if (!currentQual?.location?.trim()) {
+                          toast.error("Location is required");
+                          return;
+                        }
+
+                        if (!currentQual?.start_date) {
+                          toast.error("Start Date is required");
+                          return;
+                        }
+
+                        if (!currentQual?.completion_date) {
+                          toast.error("Completion Date is required");
+                          return;
+                        }
+
+                        if (
+                          currentQual?.percentage === "" ||
+                          currentQual?.percentage === undefined ||
+                          currentQual?.percentage === null
+                        ) {
+                          toast.error("Percentage is required");
+                          return;
+                        }
+
+                        if (!currentQual?.certificate_file && !currentQual?.certificate) {
+                          toast.error("Certificate is required");
+                          return;
+                        }
+
+                        const { _idx, ...qualData } = currentQual;
+
+                        if (_idx !== undefined) {
+                          setEditQualifications((prev: any[]) =>
+                            prev.map((q: any, i: number) =>
+                              i === _idx ? qualData : q
+                            )
+                          );
+                        } else {
+                          setEditQualifications((prev: any[]) => [...prev, qualData]);
+                        }
+
+                        setCurrentQual({});
+                        setQualFormOpen(false);
+
+                        toast.success("Qualification saved successfully");
+                      }}
+
+
                       className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                     >
-                      {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
+                      {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'
+                      }
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      type="button" 
-                      onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => { setQualFormOpen(false); setCurrentQual({}); }}
                       className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                     >
                       Cancel
@@ -2728,9 +3361,9 @@ export default function ProfilePage() {
 
               {/* Trigger Node to Reveal Form */}
               {!qualFormOpen && (
-                <button 
-                  type="button" 
-                  onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
+                <button
+                  type="button"
+                  onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }}
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" /> Add Qualification Record
@@ -2740,18 +3373,18 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                type="button" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                type="button"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                type="button" 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving Education Details..." : "Save Education Details"}
@@ -2764,7 +3397,7 @@ export default function ProfilePage() {
         {/* EXPERIENCE EDIT DIALOG */}
         <Dialog open={editingSection === "experience"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -2778,7 +3411,7 @@ export default function ProfilePage() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Existing Experiences Stack */}
               <div className="space-y-3">
                 {editExperiences.map((exp: ExperienceItem, idx: number) => (
@@ -2799,14 +3432,14 @@ export default function ProfilePage() {
                       </p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <button 
-                        onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
+                      <button
+                        onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }}
                         className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                       >
                         Edit
                       </button>
-                      <button 
-                        onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
+                      <button
+                        onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))}
                         className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                       >
                         Remove
@@ -2856,8 +3489,8 @@ export default function ProfilePage() {
                           if (newCompanyName === defaultCompany) newCompanyName = "";
                           if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
                         }
-                        setCurrentExp({ 
-                          ...currentExp, 
+                        setCurrentExp({
+                          ...currentExp,
                           is_internal: isInternal,
                           company_name: newCompanyName,
                           location: newLocation,
@@ -2874,7 +3507,7 @@ export default function ProfilePage() {
                   {/* Company & Location Details */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization <span className="text-red-500 -ml-1">*</span></Label>
                       <Input
                         value={currentExp.company_name || ''}
                         onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })}
@@ -2884,7 +3517,7 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label>
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State) <span className="text-red-500 -ml-1">*</span></Label>
                       <Input
                         value={currentExp.location || ''}
                         onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })}
@@ -2963,11 +3596,11 @@ export default function ProfilePage() {
                   {/* Verification Attestation */}
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
-                    <Input 
-                      type="file" 
-                      accept=".pdf,.jpg,.png" 
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
-                      className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
+                    <Input
+                      type="file"
+                      accept=".pdf,.jpg,.png"
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }}
+                      className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]"
                     />
                     {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
                       <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
@@ -2978,38 +3611,38 @@ export default function ProfilePage() {
                   <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
                     <div className="flex items-center justify-between mb-2.5">
                       <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
-                      <Button 
-                        type="button" 
-                        onClick={() => { 
-                          const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
-                          if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
-                          else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
-                          setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
-                        }} 
-                        size="sm" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' };
+                          if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; }
+                          else { newDesignation.designation = ''; newDesignation.company_group_text = ''; }
+                          setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] });
+                        }}
+                        size="sm"
+                        variant="outline"
                         className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
                       >
                         <Plus className="h-3 w-3" /> Add Role
                       </Button>
                     </div>
-                    
+
                     <div className="space-y-3 overflow-y-auto pr-1">
                       {currentExp.designations && currentExp.designations.map((des, desIdx) => (
                         <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx + 1}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }}
                               className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
-                          
+
                           {currentExp.is_internal ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1">
@@ -3039,7 +3672,7 @@ export default function ProfilePage() {
                               </div>
                             </div>
                           )}
-                          
+
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
@@ -3050,7 +3683,7 @@ export default function ProfilePage() {
                               <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
                             </div>
                           </div>
-                          
+
                           <div className="space-y-1">
                             <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
                             <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
@@ -3074,28 +3707,28 @@ export default function ProfilePage() {
 
                   {/* Form Node Actions */}
                   <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
+                    <Button
                       onClick={() => {
                         if (!currentExp.start_year) { toast.error("Start year is required."); return; }
                         if (!currentExp.designations || currentExp.designations.length === 0) { toast.error("At least one role/designation is required."); return; }
                         for (let i = 0; i < currentExp.designations.length; i++) {
                           const des = currentExp.designations[i];
-                          if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i+1}: Please select both Role and Group.`); return; } } 
-                          else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i+1}: Designation title is required.`); return; } }
-                          if (!des.start_date) { toast.error(`Role #${i+1}: Start date is required.`); return; }
+                          if (currentExp.is_internal) { if (!des.company_role || !des.company_group) { toast.error(`Role #${i + 1}: Please select both Role and Group.`); return; } }
+                          else { if (!des.designation || des.designation.trim() === '') { toast.error(`Role #${i + 1}: Designation title is required.`); return; } }
+                          if (!des.start_date) { toast.error(`Role #${i + 1}: Start date is required.`); return; }
                         }
                         const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
                         if (existingIndex !== -1) setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
                         else setEditExperiences(prev => [...prev, currentExp]);
                         setCurrentExp(null); setExpFormOpen(false);
-                      }} 
+                      }}
                       className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                     >
                       {currentExp.id ? 'Update Record' : 'Add Record'}
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
+                    <Button
+                      variant="outline"
+                      onClick={() => { setExpFormOpen(false); setCurrentExp(null); }}
                       className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                     >
                       Cancel
@@ -3106,8 +3739,8 @@ export default function ProfilePage() {
 
               {/* Trigger Node to Reveal Form */}
               {!expFormOpen && (
-                <button 
-                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }} 
+                <button
+                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }}
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" /> Add Experience Record
@@ -3117,16 +3750,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
@@ -3139,7 +3772,7 @@ export default function ProfilePage() {
         {/* LEGAL EDIT DIALOG */}
         <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -3153,14 +3786,14 @@ export default function ProfilePage() {
 
             {/* Modal Body / Form */}
             <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Aadhaar Number */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Aadhaar Number (UIDAI)<span className="text-red-500 -ml-1">*</span></Label>
-                <Input 
-                  value={editProfileData?.aadhar_no || ""} 
-                  onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} 
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                <Input
+                  value={editProfileData?.aadhar_no || ""}
+                  onChange={(e) => handleProfileChange("aadhar_no", e.target.value)}
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
                   required
                 />
               </div>
@@ -3168,10 +3801,10 @@ export default function ProfilePage() {
               {/* PAN Number */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">PAN Number (Income Tax)<span className="text-red-500 -ml-1">*</span></Label>
-                <Input 
-                  value={editProfileData?.pan_no || ""} 
-                  onChange={(e) => handleProfileChange("pan_no", e.target.value)} 
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono" 
+                <Input
+                  value={editProfileData?.pan_no || ""}
+                  onChange={(e) => handleProfileChange("pan_no", e.target.value)}
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono"
                   required
                 />
               </div>
@@ -3181,10 +3814,10 @@ export default function ProfilePage() {
               {/* KTU Identifier */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">KTU Identifier<span className="text-red-500 -ml-1">*</span></Label>
-                <Input 
-                  value={editProfileData?.ktu_id || ""} 
-                  onChange={(e) => handleProfileChange("ktu_id", e.target.value)} 
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                <Input
+                  value={editProfileData?.ktu_id || ""}
+                  onChange={(e) => handleProfileChange("ktu_id", e.target.value)}
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
                   required
                 />
               </div>
@@ -3192,10 +3825,10 @@ export default function ProfilePage() {
               {/* AICTE Identifier */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">AICTE Identifier<span className="text-red-500 -ml-1">*</span></Label>
-                <Input 
-                  value={editProfileData?.aicte_id || ""} 
-                  onChange={(e) => handleProfileChange("aicte_id", e.target.value)} 
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono" 
+                <Input
+                  value={editProfileData?.aicte_id || ""}
+                  onChange={(e) => handleProfileChange("aicte_id", e.target.value)}
+                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
                   required
                 />
               </div>
@@ -3203,16 +3836,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Updating Changes..." : "Save Changes"}
@@ -3225,7 +3858,7 @@ export default function ProfilePage() {
         {/* BANK EDIT DIALOG */}
         <Dialog open={editingSection === "bank"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -3239,7 +3872,7 @@ export default function ProfilePage() {
 
             {/* Modal Body / Scroll Container */}
             <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
+
               {/* Account List Stack */}
               <div className="space-y-3">
                 {editBankDetails.map((bank: any, idx: number) => (
@@ -3267,17 +3900,17 @@ export default function ProfilePage() {
                         {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
                       </p>
                     </div>
-                    
+
                     {/* Action Row */}
                     <div className="flex gap-1 shrink-0">
-                      <button 
-                        onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
+                      <button
+                        onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }}
                         className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                       >
                         Edit
                       </button>
-                      <button 
-                        onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
+                      <button
+                        onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))}
                         className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                       >
                         Remove
@@ -3304,11 +3937,11 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.acc_holder_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="Full name as in bank records" 
+                      <Input
+                        value={currentBank?.acc_holder_name || ''}
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                        placeholder="Full name as in bank records"
                         required
                       />
                     </div>
@@ -3317,21 +3950,21 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.bank_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="e.g. State Bank of India" 
+                      <Input
+                        value={currentBank?.bank_name || ''}
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                        placeholder="e.g. State Bank of India"
                         required
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.branch_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="Branch location" 
+                      <Input
+                        value={currentBank?.branch_name || ''}
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                        placeholder="Branch location"
                         required
                       />
                     </div>
@@ -3340,21 +3973,21 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.account_number || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
-                        placeholder="Bank account number" 
+                      <Input
+                        value={currentBank?.account_number || ''}
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white"
+                        placeholder="Bank account number"
                         minLength={9} maxLength={18} required
                       />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.ifsc_code || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
-                        placeholder="e.g. SBIN0001234" 
+                      <Input
+                        value={currentBank?.ifsc_code || ''}
+                        onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white"
+                        placeholder="e.g. SBIN0001234"
                         minLength={11} maxLength={11} required
                       />
                     </div>
@@ -3363,10 +3996,10 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 gap-4">
                     <div className="flex items-end pb-2">
                       <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                        <Checkbox 
-                          checked={!!currentBank?.is_primary} 
+                        <Checkbox
+                          checked={!!currentBank?.is_primary}
                           onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
-                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
+                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white"
                         />
                         <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
                       </label>
@@ -3375,28 +4008,28 @@ export default function ProfilePage() {
 
                   {/* Form Action Controls */}
                   <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
-                      onClick={() => { 
-                        if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
-                          toast.error("Bank name, account number and IFSC code are required."); 
-                          return; 
-                        } 
-                        const { _idx, ...bankData } = currentBank; 
-                        if (_idx !== undefined) { 
-                          setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
-                        } else { 
-                          setEditBankDetails(prev => [...prev, bankData]); 
-                        } 
-                        setCurrentBank({}); 
-                        setBankFormOpen(false); 
-                      }} 
+                    <Button
+                      onClick={() => {
+                        if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) {
+                          toast.error("Bank name, account number and IFSC code are required.");
+                          return;
+                        }
+                        const { _idx, ...bankData } = currentBank;
+                        if (_idx !== undefined) {
+                          setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b));
+                        } else {
+                          setEditBankDetails(prev => [...prev, bankData]);
+                        }
+                        setCurrentBank({});
+                        setBankFormOpen(false);
+                      }}
                       className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                     >
                       {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
+                    <Button
+                      variant="outline"
+                      onClick={() => { setBankFormOpen(false); setCurrentBank({}); }}
                       className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                     >
                       Cancel
@@ -3407,8 +4040,8 @@ export default function ProfilePage() {
 
               {/* Trigger Node to Reveal Form */}
               {!bankFormOpen && (
-                <button 
-                  onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
+                <button
+                  onClick={() => { setCurrentBank({}); setBankFormOpen(true); }}
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" /> Add Bank Account
@@ -3418,16 +4051,16 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving..." : "Save Bank Details"}
@@ -3440,7 +4073,7 @@ export default function ProfilePage() {
         {/* PREFERENCES EDIT DIALOG */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            
+
             {/* Modal Header */}
             <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
               <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
@@ -3455,8 +4088,8 @@ export default function ProfilePage() {
             {/* Modal Body / Configuration Matrix */}
             <div className="p-6 space-y-3.5 max-h-[60vh] overflow-y-auto custom-scrollbar">
               {[
-                { icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" }, 
-                { icon: MessageSquare, label: "Enable SMS Service Protocol", field: "is_sms" }, 
+                { icon: MessageCircle, label: "Enable WhatsApp Linkage", field: "is_whatsapp" },
+                { icon: MessageSquare, label: "Enable SMS Service Protocol", field: "is_sms" },
                 { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }
               ].map((pref, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-white rounded-lg border border-[#dde3ec] shadow-xs hover:border-[#dde3ec]/80 transition-all">
@@ -3468,9 +4101,9 @@ export default function ProfilePage() {
                       {pref.label}
                     </span>
                   </div>
-                  <Switch 
-                    checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false} 
-                    onCheckedChange={(val) => handleInputChange(pref.field, val)} 
+                  <Switch
+                    checked={editedUser?.[pref.field as keyof typeof editedUser] as boolean || false}
+                    onCheckedChange={(val) => handleInputChange(pref.field, val)}
                     className="data-[state=checked]:bg-blue-600"
                   />
                 </div>
@@ -3479,15 +4112,15 @@ export default function ProfilePage() {
 
             {/* Modal Footer */}
             <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
+              <Button
+                variant="outline"
+                onClick={handleCancel}
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors" >
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
+              <Button
+                onClick={handleSave}
+                disabled={isSaving}
                 className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
               >
                 {isSaving ? "Saving Notification Preferences..." : "Save Notification Preferences"}
@@ -3498,6 +4131,6 @@ export default function ProfilePage() {
         </Dialog>
 
       </div>
-    </div>
+    </div >
   );
 }
