@@ -29,7 +29,7 @@ import {
 export default function CompanyProfilePage() {
   const { company, isAdmin } = useAuth()
   const router = useRouter()
-  
+
   // ============================================================
   // State for system/geofence/policy (uses /api/company endpoint)
   // ============================================================
@@ -55,7 +55,6 @@ export default function CompanyProfilePage() {
     if (!company?.id) return
     setProfileLoading(true)
     try {
-      // Important: trailing slash before query param
       const res = await fetch(`/api/manage-company-profile/?company_id=${company.id}`)
       if (res.ok) {
         const data = await res.json()
@@ -83,25 +82,9 @@ export default function CompanyProfilePage() {
 
   // ------------------------------------------------------------------
   // 2. Employee count – disabled to avoid 404 (set to 0)
-  //    Replace with real endpoint later if needed.
   // ------------------------------------------------------------------
   useEffect(() => {
     setActiveEmployeeCount(0)
-    // If you later implement a proper endpoint, uncomment:
-    /*
-    const fetchEmployeeCount = async () => {
-      try {
-        const response = await fetch("/api/employees/count?company_id=" + company.id)
-        if (response.ok) {
-          const data = await response.json()
-          setActiveEmployeeCount(data.count)
-        }
-      } catch (err) {
-        setActiveEmployeeCount(0)
-      }
-    }
-    fetchEmployeeCount()
-    */
   }, [company])
 
   // ------------------------------------------------------------------
@@ -209,8 +192,8 @@ export default function CompanyProfilePage() {
 
   const getLogoUrl = () => {
     if (formData.company_img && !imageError) {
-      return formData.company_img.startsWith("data:") 
-        ? formData.company_img 
+      return formData.company_img.startsWith("data:")
+        ? formData.company_img
         : formData.company_img.startsWith("http")
           ? formData.company_img
           : `${company.mediaBaseUrl}${formData.company_img}`
@@ -348,7 +331,7 @@ export default function CompanyProfilePage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
         <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
           <div className="relative group">
-            <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
+            <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-indigo-50 shadow-inner bg-indigo-50 flex items-center justify-center">
               {logoUrl ? (
                 <Image
                   src={logoUrl}
@@ -358,14 +341,14 @@ export default function CompanyProfilePage() {
                   className="object-cover h-full w-full"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-blue-700">
+                <div className="flex flex-col items-center justify-center text-indigo-700">
                   <Building2 className="h-10 w-10 mb-1" />
                   <span className="text-2xl font-bold">{initial}</span>
                 </div>
               )}
             </div>
             {isAdmin && (
-               <label className="absolute -bottom-2 -right-2 h-10 w-10 bg-white rounded-full border-2 border-blue-100 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
+              <label className="absolute -bottom-2 -right-2 h-10 w-10 bg-white rounded-full border-2 border-indigo-100 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
                 <Edit3 className="h-4 w-4 text-gray-600" />
                 <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
               </label>
@@ -378,17 +361,17 @@ export default function CompanyProfilePage() {
                 <h2 className="text-3xl font-bold text-gray-900 mb-1">
                   {company.company_name}
                 </h2>
-                <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500 font-medium">
-                  <Hash className="h-4 w-4" />
+                <div className="flex items-center justify-center md:justify-start gap-2 text-gray-400 font-medium text-sm">
+                  <Hash className="h-3.5 w-3.5" />
                   <span>Company ID: {company.id}</span>
                 </div>
               </div>
               <div className="flex flex-wrap justify-center md:justify-end gap-2">
-                <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-none px-3 py-1">
+                <Badge variant="outline" className="bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-medium">
                   <Shield className="h-3 w-3 mr-1.5" />
                   {isAdmin ? "Admin View" : "Employee View"}
                 </Badge>
-                <Badge className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 px-3 py-1">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-100 hover:bg-green-100 px-3 py-1.5 rounded-full font-medium">
                   <Activity className="h-3 w-3 mr-1.5" />
                   Active Status
                 </Badge>
@@ -415,10 +398,11 @@ export default function CompanyProfilePage() {
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">Active Staff</h3>
-            <p className="text-3xl font-bold text-blue-600">{activeEmployeeCount || "0"}</p>
+            <p className="text-3xl font-bold text-gray-900">{activeEmployeeCount || "0"}</p>
+            <p className="text-xs text-gray-400 mt-1">Employees</p>
           </div>
-          <div className="p-3 bg-blue-50 rounded-full">
-             <Users className="h-6 w-6 text-blue-600" />
+          <div className="p-3 bg-indigo-50 rounded-full">
+            <Users className="h-6 w-6 text-indigo-500" />
           </div>
         </div>
 
@@ -426,9 +410,10 @@ export default function CompanyProfilePage() {
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">Standard Hours</h3>
             <p className="text-3xl font-bold text-green-600">{company.daily_working_hours}h</p>
+            <p className="text-xs text-gray-400 mt-1">Per Day</p>
           </div>
           <div className="p-3 bg-green-50 rounded-full">
-            <Clock className="h-6 w-6 text-green-600" />
+            <Clock className="h-6 w-6 text-green-500" />
           </div>
         </div>
 
@@ -436,47 +421,49 @@ export default function CompanyProfilePage() {
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">Geofence Radius</h3>
             <p className="text-3xl font-bold text-purple-600">{company.perimeter}km</p>
+            <p className="text-xs text-gray-400 mt-1">Radius</p>
           </div>
           <div className="p-3 bg-purple-50 rounded-full">
-            <Navigation className="h-6 w-6 text-purple-600" />
+            <MapPin className="h-6 w-6 text-purple-500" />
           </div>
         </div>
 
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">Travel Threshold</h3>
-            <p className="text-3xl font-bold text-amber-600">{company.travel_speed_threshold || "10"}km</p>
+            <p className="text-3xl font-bold text-pink-600">{company.travel_speed_threshold || "10"}km</p>
+            <p className="text-xs text-gray-400 mt-1">Limit</p>
           </div>
-          <div className="p-3 bg-amber-50 rounded-full">
-            <Gauge className="h-6 w-6 text-amber-600" />
+          <div className="p-3 bg-pink-50 rounded-full">
+            <Gauge className="h-6 w-6 text-pink-500" />
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* ================== Contact & Address Section ================== */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
+              <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
                 <Home className="h-5 w-5" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Contact & Address</h3>
             </div>
             {isAdmin && (
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" size="sm" 
-                  className="text-teal-600 border-teal-100 bg-teal-50 hover:bg-teal-100"
+                <Button
+                  variant="outline" size="sm"
+                  className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
                   onClick={() => handleEdit("address")}
                 >
                   <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                 </Button>
                 {profileExists && (
-                  <Button 
-                    variant="outline" size="sm" 
-                    className="text-red-600 border-red-100 bg-red-50 hover:bg-red-100"
+                  <Button
+                    variant="outline" size="sm"
+                    className="text-red-600 border-red-100 bg-red-50 hover:bg-red-100 rounded-lg"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
@@ -491,30 +478,36 @@ export default function CompanyProfilePage() {
             ) : profileExists && profileData ? (
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
+                  <div className="h-7 w-7 rounded-md bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                  </div>
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Address</p>
+                    <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Address</p>
                     <p className="text-sm text-gray-800">{getFullAddress()}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-start gap-3">
-                    <Mail className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div className="h-7 w-7 rounded-md bg-purple-50 flex items-center justify-center flex-shrink-0">
+                      <Mail className="h-3.5 w-3.5 text-purple-500" />
+                    </div>
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Email</p>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Email</p>
                       <p className="text-sm text-gray-800">{profileData.email || "Not provided"}</p>
                       {profileData.alternate_email && (
-                        <p className="text-xs text-gray-500 mt-1">Alt: {profileData.alternate_email}</p>
+                        <p className="text-xs text-indigo-500 mt-1">Alt: {profileData.alternate_email}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+                    <div className="h-7 w-7 rounded-md bg-pink-50 flex items-center justify-center flex-shrink-0">
+                      <Phone className="h-3.5 w-3.5 text-pink-500" />
+                    </div>
                     <div>
-                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Phone</p>
+                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Phone</p>
                       <p className="text-sm text-gray-800">{profileData.phone_number || "Not provided"}</p>
                       {profileData.alternate_phone_number && (
-                        <p className="text-xs text-gray-500 mt-1">Alt: {profileData.alternate_phone_number}</p>
+                        <p className="text-xs text-indigo-500 mt-1">Alt: {profileData.alternate_phone_number}</p>
                       )}
                     </div>
                   </div>
@@ -534,14 +527,14 @@ export default function CompanyProfilePage() {
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                <MapPin className="h-5 w-5" />
+                <Globe className="h-5 w-5" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">Geographic Settings</h3>
             </div>
             {isAdmin && (
-              <Button 
-                variant="outline" size="sm" 
-                className="text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
+              <Button
+                variant="outline" size="sm"
+                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
                 onClick={() => handleEdit("location")}
               >
                 <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
@@ -551,21 +544,21 @@ export default function CompanyProfilePage() {
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Latitude</p>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Latitude</p>
                 <p className="text-base font-semibold text-gray-800">{company.latitude || "0.0000"}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Longitude</p>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Longitude</p>
                 <p className="text-base font-semibold text-gray-800">{company.longitude || "0.0000"}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Perimeter (Radius)</p>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Perimeter (Radius)</p>
                 <p className="text-base font-semibold text-gray-800">{company.perimeter} km</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Travel Threshold</p>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Travel Threshold</p>
                 <p className="text-base font-semibold text-gray-800">{company.travel_speed_threshold || "10"} km/h</p>
               </div>
             </div>
@@ -576,15 +569,15 @@ export default function CompanyProfilePage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600">
+              <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
                 <Settings className="h-5 w-5" />
               </div>
               <h3 className="text-lg font-bold text-gray-900">System Preferences</h3>
             </div>
             {isAdmin && (
-              <Button 
-                variant="outline" size="sm" 
-                className="text-orange-600 border-orange-100 bg-orange-50 hover:bg-orange-100"
+              <Button
+                variant="outline" size="sm"
+                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
                 onClick={() => handleEdit("system")}
               >
                 <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
@@ -592,29 +585,40 @@ export default function CompanyProfilePage() {
             )}
           </div>
           <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Daily Working Hours</p>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Daily Working Hours</p>
                 <p className="text-base font-semibold text-gray-800">{company.daily_working_hours} Hours</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Punching Mode</p>
-                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-100">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Punching Mode</p>
+                <p className="text-base font-semibold text-gray-800">
                   {company.punch_mode === "S" ? "Single Entry" : "Multiple Entries"}
-                </Badge>
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Summary Calculation</p>
+                <p className="text-base font-semibold text-gray-800">
+                  {company.work_summary_interval === "W" ? "Weekly Basis" : "Monthly Basis"}
+                </p>
               </div>
             </div>
-            <div>
-              <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Summary Calculation</p>
-              <p className="text-base font-semibold text-gray-800">
-                {company.work_summary_interval === "W" ? "Weekly Basis" : "Monthly Basis"}
-              </p>
+            <div className="p-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">System Status</p>
+                  <p className="text-xs text-green-600">All systems operational</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Communication Policy */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
@@ -623,9 +627,9 @@ export default function CompanyProfilePage() {
               <h3 className="text-lg font-bold text-gray-900">Company-wide Communication Policy</h3>
             </div>
             {isAdmin && (
-              <Button 
-                variant="outline" size="sm" 
-                className="text-purple-600 border-purple-100 bg-purple-50 hover:bg-purple-100"
+              <Button
+                variant="outline" size="sm"
+                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
                 onClick={() => handleEdit("policy")}
               >
                 <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit Policy
@@ -633,45 +637,53 @@ export default function CompanyProfilePage() {
             )}
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className={`h-4 w-4 ${formData.enable_sms ? "text-green-500" : "text-gray-400"}`} />
+                    <MessageSquare className={`h-4 w-4 ${formData.enable_sms ? "text-green-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-gray-700">SMS Alerts Service</span>
                   </div>
-                  <Badge variant={formData.enable_sms ? "default" : "secondary"}>
+                  <Badge variant="outline" className={formData.enable_sms
+                    ? "bg-green-50 text-green-600 border-green-200 rounded-full"
+                    : "bg-gray-100 text-gray-500 border-gray-200 rounded-full"}>
                     {formData.enable_sms ? "Online" : "Offline"}
                   </Badge>
                 </div>
-                 <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                   <div className="flex items-center gap-3">
                     <MessageSquare className={`h-4 w-4 ${formData.enable_whatsapp ? "text-green-500" : "text-gray-400"}`} />
                     <span className="text-sm font-medium text-gray-700">WhatsApp Alerts Service</span>
                   </div>
-                  <Badge variant={formData.enable_whatsapp ? "default" : "secondary"}>
+                  <Badge variant="outline" className={formData.enable_whatsapp
+                    ? "bg-green-50 text-green-600 border-green-200 rounded-full"
+                    : "bg-gray-100 text-gray-500 border-gray-200 rounded-full"}>
                     {formData.enable_whatsapp ? "Online" : "Offline"}
                   </Badge>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-red-50/50">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <XCircle className={`h-4 w-4 ${formData.soft_disable ? "text-red-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-red-800">Master Kill Switch (Silent Mode)</span>
+                    <Shield className={`h-4 w-4 ${formData.soft_disable ? "text-red-500" : "text-gray-400"}`} />
+                    <span className="text-sm font-medium text-gray-700">Master Kill Switch (Silent Mode)</span>
                   </div>
-                  <Badge variant="destructive" className={formData.soft_disable ? "opacity-100" : "opacity-30"}>
+                  <Badge variant="outline" className={formData.soft_disable
+                    ? "bg-red-50 text-red-600 border-red-200 rounded-full"
+                    : "bg-red-50 text-red-500 border-red-100 rounded-full"}>
                     {formData.soft_disable ? "Active" : "Inactive"}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
-                   <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div className="flex items-center gap-3">
                     <Shield className={`h-4 w-4 ${(formData.strict_sms || formData.strict_whatsapp) ? "text-blue-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-blue-800">Strict Enforcement Policy</span>
+                    <span className="text-sm font-medium text-gray-700">Strict Enforcement Policy</span>
                   </div>
-                  <Badge variant="outline" className="border-blue-200 text-blue-700">
-                    { (formData.strict_sms || formData.strict_whatsapp) ? "Enforced" : "Standard"}
+                  <Badge variant="outline" className={(formData.strict_sms || formData.strict_whatsapp)
+                    ? "bg-blue-50 text-blue-600 border-blue-200 rounded-full"
+                    : "bg-green-50 text-green-600 border-green-200 rounded-full"}>
+                    {(formData.strict_sms || formData.strict_whatsapp) ? "Enforced" : "Standard"}
                   </Badge>
                 </div>
               </div>
@@ -764,7 +776,7 @@ export default function CompanyProfilePage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
+              <div className="space-y-2">
                 <Label>Radius (km)</Label>
                 <Input type="number" value={formData.perimeter} onChange={(e) => handleInputChange("perimeter", e.target.value)} />
               </div>
@@ -796,7 +808,7 @@ export default function CompanyProfilePage() {
               <Input value={formData.company_name} onChange={(e) => handleInputChange("company_name", e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-2">
+              <div className="space-y-2">
                 <Label>Daily Working Hours</Label>
                 <Input type="number" value={formData.daily_working_hours} onChange={(e) => handleInputChange("daily_working_hours", e.target.value)} />
               </div>
@@ -837,48 +849,48 @@ export default function CompanyProfilePage() {
             <DialogDescription>Enforce organization-wide messaging rules</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
-               <div>
-                 <Label>SMS Service</Label>
-                 <p className="text-[10px] text-gray-500">Enable overall SMS capabilities</p>
-               </div>
-               <Switch checked={formData.enable_sms} onCheckedChange={(val) => handleInputChange("enable_sms", val)} />
-             </div>
-             <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
-               <div>
-                 <Label>WhatsApp Service</Label>
-                 <p className="text-[10px] text-gray-500">Enable overall WhatsApp messaging</p>
-               </div>
-               <Switch checked={formData.enable_whatsapp} onCheckedChange={(val) => handleInputChange("enable_whatsapp", val)} />
-             </div>
-             
-             <Separator />
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <div>
+                <Label>SMS Service</Label>
+                <p className="text-[10px] text-gray-500">Enable overall SMS capabilities</p>
+              </div>
+              <Switch checked={formData.enable_sms} onCheckedChange={(val) => handleInputChange("enable_sms", val)} />
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <div>
+                <Label>WhatsApp Service</Label>
+                <p className="text-[10px] text-gray-500">Enable overall WhatsApp messaging</p>
+              </div>
+              <Switch checked={formData.enable_whatsapp} onCheckedChange={(val) => handleInputChange("enable_whatsapp", val)} />
+            </div>
 
-             <div className="space-y-3">
-               <h4 className="text-xs font-bold uppercase text-gray-400 tracking-wider">Strict Enforcement</h4>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
-                  <div className="space-y-0.5">
-                    <Label className="text-blue-900">Force Strict SMS</Label>
-                    <p className="text-[10px] text-blue-600">Override user individual preferences</p>
-                  </div>
-                  <Switch checked={formData.strict_sms} onCheckedChange={(val) => handleInputChange("strict_sms", val)} />
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
-                  <div className="space-y-0.5">
-                    <Label className="text-blue-900">Force Strict WhatsApp</Label>
-                    <p className="text-[10px] text-blue-600">Always send WhatsApp alerts</p>
-                  </div>
-                  <Switch checked={formData.strict_whatsapp} onCheckedChange={(val) => handleInputChange("strict_whatsapp", val)} />
-                </div>
-             </div>
+            <Separator />
 
-             <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
-               <div className="space-y-0.5">
-                 <Label className="text-red-900">Service Master Kill-Switch</Label>
-                 <p className="text-[10px] text-red-600">Instantly stop all outgoing communications</p>
-               </div>
-               <Switch checked={formData.soft_disable} onCheckedChange={(val) => handleInputChange("soft_disable", val)} />
-             </div>
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase text-gray-400 tracking-wider">Strict Enforcement</h4>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
+                <div className="space-y-0.5">
+                  <Label className="text-blue-900">Force Strict SMS</Label>
+                  <p className="text-[10px] text-blue-600">Override user individual preferences</p>
+                </div>
+                <Switch checked={formData.strict_sms} onCheckedChange={(val) => handleInputChange("strict_sms", val)} />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50/50">
+                <div className="space-y-0.5">
+                  <Label className="text-blue-900">Force Strict WhatsApp</Label>
+                  <p className="text-[10px] text-blue-600">Always send WhatsApp alerts</p>
+                </div>
+                <Switch checked={formData.strict_whatsapp} onCheckedChange={(val) => handleInputChange("strict_whatsapp", val)} />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-red-50">
+              <div className="space-y-0.5">
+                <Label className="text-red-900">Service Master Kill-Switch</Label>
+                <p className="text-[10px] text-red-600">Instantly stop all outgoing communications</p>
+              </div>
+              <Switch checked={formData.soft_disable} onCheckedChange={(val) => handleInputChange("soft_disable", val)} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>Cancel</Button>
