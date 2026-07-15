@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company,Device,StaffType,StaffCategory,CompanyProfile
+from .models import Company,Device,StaffType,StaffCategory,CompanyProfile, StaffIdConfig
 
 class CompanyProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -68,3 +68,15 @@ class StaffCategorySerializer(serializers.ModelSerializer):
         model = StaffCategory
         fields = ['id', 'category_name', 'company_id']
 
+
+class StaffIdConfigSerializer(serializers.ModelSerializer):
+    company_id = serializers.PrimaryKeyRelatedField(
+        queryset=Company.objects.all(),
+        source='company',
+        write_only=True
+    )
+    company_name = serializers.CharField(source='company.company_name', read_only=True)
+
+    class Meta:
+        model = StaffIdConfig
+        fields = ['id', 'company_id', 'company_name', 'staff_id_prefix', 'staff_id_suffix', 'start_id']

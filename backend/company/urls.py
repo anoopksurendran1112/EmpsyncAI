@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import addCompany,getCompany,getCompanyRoles,addCompanyRoles,device, get_user_contact,get_virtual_devices,update_virtual_device,update_biometric_device,add_biometric_device,get_biometric_device,delete_virtual_device,getCompanyGroups,addCompanyGroup,create_all_view,staff_type_view,staff_category_view,employee_report,manageCompanyProfile
+from .views import addCompany, getCompany, getCompanyRoles, addCompanyRoles,device, get_user_contact, get_virtual_devices, update_virtual_device, update_biometric_device, add_biometric_device, get_biometric_device, delete_virtual_device, getCompanyGroups, addCompanyGroup, create_all_view, staff_type_view, staff_category_view, employee_report, manageCompanyProfile, manage_staff_id_config
 
 
 urlpatterns = [
@@ -34,4 +34,7 @@ urlpatterns = [
    path('api/employee-report', employee_report),
 
    path('api/manage-company-profile/', manageCompanyProfile),
+
+   path('api/staff-id-config/', manage_staff_id_config),
+   path('api/staff-id-config/<int:config_id>/', manage_staff_id_config),
 ]
