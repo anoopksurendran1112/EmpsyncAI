@@ -43,7 +43,7 @@ export default function SignInPage() {
   })
 
   async function fetchUserCompanies() {
-    const res = await fetch('/api/user/companies')
+    const res = await fetch('/api/companies')
     if (!res.ok) {
       throw new Error('Failed to fetch user companies')
     }

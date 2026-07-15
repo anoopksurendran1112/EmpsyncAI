@@ -1,10 +1,10 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile, StaffIdConfig
 from punch.models import PunchRecords
 from rest_framework import status
-from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer
+from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer, StaffIdConfigSerializer
 from drf_spectacular.utils import extend_schema,OpenApiParameter, OpenApiTypes
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import AllowAny
@@ -1103,6 +1103,121 @@ def staff_type_view(request, type_id=None):
     return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([AllowAny])
+def manage_staff_id_config(request, config_id=None):
+
+    if request.method == 'GET':
+        # Single record by pk
+        pk = config_id or request.query_params.get('config_id')
+        if pk:
+            try:
+                config = StaffIdConfig.objects.get(pk=pk)
+                return Response(StaffIdConfigSerializer(config).data)
+            except StaffIdConfig.DoesNotExist:
+                return Response({'error': 'StaffIdConfig not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # List by company
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response(
+                {'error': 'Provide either config_id or company_id as a query parameter'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        configs = StaffIdConfig.objects.filter(company__id=company_id)
+        return Response(StaffIdConfigSerializer(configs, many=True).data)
+
+    elif request.method == 'POST':
+        serializer = StaffIdConfigSerializer(data=request.data)
+        if serializer.is_valid():
+            company = serializer.validated_data.get('company')
+            # Enforce one config per company
+            if StaffIdConfig.objects.filter(company=company).exists():
+                return Response(
+                    {'error': 'A StaffIdConfig already exists for this company. Use PUT to update it.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            instance = serializer.save()
+            return Response(StaffIdConfigSerializer(instance).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        pk = config_id or request.data.get('config_id') or request.query_params.get('config_id')
+        if not pk:
+            return Response({'error': 'config_id is required for update'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            config = StaffIdConfig.objects.get(pk=pk)
+        except StaffIdConfig.DoesNotExist:
+            return Response({'error': 'StaffIdConfig not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = StaffIdConfigSerializer(config, data=request.data, partial=True)
+        if serializer.is_valid():
+            instance = serializer.save()
+            return Response(StaffIdConfigSerializer(instance).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        pk = config_id or request.data.get('config_id') or request.query_params.get('config_id')
+        if not pk:
+            return Response({'error': 'config_id is required for delete'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            config = StaffIdConfig.objects.get(pk=pk)
+            config.delete()
+            return Response({'message': 'StaffIdConfig deleted successfully'}, status=status.HTTP_200_OK)
+        except StaffIdConfig.DoesNotExist:
+            return Response({'error': 'StaffIdConfig not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([AllowAny])
+def manageCompanyProfile(request):
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            profile = CompanyProfile.objects.get(company__id=company_id)
+            serializer = CompanyProfileSerializer(profile)
+            return Response(serializer.data)
+        except CompanyProfile.DoesNotExist:
+            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    elif request.method == 'POST':
+        serializer = CompanyProfileSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'PUT':
+        company_id = request.data.get('company_id') or request.query_params.get('company_id')
+        if not company_id:
+            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            profile = CompanyProfile.objects.get(company__id=company_id)
+            serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except CompanyProfile.DoesNotExist:
+            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    elif request.method == 'DELETE':
+        company_id = request.data.get('company_id') or request.query_params.get('company_id')
+        if not company_id:
+            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            profile = CompanyProfile.objects.get(company__id=company_id)
+            profile.delete()
+            return Response({'message': 'Deleted successfully'}, status=status.HTTP_200_OK)
+        except CompanyProfile.DoesNotExist:
+            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -1209,53 +1324,3 @@ def employee_report(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
-
-
-@api_view(['GET', 'POST', 'PUT', 'DELETE'])
-@permission_classes([AllowAny])
-def manageCompanyProfile(request):
-    if request.method == 'GET':
-        company_id = request.query_params.get('company_id')
-        if not company_id:
-            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            profile = CompanyProfile.objects.get(company__id=company_id)
-            serializer = CompanyProfileSerializer(profile)
-            return Response(serializer.data)
-        except CompanyProfile.DoesNotExist:
-            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    elif request.method == 'POST':
-        serializer = CompanyProfileSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    elif request.method == 'PUT':
-        company_id = request.data.get('company_id') or request.query_params.get('company_id')
-        if not company_id:
-            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            profile = CompanyProfile.objects.get(company__id=company_id)
-            serializer = CompanyProfileSerializer(profile, data=request.data, partial=True)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except CompanyProfile.DoesNotExist:
-            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-    elif request.method == 'DELETE':
-        company_id = request.data.get('company_id') or request.query_params.get('company_id')
-        if not company_id:
-            return Response({'error': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        try:
-            profile = CompanyProfile.objects.get(company__id=company_id)
-            profile.delete()
-            return Response({'message': 'Deleted successfully'}, status=status.HTTP_200_OK)
-        except CompanyProfile.DoesNotExist:
-            return Response({'error': 'Company profile not found'}, status=status.HTTP_404_NOT_FOUND)

@@ -41,7 +41,7 @@ from punch.models import PunchRecords
 from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
-from company.models import CompanyGroup, CompanyUser, Device, Company
+from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
 from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
@@ -871,12 +871,25 @@ def candidateApplication(request):
                 if app_status == 'approved':
                     company = Company.objects.get(id=app.company_id)                    
                     password = request.data.get('password')
+
+                    config = StaffIdConfig.objects.filter(company=company).first()
+                    prefix = config.prefix if config else "EMP"
+
+                    provided_staff_id = request.data.get('staff_id')
+
+                    if provided_staff_id:
+                        final_staff_id = provided_staff_id
+                    else:
+                        last_profile = EmployeeProfile.objects.filter(user__parent_company=company).order_by('-staff_id').first()
+                        last_id = last_profile.staff_id if last_profile else f"{prefix}000"
+                        final_staff_id = increment_staff_id(last_id)
                     
                     if not password:
                         return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
 
                     last_user = CustomUser.objects.filter(company=company).aggregate(Max('biometric_id'))
                     last_biometric_id = last_user['biometric_id__max']
+                    
                     try:
                         last_biometric_id = int(last_biometric_id) if last_biometric_id else 0
                     except ValueError:
@@ -888,9 +901,7 @@ def candidateApplication(request):
                         defaults={
                             'mobile': app.phone,
                             'first_name': app.first_name,
-                            'last_name': app.last_name,
-                        }
-                    )
+                            'last_name': app.last_name})
                     
                     user.set_password(password)
                     user.biometric_id = str(new_biometric_id)
@@ -906,7 +917,14 @@ def candidateApplication(request):
                     
                     if not user.parent_company:
                         user.parent_company = company
+
                     user.save()
+
+                    EmployeeProfile.objects.create(user=user,staff_id=final_staff_id)
+                    
+                    if request.data.get('date_of_joining'):
+                        user.profile.date_of_joining = request.data.get('date_of_joining')
+                        
 
             except Exception as e:
                 return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
