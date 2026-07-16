@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
@@ -36,6 +37,8 @@ export default function CandidateRequestPage() {
   const [password, setPassword] = useState("");
   const [wfhEnabled, setWfhEnabled] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [autoGenerateStaffId, setAutoGenerateStaffId] = useState(false);
+  const [staffId, setStaffId] = useState("");
 
   const fetchRequests = async () => {
     if (!company?.id) return;
@@ -82,34 +85,46 @@ export default function CandidateRequestPage() {
       return;
     }
 
+    if (!autoGenerateStaffId && !staffId.trim()) {
+      alert("Please enter a Staff ID.");
+      return;
+    }
+
     const appId = selectedApplication.id;
     setUpdating(true);
 
     try {
-    const res = await fetch("/api/candidate_request", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      const payload = {
         application_id: appId,
         status: "approved",
         wfh: wfhEnabled,
         password: password.trim(),
-      }),
-    });
+        ...(autoGenerateStaffId
+          ? {}
+          : { staff_id: staffId.trim() }),
+      };
 
-      
+      console.log("Payload before fetch:", payload);
+
+      const res = await fetch("/api/candidate_request", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+
       await fetchRequests();
-      
+
       const updatedApp = requests.find((r) => r.id === appId);
       if (updatedApp?.status === "approved") {
-        
+
         setDetailDialogOpen(false);
         setSelectedApplication(null);
         setPassword("");
       } else {
-        
-        const result = await res.text();
-        alert(result || "Failed to approve application.");
+
+        const result = await res.json();
+        alert(result.message || "Failed to approve application.");
       }
     } catch (err) {
       console.error(err);
@@ -144,8 +159,8 @@ export default function CandidateRequestPage() {
         setDetailDialogOpen(false);
         setSelectedApplication(null);
       } else {
-        const result = await res.text();
-        alert(result || "Failed to reject application.");
+        const result = await res.json();
+        alert(result.message || "Failed to reject application.");
       }
     } catch (err) {
       console.error(err);
@@ -249,22 +264,24 @@ export default function CandidateRequestPage() {
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                            req.status === "approved"
-                              ? "bg-green-100 text-green-700"
-                              : req.status === "pending"
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${req.status === "approved"
+                            ? "bg-green-100 text-green-700"
+                            : req.status === "pending"
                               ? "bg-amber-100 text-amber-700"
                               : "bg-red-100 text-red-700"
-                          }`}
+                            }`}
                         >
                           {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
                         </span>
                         {req.status === "pending" && (
                           <Button variant="ghost" size="sm" className="h-8 text-xs hover:bg-amber-50 text-amber-800 ml-2"
                             onClick={() => {
+                              console.log(JSON.stringify(req, null, 2));
+                              console.log("req.is_wfh =", req.is_wfh);
                               setSelectedApplication(req);
                               setPassword("");
-                              setWfhEnabled(req.is_wfh); 
+                              console.log("req.is_wfh =", req.is_wfh);
+                              setWfhEnabled(false);
                               setDetailDialogOpen(true);
                             }}
                           >
@@ -370,12 +387,48 @@ export default function CandidateRequestPage() {
                   <label htmlFor="password" className="text-xs font-semibold text-gray-500 uppercase">
                     Set Password (for approved candidates)
                   </label>
-                  <Input id="password" type="password" placeholder="Enter a secure password" value={password} 
-                         onChange={(e) => setPassword(e.target.value)} 
-                         className="bg-gray-50" />
+                  <Input id="password" type="password" placeholder="Enter a secure password" value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-gray-50" />
                   <p className="text-xs text-gray-400">
                     This password will be given to the candidate for login.
                   </p>
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="autoStaffId"
+                    checked={autoGenerateStaffId}
+                    onCheckedChange={(checked) => {
+                      setAutoGenerateStaffId(checked === true);
+                    }}
+                  />
+                  <label htmlFor="autoStaffId" className="text-sm font-normal leading-none cursor-pointer">
+                    Auto Generate Staff ID
+                  </label>
+                </div>
+
+                <div className="space-y-1">
+                  <label
+                    htmlFor="staffId"
+                    className="text-xs font-semibold text-gray-500 uppercase"
+                  >
+                    Staff ID
+                  </label>
+
+                  <Input
+                    id="staffId"
+                    type="text"
+                    placeholder={
+                      autoGenerateStaffId
+                        ? "Staff ID will be generated automatically"
+                        : "Enter Staff ID"
+                    }
+                    value={staffId}
+                    onChange={(e) => setStaffId(e.target.value)}
+                    disabled={autoGenerateStaffId}
+                    className="bg-gray-50"
+                  />
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-gray-100">
@@ -383,10 +436,10 @@ export default function CandidateRequestPage() {
                     <label htmlFor="is_wfh" className="text-xs font-semibold text-gray-500 uppercase">
                       Enable for Work From Home
                     </label>
-                    <Switch 
-                      id="is_wfh" 
-                      checked={wfhEnabled} 
-                      onCheckedChange={setWfhEnabled} 
+                    <Switch
+                      id="is_wfh"
+                      checked={wfhEnabled}
+                      onCheckedChange={setWfhEnabled}
                     />
                   </div>
                 </div>
