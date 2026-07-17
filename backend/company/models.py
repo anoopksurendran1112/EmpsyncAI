@@ -190,3 +190,16 @@ class CompanyProfile(models.Model):
 
     def __str__(self):
         return f"{self.company.company_name} Profile"
+
+
+class StaffIdConfig(models.Model):
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='staff_id_configs')
+    staff_id_prefix = models.CharField(max_length=10, null=True, blank=True)
+    staff_id_suffix = models.CharField(max_length=10, null=True, blank=True)
+    start_id = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        unique_together = ('company',)
+
+    def __str__(self):
+        return f"StaffIdConfig for {self.company.company_name} (prefix={self.staff_id_prefix}, suffix={self.staff_id_suffix})"
