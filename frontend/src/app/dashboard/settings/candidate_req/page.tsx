@@ -39,6 +39,7 @@ export default function CandidateRequestPage() {
   const [updating, setUpdating] = useState(false);
   const [autoGenerateStaffId, setAutoGenerateStaffId] = useState(false);
   const [staffId, setStaffId] = useState("");
+  const [actionType, setActionType] = useState("");
 
   const fetchRequests = async () => {
     if (!company?.id) return;
@@ -91,6 +92,7 @@ export default function CandidateRequestPage() {
     }
 
     const appId = selectedApplication.id;
+    setActionType("accept");
     setUpdating(true);
 
     try {
@@ -113,17 +115,17 @@ export default function CandidateRequestPage() {
       });
 
 
+      const result = await res.json();
+
       await fetchRequests();
 
-      const updatedApp = requests.find((r) => r.id === appId);
-      if (updatedApp?.status === "approved") {
+      if (result.success) {
+        alert(result.message);
 
         setDetailDialogOpen(false);
         setSelectedApplication(null);
         setPassword("");
       } else {
-
-        const result = await res.json();
         alert(result.message || "Failed to approve application.");
       }
     } catch (err) {
@@ -140,6 +142,7 @@ export default function CandidateRequestPage() {
     if (!confirm("Reject this application?")) return;
 
     const appId = selectedApplication.id;
+    setActionType("reject");
     setUpdating(true);
 
     try {
@@ -152,14 +155,16 @@ export default function CandidateRequestPage() {
         }),
       });
 
+      const result = await res.json();
+
       await fetchRequests();
 
-      const updatedApp = requests.find((r) => r.id === appId);
-      if (updatedApp?.status === "rejected") {
+      if (result.success) {
+        alert(result.message);
+
         setDetailDialogOpen(false);
         setSelectedApplication(null);
       } else {
-        const result = await res.json();
         alert(result.message || "Failed to reject application.");
       }
     } catch (err) {
@@ -450,14 +455,21 @@ export default function CandidateRequestPage() {
                     Cancel
                   </Button>
 
-                  <Button variant="destructive" onClick={handleReject}
+                  <Button
+                    variant="destructive"
+                    onClick={handleReject}
                     disabled={updating}
-                    className="bg-red-600 hover:bg-red-700 text-white">
-                    {updating ? "Updating..." : "Reject"}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    {updating && actionType === "reject" ? "Updating..." : "Reject"}
                   </Button>
 
-                  <Button onClick={handleAccept} disabled={updating} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    {updating ? "Updating..." : "Accept"}
+                  <Button
+                    onClick={handleAccept}
+                    disabled={updating}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {updating && actionType === "accept" ? "Updating..." : "Accept"}
                   </Button>
                 </div>
               </div>
