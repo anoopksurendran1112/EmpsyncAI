@@ -2170,7 +2170,12 @@ export default function EmployeeDetailsPage() {
                           Edit
                         </button>
                         <button 
-                          onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                          onClick={() => {
+                            setEditQualifications(prev => prev.filter((_, i) => i !== idx));
+                            setTimeout(() => {
+                              document.getElementById("save-education-btn")?.click();
+                            }, 100);
+                          }} 
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
@@ -2279,6 +2284,9 @@ export default function EmployeeDetailsPage() {
                         else { setEditQualifications(prev => [...prev, qualData]); } 
                         setCurrentQual({}); 
                         setQualFormOpen(false); 
+                        setTimeout(() => {
+                          document.getElementById("save-education-btn")?.click();
+                        }, 100);
                       }} 
                       className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                     >
@@ -2315,13 +2323,14 @@ export default function EmployeeDetailsPage() {
                 onClick={handleCancel} 
                 className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
               >
-                Cancel
+                Close
               </Button>
               <Button 
+                id="save-education-btn"
                 type="button" 
                 onClick={handleSave} 
                 disabled={isSaving} 
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50 hidden"
               >
                 {isSaving ? "Saving Education Details..." : "Save Education Details"}
               </Button>
