@@ -938,13 +938,15 @@ def getAllUsers(request, page):
     company_id = request.data.get('company_id')
     user = request.user
     
-    if not user.company.filter(id=company_id).exists():
-        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
-
     try:
         is_admin = c.CompanyUser.objects.get(user=user, company_id=company_id).is_admin
     except c.CompanyUser.DoesNotExist:
         is_admin = False
+        
+    belongs_to_company = user.company.filter(id=company_id).exists() or is_admin
+
+    if not belongs_to_company:
+        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
     
     is_team_lead = user.team_lead
 
