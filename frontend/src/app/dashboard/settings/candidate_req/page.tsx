@@ -307,50 +307,94 @@ export default function CandidateRequestPage() {
           )}
         </div>
 
-        {/* Share Dialog */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Share Profile
+          <DialogContent className="max-w-sm bg-white rounded-2xl p-0 overflow-hidden border border-slate-200 shadow-2xl">
+            {/* Header */}
+            <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/50">
+              <DialogTitle className="text-base font-semibold text-slate-900 tracking-tight">
+                Share Requets for new Candidates
               </DialogTitle>
             </DialogHeader>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase">
-                  Profile Link
+
+            {/* Body */}
+            <div className="p-5 space-y-5">
+              {/* Link Input Section */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Application Link
                 </label>
                 <div className="flex gap-2">
-                  <Input readOnly value={shareableUrl} className="bg-gray-50" />
-                  <Button onClick={copyToClipboard}>Copy</Button>
+                  <Input 
+                    readOnly 
+                    value={shareableUrl} 
+                    className="bg-slate-50 border-slate-200 text-sm focus-visible:ring-indigo-500 text-slate-600 font-medium truncate" 
+                  />
+                  <Button 
+                    onClick={copyToClipboard}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-4 text-sm font-medium transition-colors"
+                  >
+                    Copy
+                  </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4">
-                <Button variant="outline" onClick={() => window.open(socialLinks.twitter, "_blank")}>
-                  <Twitter className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={() => window.open(socialLinks.facebook, "_blank")}>
-                  <Facebook className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={() => window.open(socialLinks.linkedin, "_blank")}>
-                  <Linkedin className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={copyToClipboard}>
-                  <Link2 className="h-5 w-5" />
-                </Button>
+
+              <div className="border-t border-slate-100 my-1" />
+
+              {/* Social Network Section */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Share to Social Media
+                </p>
+                <div className="grid grid-cols-4 gap-2.5">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.twitter, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-sky-500 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on Twitter"
+                  >
+                    <Twitter className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.facebook, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-blue-600 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on Facebook"
+                  >
+                    <Facebook className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.linkedin, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-blue-700 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on LinkedIn"
+                  >
+                    <Linkedin className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={copyToClipboard}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-slate-800 text-slate-500 h-11 p-0 transition-colors"
+                    title="Copy Alternate Link"
+                  >
+                    <Link2 className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             </div>
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+
+            {/* Footer */}
+            <DialogFooter className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                className="text-slate-500 hover:text-slate-700 bg-slate-200 border border-slate-300 hover:bg-slate-300 text-sm font-medium h-9 px-4 rounded-lg transition-colors"
               >
                 Close
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {/* Detail Dialog */}
         <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
