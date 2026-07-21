@@ -87,3 +87,25 @@ class LeaveCredit(models.Model):
     credits = models.FloatField(default=0)
     year = models.IntegerField(default=timezone.now().year)
 
+class LeavePolicy(models.Model):
+    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='leave_policies')
+    leave_type = models.ForeignKey('leave.LeaveType', on_delete=models.CASCADE, related_name='policies')
+    staff_category = models.ForeignKey('company.StaffCategory', on_delete=models.CASCADE, related_name='leave_policies')
+    
+    monthly_limit = models.FloatField(null=True, blank=True)
+    yearly_limit = models.FloatField(null=True, blank=True)
+    initial_credit = models.FloatField(default=0)
+    allow_carry_forward = models.BooleanField(default=True)
+    use_credit = models.BooleanField(default=False)
+    custom_settings = models.JSONField(default=dict, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('company', 'staff_category', 'leave_type')
+        verbose_name_plural = "Leave Policies"
+
+    def __str__(self):
+        return f"{self.company.company_name} - {self.staff_category.category_name} - {self.leave_type.leave_type}"
