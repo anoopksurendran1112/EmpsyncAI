@@ -101,9 +101,7 @@ export default function CandidateRequestPage() {
         status: "approved",
         wfh: wfhEnabled,
         password: password.trim(),
-        ...(autoGenerateStaffId
-          ? {}
-          : { staff_id: staffId.trim() }),
+        ...(autoGenerateStaffId ? {} : { staff_id: staffId.trim() }),
       };
 
       console.log("Payload before fetch:", payload);
@@ -117,14 +115,17 @@ export default function CandidateRequestPage() {
 
       const result = await res.json();
 
-      await fetchRequests();
-
       if (result.success) {
+        await fetchRequests();
+
         alert(result.message);
 
         setDetailDialogOpen(false);
         setSelectedApplication(null);
         setPassword("");
+        setStaffId("");
+        setAutoGenerateStaffId(false);
+        setWfhEnabled(false);
       } else {
         alert(result.message || "Failed to approve application.");
       }
@@ -133,6 +134,7 @@ export default function CandidateRequestPage() {
       alert("An unexpected error occurred.");
     } finally {
       setUpdating(false);
+      setActionType("");
     }
   };
 
@@ -156,12 +158,9 @@ export default function CandidateRequestPage() {
       });
 
       const result = await res.json();
-
-      await fetchRequests();
-
       if (result.success) {
+        await fetchRequests();
         alert(result.message);
-
         setDetailDialogOpen(false);
         setSelectedApplication(null);
       } else {
@@ -308,44 +307,87 @@ export default function CandidateRequestPage() {
           )}
         </div>
 
-        {/* Share Dialog */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Share Profile
+          <DialogContent className="max-w-sm bg-white rounded-2xl p-0 overflow-hidden border border-slate-200 shadow-2xl">
+            {/* Header */}
+            <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/50">
+              <DialogTitle className="text-base font-semibold text-slate-900 tracking-tight">
+                Share Requets for new Candidates
               </DialogTitle>
             </DialogHeader>
-            <div className="p-6 space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase">
-                  Profile Link
+
+            {/* Body */}
+            <div className="p-5 space-y-5">
+              {/* Link Input Section */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Application Link
                 </label>
                 <div className="flex gap-2">
-                  <Input readOnly value={shareableUrl} className="bg-gray-50" />
-                  <Button onClick={copyToClipboard}>Copy</Button>
+                  <Input 
+                    readOnly 
+                    value={shareableUrl} 
+                    className="bg-slate-50 border-slate-200 text-sm focus-visible:ring-indigo-500 text-slate-600 font-medium truncate" 
+                  />
+                  <Button 
+                    onClick={copyToClipboard}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm px-4 text-sm font-medium transition-colors"
+                  >
+                    Copy
+                  </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-4">
-                <Button variant="outline" onClick={() => window.open(socialLinks.twitter, "_blank")}>
-                  <Twitter className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={() => window.open(socialLinks.facebook, "_blank")}>
-                  <Facebook className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={() => window.open(socialLinks.linkedin, "_blank")}>
-                  <Linkedin className="h-5 w-5" />
-                </Button>
-                <Button variant="outline" onClick={copyToClipboard}>
-                  <Link2 className="h-5 w-5" />
-                </Button>
+
+              <div className="border-t border-slate-100 my-1" />
+
+              {/* Social Network Section */}
+              <div className="space-y-2">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Share to Social Media
+                </p>
+                <div className="grid grid-cols-4 gap-2.5">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.twitter, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-sky-500 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on Twitter"
+                  >
+                    <Twitter className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.facebook, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-blue-600 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on Facebook"
+                  >
+                    <Facebook className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.open(socialLinks.linkedin, "_blank")}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-blue-700 text-slate-500 h-11 p-0 transition-colors"
+                    title="Share on LinkedIn"
+                  >
+                    <Linkedin className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={copyToClipboard}
+                    className="border-slate-200 hover:bg-slate-50 hover:text-slate-800 text-slate-500 h-11 p-0 transition-colors"
+                    title="Copy Alternate Link"
+                  >
+                    <Link2 className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             </div>
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+
+            {/* Footer */}
+            <DialogFooter className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                className="text-slate-500 hover:text-slate-700 bg-slate-200 border border-slate-300 hover:bg-slate-300 text-sm font-medium h-9 px-4 rounded-lg transition-colors"
               >
                 Close
               </Button>
@@ -353,105 +395,126 @@ export default function CandidateRequestPage() {
           </DialogContent>
         </Dialog>
 
+
         {/* Detail Dialog */}
         <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-          <DialogContent className="max-w-lg bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+          <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-slate-200 shadow-2xl">
+            {/* Header */}
+            <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/50">
+              <DialogTitle className="text-base font-semibold text-slate-900 tracking-tight">
                 Application Details
               </DialogTitle>
             </DialogHeader>
+
             {selectedApplication && (
-              <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Name</p>
-                    <p className="text-sm font-medium">
-                      {selectedApplication.first_name} {selectedApplication.last_name}
+              <div>
+                {/* Scrollable Content Body */}
+                <div className="p-5 max-h-[70vh] overflow-y-auto space-y-5">
+                  
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Name</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5">
+                        {selectedApplication.first_name} {selectedApplication.last_name}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Email</p>
+                      <p className="text-sm font-medium text-slate-800 mt-0.5 truncate">{selectedApplication.email || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Phone</p>
+                      <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.phone || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Role</p>
+                      <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.role}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Group</p>
+                      <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.group}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 my-2" />
+
+                  {/* Staff ID Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="staffId" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Staff ID
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="autoStaffId"
+                          checked={autoGenerateStaffId}
+                          onCheckedChange={(checked) => setAutoGenerateStaffId(checked === true)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label htmlFor="autoStaffId" className="text-xs text-slate-500 font-medium cursor-pointer selection:bg-transparent">
+                          Auto-generate
+                        </label>
+                      </div>
+                    </div>
+
+                    <Input
+                      id="staffId"
+                      type="text"
+                      placeholder={
+                        autoGenerateStaffId
+                          ? "Generated automatically upon acceptance"
+                          : "e.g. STF-2026-01"
+                      }
+                      value={staffId}
+                      onChange={(e) => setStaffId(e.target.value)}
+                      disabled={autoGenerateStaffId}
+                      className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 disabled:opacity-60 text-sm"
+                    />
+                  </div>
+
+                  {/* Password Section */}
+                  <div className="space-y-2">
+                    <label htmlFor="password" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Set Password
+                    </label>
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 text-sm" 
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      Required for approved candidates to log in.
                     </p>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Email</p>
-                    <p className="text-sm">{selectedApplication.email || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Phone</p>
-                    <p className="text-sm">{selectedApplication.phone || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Role</p>
-                    <p className="text-sm">{selectedApplication.role}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Group</p>
-                    <p className="text-sm">{selectedApplication.group}</p>
-                  </div>
-                </div>
 
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  <label htmlFor="password" className="text-xs font-semibold text-gray-500 uppercase">
-                    Set Password (for approved candidates)
-                  </label>
-                  <Input id="password" type="password" placeholder="Enter a secure password" value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-gray-50" />
-                  <p className="text-xs text-gray-400">
-                    This password will be given to the candidate for login.
-                  </p>
-                </div>
-
-                <div className="flex items-center space-x-2 pt-2">
-                  <Checkbox
-                    id="autoStaffId"
-                    checked={autoGenerateStaffId}
-                    onCheckedChange={(checked) => {
-                      setAutoGenerateStaffId(checked === true);
-                    }}
-                  />
-                  <label htmlFor="autoStaffId" className="text-sm font-normal leading-none cursor-pointer">
-                    Auto Generate Staff ID
-                  </label>
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    htmlFor="staffId"
-                    className="text-xs font-semibold text-gray-500 uppercase"
-                  >
-                    Staff ID
-                  </label>
-
-                  <Input
-                    id="staffId"
-                    type="text"
-                    placeholder={
-                      autoGenerateStaffId
-                        ? "Staff ID will be generated automatically"
-                        : "Enter Staff ID"
-                    }
-                    value={staffId}
-                    onChange={(e) => setStaffId(e.target.value)}
-                    disabled={autoGenerateStaffId}
-                    className="bg-gray-50"
-                  />
-                </div>
-
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="is_wfh" className="text-xs font-semibold text-gray-500 uppercase">
-                      Enable for Work From Home
-                    </label>
+                  {/* Toggle Options */}
+                  <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <label htmlFor="is_wfh" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                        Work From Home
+                      </label>
+                      <p className="text-[11px] text-slate-400">Enable remote work permissions</p>
+                    </div>
                     <Switch
                       id="is_wfh"
                       checked={wfhEnabled}
                       onCheckedChange={setWfhEnabled}
+                      className="data-[state=checked]:bg-indigo-600"
                     />
                   </div>
                 </div>
 
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <Button variant="outline" onClick={() => setDetailDialogOpen(false)} className="border-[#dde3ec] text-[#434655]">
+                {/* Action Footer */}
+                <div className="flex items-center justify-end gap-2 p-4 bg-slate-50 border-t border-slate-100">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setDetailDialogOpen(false)} 
+                    className="text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-sm font-medium"
+                  >
                     Cancel
                   </Button>
 
@@ -459,23 +522,24 @@ export default function CandidateRequestPage() {
                     variant="destructive"
                     onClick={handleReject}
                     disabled={updating}
-                    className="bg-red-600 hover:bg-red-700 text-white"
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 shadow-none text-sm font-medium transition-colors"
                   >
-                    {updating && actionType === "reject" ? "Updating..." : "Reject"}
+                    {updating && actionType === "reject" ? "Rejecting..." : "Reject"}
                   </Button>
 
                   <Button
                     onClick={handleAccept}
                     disabled={updating}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-sm font-medium transition-colors"
                   >
-                    {updating && actionType === "accept" ? "Updating..." : "Accept"}
+                    {updating && actionType === "accept" ? "Accepting..." : "Accept"}
                   </Button>
                 </div>
               </div>
             )}
           </DialogContent>
         </Dialog>
+
       </div>
     </div>
   );

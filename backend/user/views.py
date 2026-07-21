@@ -18,10 +18,10 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.http import HttpResponse
 from django.core.mail import send_mail
-from django.db.models import Q, F, Value, Max
+from django.db.models import Q, F, Value, Max, IntegerField
 from django.core.paginator import Paginator
 from django.db import connections, transaction
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Cast
 from django.core.validators import validate_email
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -816,6 +816,27 @@ def increment_staff_id(last_id):
 @permission_classes([AllowAny])
 def candidateApplication(request):
 
+    def generate_formatted_staff_id(config_obj, numeric_value):
+        prefix = config_obj.staff_id_prefix or ""
+        suffix = config_obj.staff_id_suffix or ""
+        
+        pad_length = max(3, len(str(config_obj.start_id)))
+        padded_num = str(numeric_value).zfill(pad_length)
+        
+        return f"{prefix}{padded_num}{suffix}"
+
+    def extract_number_from_string(staff_id_str, config_obj=None):
+        clean_str = staff_id_str
+        if config_obj:
+            if config_obj.staff_id_prefix and clean_str.startswith(config_obj.staff_id_prefix):
+                clean_str = clean_str[len(config_obj.staff_id_prefix):]
+            if config_obj.staff_id_suffix and clean_str.endswith(config_obj.staff_id_suffix):
+                clean_str = clean_str[:-len(config_obj.staff_id_suffix)]
+                
+        digits = re.findall(r'\d+', clean_str)
+        return int("".join(digits)) if digits else None
+
+
     if request.method == 'GET':
         company_id = request.query_params.get('company_id')
 
@@ -873,86 +894,91 @@ def candidateApplication(request):
         except CandidateApplications.DoesNotExist:
             return Response({'success': False, 'message': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        if app_status == 'approved':
+            password = request.data.get('password')
+            if not password:
+                return Response({'success': False, 'message': 'Password is required for approval'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if CustomUser.objects.filter(Q(email=app.email) | Q(mobile=app.phone)).exists():
+                return Response({'success': False, 'message': 'A user with this email or phone already exists'}, 
+                                status=status.HTTP_400_BAD_REQUEST)
+
         with transaction.atomic():
             try:
-
                 if app_status == 'approved':
                     company = Company.objects.get(id=app.company_id)    
-                    password = request.data.get('password')
-
-                    config = StaffIdConfig.objects.filter(company=company).first()
-                    prefix = config.staff_id_prefix if config else "EMP"
-
                     provided_staff_id = request.data.get('staff_id')
-                    if provided_staff_id and provided_staff_id.isdigit():
-                        provided_staff_id = f"{prefix}{provided_staff_id}"
 
-                    if provided_staff_id:
-                        if EmployeeProfile.objects.filter(staff_id=provided_staff_id).exists():
-                            return Response(
-                                {
-                                    "success": False,
-                                    "message": "Staff ID is already in use."
-                                },
-                                status=status.HTTP_400_BAD_REQUEST
-                            )
+                    config = StaffIdConfig.objects.select_for_update().filter(company=company).first()
+                    if not provided_staff_id:
+                        if config:
+                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company).exclude(staff_id__isnull=True).exclude(staff_id="").values_list('staff_id', flat=True)
+                            
+                            if existing_ids:
+                                highest_num = max((extract_number_from_string(sid, config) or 0 for sid in existing_ids), default=config.start_id - 1)
+                                next_num = highest_num + 1
+                            else:
+                                next_num = config.start_id
 
-                        final_staff_id = provided_staff_id
-                    
+                            final_staff_id = generate_formatted_staff_id(config, next_num)
+                        else:
+                            fallback_config = StaffIdConfig(staff_id_prefix="EMP-", start_id=1)
+                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company, staff_id__startswith="EMP-").values_list('staff_id', flat=True)
+                            
+                            if existing_ids:
+                                highest_num = max((extract_number_from_string(sid, fallback_config) or 0 for sid in existing_ids), default=0)
+                                next_num = highest_num + 1
+                            else:
+                                next_num = 1
+
+                            final_staff_id = generate_formatted_staff_id(fallback_config, next_num)
+
                     else:
-                        last_profile = EmployeeProfile.objects.filter(
-                            user__parent_company=company
-                        ).order_by("-staff_id").first()
+                        input_numeric = extract_number_from_string(provided_staff_id)
+                        if input_numeric is None:
+                            raise ValueError('Custom Staff ID must contain a valid number.')
 
-                        last_id = last_profile.staff_id if last_profile else f"{prefix}000"
-                        final_staff_id = increment_staff_id(last_id)
+                        if config:
+                            final_staff_id = generate_formatted_staff_id(config, input_numeric)
+                        else:
+                            prefix_match = re.match(r'^([a-zA-Z\-_]+)', provided_staff_id)
+                            new_prefix = prefix_match.group(1) if prefix_match else "EMP-"
+                            config = StaffIdConfig.objects.create(company=company, staff_id_prefix=new_prefix, start_id=input_numeric)
+                            final_staff_id = generate_formatted_staff_id(config, input_numeric)
+
+                    if EmployeeProfile.objects.filter(staff_id=final_staff_id).exists():
+                        raise ValueError(f"Staff ID '{final_staff_id}' is already assigned to an employee.")
                     
-
-                    if not password:
-                        return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
-
-                    last_user = CustomUser.objects.filter(company=company).aggregate(Max('biometric_id'))
-                    last_biometric_id = last_user['biometric_id__max']
+                    last_user = CustomUser.objects.filter(company=company, biometric_id__regex=r'^\d+$').annotate(
+                                                        bio_int=Cast('biometric_id', IntegerField())
+                                                    ).order_by('-bio_int').first()
                     
-                    try:
-                        last_biometric_id = int(last_biometric_id) if last_biometric_id else 0
-                    except ValueError:
-                        last_biometric_id = 0
+                    last_biometric_id = last_user.bio_int if last_user else 0
                     new_biometric_id = last_biometric_id + 1
 
-                    user, created = CustomUser.objects.get_or_create(
-                        email=app.email,
-                        defaults={
-                            'mobile': app.phone,
-                            'first_name': app.first_name,
-                            'last_name': app.last_name})
+                    user = CustomUser.objects.create(email=app.email, mobile=app.phone, first_name=app.first_name, last_name=app.last_name)
             
                     user.set_password(password)
                     user.biometric_id = str(new_biometric_id)
-                    user.first_name = app.first_name
-                    user.last_name = app.last_name
-                    user.mobile = app.phone
                     user.role = app.role
                     user.group = app.group
-                    user.is_wfh= request.data.get('wfh')
-                    user.is_active = True
                     
+                    wfh_val = request.data.get('wfh', False)
+                    user.is_wfh = bool(wfh_val) if wfh_val is not None else False
+                    user.is_active = True
                     user.company.add(company)
                     
                     if not user.parent_company:
                         user.parent_company = company
-
                     user.save()
-                
 
                     profile, created = EmployeeProfile.objects.get_or_create(user=user)
-
                     profile.staff_id = final_staff_id
                    
                     if request.data.get('date_of_joining'):
                         profile.date_of_joining = request.data.get('date_of_joining')
-
                     profile.save()
+
                     app.status = app_status
                     app.save()
 
@@ -960,12 +986,14 @@ def candidateApplication(request):
                     app.status = 'rejected'
                     app.save()         
 
+            except ValueError as ve:
+                return Response({'success': False, 'message': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         return Response({'success': True, 'message': 'Application status updated successfully'}, status=status.HTTP_200_OK)
-
 
     
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
@@ -974,13 +1002,15 @@ def getAllUsers(request, page):
     company_id = request.data.get('company_id')
     user = request.user
     
-    if not user.company.filter(id=company_id).exists():
-        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
-
     try:
         is_admin = c.CompanyUser.objects.get(user=user, company_id=company_id).is_admin
     except c.CompanyUser.DoesNotExist:
         is_admin = False
+        
+    belongs_to_company = user.company.filter(id=company_id).exists() or is_admin
+
+    if not belongs_to_company:
+        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
     
     is_team_lead = user.team_lead
 
