@@ -101,6 +101,7 @@ class CustomUser(AbstractUser):
     first_name = models.CharField(max_length=50)
     group = models.ForeignKey('company.CompanyGroup',on_delete=models.SET_NULL,null=True,blank=True)
     team_lead = models.BooleanField(default=False)
+    company_head = models.BooleanField(default=False)
     is_sms = models.BooleanField(default=True)
     is_wfh = models.BooleanField(default=False)
     is_whatsapp = models.BooleanField(default=True)
