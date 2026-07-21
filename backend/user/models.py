@@ -156,7 +156,7 @@ class EmployeeProfile(models.Model):
     date_of_joining = models.DateField(null=True, blank=True)
     date_of_relieving = models.DateField(null=True, blank=True, help_text="Date of Relieving / Termination / Retirement")
     date_of_contract_completion = models.DateField(null=True, blank=True)
-    staff_id = models.CharField(max_length=50, null=True, blank=True)
+    staff_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     ktu_id = models.CharField(max_length=100, null=True, blank=True)
     aicte_id = models.CharField(max_length=100, null=True, blank=True)
     
