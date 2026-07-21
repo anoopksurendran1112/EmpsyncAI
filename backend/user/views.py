@@ -41,6 +41,7 @@ from company import models as c
 from punch.models import PunchRecords
 from notification.models import FcmToken
 from company.serializer import CompanySerializer
+from company.models import CompanyFieldSetting
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
 from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
@@ -2923,6 +2924,34 @@ def manageEmployeeProfile(request):
                 serializer = EmployeeProfileSerializer(data=profile_data)
 
                 if serializer.is_valid():
+                 company = request.user.company.first()
+
+                try:
+                    field_setting = CompanyFieldSetting.objects.get(company=company)
+                    personal_fields = field_setting.config.get("personal_information", {})
+                except CompanyFieldSetting.DoesNotExist:
+                     personal_fields = {}
+
+                mandatory_fields = {
+                    "alternate_email": "Alternate Email",
+                    "alternate_mobile": "Alternate Mobile",
+                    "dob": "Date of Birth",
+                    "religion": "Religion",
+                    "caste": "Caste",
+                    "blood_group": "Blood Group",
+                }
+
+                for field, label in mandatory_fields.items():
+                    if personal_fields.get(field):
+                        value = request.data.get(field)
+                        if value in [None, "", []]:
+                            return Response(
+                                {
+                                    "success": False,
+                                    "message": f"{label} is mandatory.",
+                                },
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
                     profile = serializer.save()
                     response_data = serializer.data
 

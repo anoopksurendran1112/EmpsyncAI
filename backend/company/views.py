@@ -1,10 +1,10 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile, StaffIdConfig
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile,StaffIdConfig,CompanyFieldSetting
 from punch.models import PunchRecords
 from rest_framework import status
-from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer, StaffIdConfigSerializer
+from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer,StaffIdConfigSerializer,CompanyFieldSettingSerializer
 from drf_spectacular.utils import extend_schema,OpenApiParameter, OpenApiTypes
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import AllowAny
@@ -1324,3 +1324,75 @@ def employee_report(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
+@api_view(["GET", "POST"])
+@permission_classes([AllowAny])
+def company_field_setting(request):
+    """
+    GET  -> fetch company field setting
+    POST -> create/update company field setting
+    """
+
+    if request.method == "GET":
+        company_id = request.GET.get("company_id")
+
+        if not company_id:
+            return Response(
+                {
+                    "success": False,
+                    "message": "company_id is required",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            setting = CompanyFieldSetting.objects.get(company_id=company_id)
+            serializer = CompanyFieldSettingSerializer(setting)
+
+            return Response(
+                {
+                    "success": True,
+                    "data": serializer.data,
+                }
+            )
+
+        except CompanyFieldSetting.DoesNotExist:
+            return Response(
+                {
+                    "success": True,
+                    "data": {
+                        "company_id": company_id,
+                        "config": {},
+                    },
+                }
+            )
+
+    company_id = request.data.get("company_id")
+    config = request.data.get("config", {})
+
+    if not company_id:
+        return Response(
+            {
+                "success": False,
+                "message": "company_id is required",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    company = Company.objects.get(id=company_id)
+
+    setting, created = CompanyFieldSetting.objects.update_or_create(
+        company=company,
+        defaults={
+            "config": config,
+        },
+    )
+
+    serializer = CompanyFieldSettingSerializer(setting)
+
+    return Response(
+        {
+            "success": True,
+            "message": "Saved successfully",
+            "data": serializer.data,
+        }
+    )
