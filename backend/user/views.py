@@ -4,6 +4,7 @@ import json
 import random
 import logging
 import requests
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -802,6 +803,15 @@ def delete_user(request):
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
+def increment_staff_id(last_id):
+    match = re.match(r"^(.*?)(\d+)$", last_id)
+
+    if not match:
+        raise ValueError(f"Invalid staff ID format: {last_id}")
+
+    prefix, number = match.groups()
+    return f"{prefix}{int(number) + 1}"
+
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def candidateApplication(request):
@@ -865,25 +875,39 @@ def candidateApplication(request):
 
         with transaction.atomic():
             try:
-                app.status = app_status
-                app.save()
 
                 if app_status == 'approved':
-                    company = Company.objects.get(id=app.company_id)                    
+                    company = Company.objects.get(id=app.company_id)    
                     password = request.data.get('password')
 
                     config = StaffIdConfig.objects.filter(company=company).first()
-                    prefix = config.prefix if config else "EMP"
+                    prefix = config.staff_id_prefix if config else "EMP"
 
                     provided_staff_id = request.data.get('staff_id')
+                    if provided_staff_id and provided_staff_id.isdigit():
+                        provided_staff_id = f"{prefix}{provided_staff_id}"
 
                     if provided_staff_id:
+                        if EmployeeProfile.objects.filter(staff_id=provided_staff_id).exists():
+                            return Response(
+                                {
+                                    "success": False,
+                                    "message": "Staff ID is already in use."
+                                },
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+
                         final_staff_id = provided_staff_id
+                    
                     else:
-                        last_profile = EmployeeProfile.objects.filter(user__parent_company=company).order_by('-staff_id').first()
+                        last_profile = EmployeeProfile.objects.filter(
+                            user__parent_company=company
+                        ).order_by("-staff_id").first()
+
                         last_id = last_profile.staff_id if last_profile else f"{prefix}000"
                         final_staff_id = increment_staff_id(last_id)
                     
+
                     if not password:
                         return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
 
@@ -902,7 +926,7 @@ def candidateApplication(request):
                             'mobile': app.phone,
                             'first_name': app.first_name,
                             'last_name': app.last_name})
-                    
+            
                     user.set_password(password)
                     user.biometric_id = str(new_biometric_id)
                     user.first_name = app.first_name
@@ -919,14 +943,26 @@ def candidateApplication(request):
                         user.parent_company = company
 
                     user.save()
+                
 
-                    EmployeeProfile.objects.create(user=user,staff_id=final_staff_id)
-                    
+                    profile, created = EmployeeProfile.objects.get_or_create(user=user)
+
+                    profile.staff_id = final_staff_id
+                   
                     if request.data.get('date_of_joining'):
-                        user.profile.date_of_joining = request.data.get('date_of_joining')
-                        
+                        profile.date_of_joining = request.data.get('date_of_joining')
+
+                    profile.save()
+                    app.status = app_status
+                    app.save()
+
+                elif app_status == 'rejected':
+                    app.status = 'rejected'
+                    app.save()         
 
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({'success': True, 'message': 'Application status updated successfully'}, status=status.HTTP_200_OK)
 
