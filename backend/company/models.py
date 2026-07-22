@@ -203,3 +203,14 @@ class StaffIdConfig(models.Model):
 
     def __str__(self):
         return f"StaffIdConfig for {self.company.company_name} (prefix={self.staff_id_prefix}, suffix={self.staff_id_suffix})"
+        
+        
+class CompanyFieldSetting(models.Model):
+    company = models.OneToOneField(Company,on_delete=models.CASCADE,related_name="field_setting")
+    config = models.JSONField(default=dict)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.company.company_name} Field Setting"

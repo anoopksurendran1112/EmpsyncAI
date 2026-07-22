@@ -42,6 +42,7 @@ from company import models as c
 from punch.models import PunchRecords
 from notification.models import FcmToken
 from company.serializer import CompanySerializer
+from company.models import CompanyFieldSetting
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
 from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
