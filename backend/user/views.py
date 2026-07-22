@@ -44,7 +44,7 @@ from notification.models import FcmToken
 from company.serializer import CompanySerializer
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeOnboardingDraft
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
@@ -2197,6 +2197,24 @@ def employee_with_profile(request):
                     user_payload['password'] = request.data.get('password')
                 if 'prof_img' in request.FILES:
                     user_payload['prof_img'] = request.FILES['prof_img']
+                elif 'prof_img_base64' in request.data and request.data.get('prof_img_base64'):
+                    from django.core.files.base import ContentFile
+                    import base64
+                    base64_str = request.data.get('prof_img_base64')
+                    try:
+                        if ';base64,' in base64_str:
+                            format, imgstr = base64_str.split(';base64,')
+                            ext = format.split('/')[-1]
+                            # Clean up ext if it has metadata like ;charset=utf-8
+                            if ';' in ext:
+                                ext = ext.split(';')[0]
+                            data = ContentFile(base64.b64decode(imgstr), name=f"draft_profile.{ext}")
+                            user_payload['prof_img'] = data
+                        else:
+                            data = ContentFile(base64.b64decode(base64_str), name="draft_profile.jpg")
+                            user_payload['prof_img'] = data
+                    except Exception as e:
+                        logger.error(f"Error decoding prof_img_base64: {e}")
 
                 user_serializer = UserSerializer(data=user_payload)
                 if not user_serializer.is_valid():
@@ -2282,6 +2300,25 @@ def employee_with_profile(request):
                         cert_key = f'qualifications[{idx}][certificate]'
                         if cert_key in request.FILES:
                             q_data['certificate'] = request.FILES[cert_key]
+                        elif 'certificate_base64' in q_data and q_data.get('certificate_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = q_data.get('certificate_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=cert_name)
+                                    q_data['certificate'] = data
+                                else:
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=cert_name)
+                                    q_data['certificate'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding qualifications[{idx}] certificate base64: {e}")
                     q_serializer = EmployeeQualificationSerializer(data=qualifications, many=True)
                     if not q_serializer.is_valid():
                         raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
@@ -2296,6 +2333,25 @@ def employee_with_profile(request):
                         exp_letter_key = f'experiences[{idx}][experience_letter]'
                         if exp_letter_key in request.FILES:
                             e_data['experience_letter'] = request.FILES[exp_letter_key]
+                        elif 'experience_letter_base64' in e_data and e_data.get('experience_letter_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = e_data.get('experience_letter_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=letter_name)
+                                    e_data['experience_letter'] = data
+                                else:
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=letter_name)
+                                    e_data['experience_letter'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding experiences[{idx}] letter base64: {e}")
                         designations = e_data.pop('designations', [])
                         e_serializer = EmployeeExperienceSerializer(data=e_data)
                         if not e_serializer.is_valid():
@@ -2651,6 +2707,65 @@ def employee_with_profile(request):
                 return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_employee_draft(request):
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        draft = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).first()
+        if not draft:
+            return Response({'success': True, 'data': None}, status=status.HTTP_200_OK)
+            
+        return Response({
+            'success': True,
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+                'draft_data': draft.draft_data
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        company_id = request.data.get('company_id')
+        last_step = request.data.get('last_step', 0)
+        draft_data = request.data.get('draft_data', {})
+        
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        draft, created = EmployeeOnboardingDraft.objects.update_or_create(
+            company_id=company_id,
+            created_by=request.user,
+            defaults={
+                'last_step': int(last_step),
+                'draft_data': draft_data
+            }
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Draft saved successfully',
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'DELETE':
+        company_id = request.query_params.get('company_id') or request.data.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        deleted_count, _ = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).delete()
+        return Response({
+            'success': True,
+            'message': 'Draft deleted successfully' if deleted_count > 0 else 'No draft found to delete'
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])

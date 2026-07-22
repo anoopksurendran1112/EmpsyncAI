@@ -343,3 +343,19 @@ class BankDetail(models.Model):
             BankDetail.objects.filter(user=self.user, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
             
         super().save(*args, **kwargs)
+
+
+class EmployeeOnboardingDraft(models.Model):
+    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='employee_drafts')
+    created_by = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='created_drafts')
+    draft_data = models.JSONField(default=dict)
+    last_step = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('company', 'created_by')]
+
+    def __str__(self):
+        return f"Draft by {self.created_by.email} for {self.company.name}"
+
