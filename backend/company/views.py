@@ -1,10 +1,10 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile, StaffIdConfig
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile,StaffIdConfig,CompanyFieldSetting
 from punch.models import PunchRecords
 from rest_framework import status
-from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer, StaffIdConfigSerializer
+from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer,StaffIdConfigSerializer,CompanyFieldSettingSerializer
 from drf_spectacular.utils import extend_schema,OpenApiParameter, OpenApiTypes
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import AllowAny
@@ -1324,3 +1324,54 @@ def employee_report(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
+
+
+@api_view(["GET", "POST", "PUT"])
+@permission_classes([AllowAny])
+def company_field_setting(request):
+    if request.method == "GET":
+        company_id = request.GET.get("company_id")
+
+        if not company_id:
+            return Response({ "success": False, "message": "company_id is required",}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            setting = CompanyFieldSetting.objects.get(company_id=company_id)
+            serializer = CompanyFieldSettingSerializer(setting)
+            return Response({ "success": True,  "data": serializer.data})
+
+        except CompanyFieldSetting.DoesNotExist:
+            return Response({ "success": False, "company_id": company_id, "message": "Config not found"}, 
+                            status=status.HTTP_404_NOT_FOUND)
+
+    company_id = request.data.get("company_id")
+    config = request.data.get("config", {})
+
+    if not company_id:
+        return Response({ "success": False, "message": "company_id is required"}, 
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response({ "success": False,  "message": "Company not found" }, 
+                        status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == "PUT" and not CompanyFieldSetting.objects.filter(company=company).exists():
+        return Response({"success": False,"message": "Field setting configuration not found for update"}, 
+                        status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        with transaction.atomic():
+            setting, created = CompanyFieldSetting.objects.update_or_create(
+                company=company, defaults={ "config": config,},)
+    except Exception as e:
+        return Response({ "success": False, "message": f"An error occurred: {str(e)}" }, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    serializer = CompanyFieldSettingSerializer(setting)
+    action_message = "Created successfully" if created else "Updated successfully"
+
+    return Response({"success": True, "message": action_message, "data": serializer.data},
+                    status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
