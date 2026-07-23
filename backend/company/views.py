@@ -1331,7 +1331,7 @@ def employee_report(request):
 @permission_classes([AllowAny])
 def company_field_setting(request):
     if request.method == "GET":
-        company_id = request.GET.get("company_id")
+        company_id = request.GET.get("company_id") or request.query_params.get('company_id')
 
         if not company_id:
             return Response({ "success": False, "message": "company_id is required",}, 

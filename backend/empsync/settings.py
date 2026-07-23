@@ -27,7 +27,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # SECURITY WARNING: don't run with debug TRUE on production
 DEBUG = False
 
-ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'empsyncai.kochi.digital']
+ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'localhost', 'empsyncai.kochi.digital']
 
 CSRF_TRUSTED_ORIGINS = [
     "https://empsyncai.kochi.digital",
