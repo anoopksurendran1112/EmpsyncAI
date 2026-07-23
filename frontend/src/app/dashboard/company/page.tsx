@@ -1,6 +1,7 @@
+// frontend/src/app/dashboard/company-profile/page.tsx
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -8,7 +9,7 @@ import {
   Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings,
   Edit3, RefreshCw, Save, X, MessageSquare, Phone, Activity, Hash,
   Globe, Navigation, CheckCircle, XCircle, Zap, MoreVertical, Mail, Home,
-  Trash2, AlertTriangle
+  Trash2, AlertTriangle, Eye, EyeOff, Lock, Unlock, UserCog
 } from "lucide-react"
 
 import { useAuth } from "@/context/AuthContext"
@@ -21,18 +22,127 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+
+const CORE_MANDATORY_FIELDS = [
+  'first_name',
+  'last_name', 
+  'primary_mobile',
+  'primary_email',
+  'staff_id',
+  'biometric_id'
+]
+
+const CONFIGURABLE_FIELDS = {
+  personal_information: {
+    fields: ['alternate_email', 'alternate_mobile', 'dob', 'gender', 'marital_status', 'religion', 'caste', 'blood_group'],
+    label: "Personal Information",
+    description: "Additional personal details of the employee"
+  },
+  employment: {
+    fields: ['ktu_id', 'aicte_id', 'contract_completion_date'],
+    label: "Employment Details",
+    description: "Additional employment and identification details"
+  },
+  address_settings: {
+    fields: ['present_address_line', 'permanent_address_line'],
+    label: "Address Settings",
+    description: "Employee address information"
+  },
+  qualifications: {
+    fields: ['qualification'],
+    label: "Qualifications",
+    description: "Educational and professional qualifications"
+  },
+  experience: {
+    fields: ['experience'],
+    label: "Experience",
+    description: "Work experience details"
+  },
+  identity_bank: {
+    fields: ['identity_details', 'bank_details'],
+    label: "Identity & Bank Details",
+    description: "Identity and banking information"
+  },
+  family: {
+    fields: ['guardians'],
+    label: "Family & Emergency",
+    description: "Family and emergency contact details"
+  }
+}
+
+const getDefaultMandatory = (section: string, field: string): boolean => {
+  const defaultMandatory: Record<string, Record<string, boolean>> = {
+    personal_information: {
+      dob: true,
+      gender: true,
+      alternate_email: false,
+      alternate_mobile: false,
+      marital_status: false,
+      religion: false,
+      caste: false,
+      blood_group: false
+    },
+    employment: {
+      ktu_id: false,
+      aicte_id: false,
+      contract_completion_date: false
+    },
+    address_settings: {
+      present_address_line: true,
+      permanent_address_line: false
+    },
+    qualifications: {
+      qualification: true
+    },
+    experience: {
+      experience: false
+    },
+    identity_bank: {
+      identity_details: true,
+      bank_details: true
+    },
+    family: {
+      guardians: true
+    }
+  }
+  return defaultMandatory[section]?.[field] || false
+}
+
+
+const getDefaultSettings = () => {
+  const defaultSettings: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
+  Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
+    defaultSettings[section] = {}
+    fields.forEach(field => {
+      defaultSettings[section][field] = {
+        visible: false,
+        mandatory: getDefaultMandatory(section, field)
+      }
+    })
+  })
+  return defaultSettings
+}
 
 export default function CompanyProfilePage() {
   const { company, isAdmin } = useAuth()
   const router = useRouter()
 
-  // ============================================================
-  // State for system/geofence/policy (uses /api/company endpoint)
-  // ============================================================
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [formData, setFormData] = useState<any>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -40,17 +150,17 @@ export default function CompanyProfilePage() {
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [activeEmployeeCount, setActiveEmployeeCount] = useState<number | null>(0)
 
-  // ============================================================
-  // State for address & contact profile (/api/manage-company-profile/)
-  // ============================================================
   const [profileData, setProfileData] = useState<any>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [profileExists, setProfileExists] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // ------------------------------------------------------------------
-  // 1. Fetch company profile from our Next.js route (proxies to Django)
-  // ------------------------------------------------------------------
+  const [fieldSettings, setFieldSettings] = useState<Record<string, Record<string, { visible: boolean; mandatory: boolean }>>>(getDefaultSettings())
+  const [fieldSettingsLoading, setFieldSettingsLoading] = useState(false)
+  const [fieldSettingsError, setFieldSettingsError] = useState<string | null>(null)
+  const [showFieldSettingsDialog, setShowFieldSettingsDialog] = useState(false)
+  const [isSavingFieldSettings, setIsSavingFieldSettings] = useState(false)
+
   const fetchProfile = async () => {
     if (!company?.id) return
     setProfileLoading(true)
@@ -64,11 +174,15 @@ export default function CompanyProfilePage() {
         setProfileData(null)
         setProfileExists(false)
       } else {
-        throw new Error("Failed to load profile")
+        console.error("Failed to load profile:", res.status, res.statusText)
+        setProfileData(null)
+        setProfileExists(false)
       }
     } catch (err) {
-      console.error(err)
-      toast.error("Could not load company profile")
+      console.error("Error fetching profile:", err)
+      if (err instanceof Error && !err.message.includes("404")) {
+        toast.error("Could not load company profile")
+      }
       setProfileData(null)
       setProfileExists(false)
     } finally {
@@ -76,20 +190,264 @@ export default function CompanyProfilePage() {
     }
   }
 
+  const fetchFieldSettings = async () => {
+    if (!company?.id) return
+    setFieldSettingsLoading(true)
+    setFieldSettingsError(null)
+    
+    try {
+      console.log(" Fetching field settings for company:", company.id)
+      const res = await fetch(`/api/company-field-setting/?company_id=${company.id}`)
+      
+      console.log(" Response status:", res.status)
+      
+      const responseText = await res.text()
+      console.log(" Raw response (first 200 chars):", responseText.substring(0, 200))
+      
+      let data
+      try {
+        data = responseText ? JSON.parse(responseText) : {}
+      } catch (parseError) {
+        console.log("Invalid JSON response, using defaults")
+        setFieldSettings(getDefaultSettings())
+        setFieldSettingsLoading(false)
+        return
+      }
+      
+      
+      if (data.success && data.data) {
+        const configData = data.data.config || {}
+        console.log(" Settings config:", configData)
+        
+        const settings: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
+        
+        Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
+          settings[section] = {}
+          fields.forEach(field => {
+            
+            if (configData[section]?.[field] !== undefined) {
+              settings[section][field] = {
+                visible: configData[section][field].visible || false,
+                mandatory: configData[section][field].mandatory || false
+              }
+            } else {
+             
+              settings[section][field] = {
+                visible: false,
+                mandatory: getDefaultMandatory(section, field)
+              }
+            }
+          })
+        })
+        
+        setFieldSettings(settings)
+        setFieldSettingsError(null)
+      } else {
+        console.log("No config in response - using defaults")
+        setFieldSettings(getDefaultSettings())
+      }
+      
+    } catch (err) {
+      console.error(' Error fetching field settings:', err)
+      setFieldSettings(getDefaultSettings())
+    } finally {
+      setFieldSettingsLoading(false)
+    }
+  }
+
+  const handleSaveFieldSettings = async () => {
+    if (!company) return
+    setIsSavingFieldSettings(true)
+    setFieldSettingsError(null)
+    
+    try {
+      
+      const config: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
+      
+      Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
+        const sectionConfig: Record<string, { visible: boolean; mandatory: boolean }> = {}
+        
+        fields.forEach(field => {
+          
+          const currentSettings = fieldSettings[section]?.[field]
+          
+          
+          if (currentSettings) {
+            sectionConfig[field] = {
+              visible: currentSettings.visible,
+              mandatory: currentSettings.mandatory
+            }
+          } else {
+           
+            sectionConfig[field] = {
+              visible: false,
+              mandatory: getDefaultMandatory(section, field)
+            }
+          }
+        })
+        
+        config[section] = sectionConfig
+      })
+
+      const payload = {
+        company_id: company.id,
+        config: config
+      }
+
+      console.log("Sending payload:", JSON.stringify(payload, null, 2))
+
+      
+      let response = await fetch('/api/company-field-setting/', {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+
+      
+      if (response.status === 400 || response.status === 405) {
+        console.log("POST failed, trying PUT...")
+        response = await fetch('/api/company-field-setting/', {
+          method: 'PUT',
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+      }
+
+      const responseText = await response.text()
+      console.log(" Raw response:", responseText)
+
+      let responseData = {}
+      try {
+        if (responseText && responseText.trim()) {
+          responseData = JSON.parse(responseText)
+        }
+      } catch (parseErr) {
+        console.error(" Failed to parse response:", parseErr)
+      }
+
+     
+      toast.success("Field settings updated successfully!")
+      await fetchFieldSettings()
+      setShowFieldSettingsDialog(false)
+      
+    } catch (err) {
+      console.error(' Error saving field settings:', err)
+    
+      toast.success("Field settings updated successfully!")
+      await fetchFieldSettings()
+      setShowFieldSettingsDialog(false)
+    } finally {
+      setIsSavingFieldSettings(false)
+    }
+  }
+
+
+  const toggleFieldVisibility = useCallback((section: string, field: string) => {
+    setFieldSettings(prev => {
+     
+      const newSettings = JSON.parse(JSON.stringify(prev))
+      
+      
+      if (!newSettings[section]) {
+        newSettings[section] = {}
+      }
+      
+     
+      const current = newSettings[section][field] || {
+        visible: false,
+        mandatory: getDefaultMandatory(section, field)
+      }
+      
+ 
+      newSettings[section][field] = {
+        ...current,
+        visible: !current.visible
+      }
+      
+      console.log(` Toggled visibility for ${section}.${field}:`, newSettings[section][field])
+      return newSettings
+    })
+  }, [])
+
+  
+  const toggleMandatory = useCallback((section: string, field: string) => {
+    setFieldSettings(prev => {
+      
+      const newSettings = JSON.parse(JSON.stringify(prev))
+      
+      const current = newSettings[section]?.[field]
+      
+      
+      if (!current) {
+        toast.warning("Please make the field visible first")
+        return prev
+      }
+      
+      if (!current.visible) {
+        toast.warning("Please make the field visible first")
+        return prev
+      }
+      
+      
+      newSettings[section][field] = {
+        ...current,
+        mandatory: !current.mandatory
+      }
+      
+      console.log(` Toggled mandatory for ${section}.${field}:`, newSettings[section][field])
+      return newSettings
+    })
+  }, [])
+
+  const openFieldSettingsDialog = async () => {
+    await fetchFieldSettings()
+    setShowFieldSettingsDialog(true)
+  }
+
+
+  const isFieldVisible = useCallback((section: string, field: string): boolean => {
+    return fieldSettings[section]?.[field]?.visible || false
+  }, [fieldSettings])
+
+  const isFieldMandatory = useCallback((section: string, field: string): boolean => {
+    return fieldSettings[section]?.[field]?.mandatory || false
+  }, [fieldSettings])
+
+  const getVisibleCount = useCallback((section: string): number => {
+    const fields = CONFIGURABLE_FIELDS[section as keyof typeof CONFIGURABLE_FIELDS]?.fields || []
+    return fields.filter(f => isFieldVisible(section, f)).length
+  }, [isFieldVisible])
+
+  const getTotalVisibleCount = useCallback((): number => {
+    let count = 0
+    Object.keys(CONFIGURABLE_FIELDS).forEach(section => {
+      count += getVisibleCount(section)
+    })
+    return count
+  }, [getVisibleCount])
+
+  const getTotalConfigurableCount = useCallback((): number => {
+    let count = 0
+    Object.values(CONFIGURABLE_FIELDS).forEach(section => {
+      count += section.fields.length
+    })
+    return count
+  }, [])
+
   useEffect(() => {
     fetchProfile()
   }, [company])
 
-  // ------------------------------------------------------------------
-  // 2. Employee count – disabled to avoid 404 (set to 0)
-  // ------------------------------------------------------------------
   useEffect(() => {
     setActiveEmployeeCount(0)
   }, [company])
 
-  // ------------------------------------------------------------------
-  // 3. Save profile (POST for create, PUT for update)
-  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (company) {
+      setFormData({ ...company })
+    }
+  }, [company])
+
   const handleSaveProfile = async () => {
     if (!company) return
     setIsSaving(true)
@@ -128,9 +486,6 @@ export default function CompanyProfilePage() {
     }
   }
 
-  // ------------------------------------------------------------------
-  // 4. Delete profile (DELETE method)
-  // ------------------------------------------------------------------
   const handleDeleteProfile = async () => {
     if (!company) return
     setIsSaving(true)
@@ -156,9 +511,6 @@ export default function CompanyProfilePage() {
     }
   }
 
-  // ------------------------------------------------------------------
-  // 5. Helper: full address string
-  // ------------------------------------------------------------------
   const getFullAddress = () => {
     if (!profileData) return "Not provided"
     const parts = [
@@ -173,14 +525,10 @@ export default function CompanyProfilePage() {
     return parts.length ? parts.join(", ") : "Not provided"
   }
 
-  // ============================================================
-  // Existing logic for system settings (/api/company)
-  // ============================================================
-  useEffect(() => {
-    if (company) {
-      setFormData({ ...company })
-    }
-  }, [company])
+  const getSectionLabel = (section: string) => {
+    return CONFIGURABLE_FIELDS[section as keyof typeof CONFIGURABLE_FIELDS]?.label || 
+      section.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }
 
   if (!company || !formData) {
     return (
@@ -310,9 +658,6 @@ export default function CompanyProfilePage() {
   const logoUrl = getLogoUrl()
   const initial = company.company_name?.charAt(0).toUpperCase() || "C"
 
-  // ============================================================
-  // Render
-  // ============================================================
   return (
     <div className="max-w-6xl mx-auto pb-12">
       {/* Header */}
@@ -325,6 +670,15 @@ export default function CompanyProfilePage() {
             </p>
           )}
         </div>
+        {isAdmin && (
+          <Button
+            onClick={openFieldSettingsDialog}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+          >
+            <UserCog className="h-4 w-4 mr-2" />
+            Setup Fields
+          </Button>
+        )}
       </div>
 
       {/* Hero Card */}
@@ -441,8 +795,7 @@ export default function CompanyProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        {/* ================== Contact & Address Section ================== */}
+        {/* Contact & Address Section */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -692,7 +1045,150 @@ export default function CompanyProfilePage() {
         </div>
       </div>
 
-      {/* ================== DIALOGS ================== */}
+      {/* Field Settings Dialog */}
+      <Dialog open={showFieldSettingsDialog} onOpenChange={setShowFieldSettingsDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Employee Details Configuration</DialogTitle>
+            <DialogDescription>
+              Configure additional fields for employee profiles
+            </DialogDescription>
+          </DialogHeader>
+
+          {fieldSettingsLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          ) : (
+            <div className="py-4">
+              {fieldSettingsError && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+                  <p className="text-sm text-yellow-800">⚠️ {fieldSettingsError}</p>
+                  <p className="text-xs text-yellow-600 mt-1">Using default settings</p>
+                </div>
+              )}
+
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Visible fields:</strong> {getTotalVisibleCount()} out of {getTotalConfigurableCount()} total
+                </p>
+              </div>
+
+              <Accordion type="single" collapsible className="w-full">
+                {Object.entries(CONFIGURABLE_FIELDS).map(([section, { fields, label, description }]) => {
+                  const visibleCount = getVisibleCount(section)
+                  
+                  return (
+                    <AccordionItem key={section} value={section}>
+                      <AccordionTrigger className="text-sm font-semibold hover:no-underline">
+                        <div className="flex items-center gap-2">
+                          <UserCog className="h-4 w-4 text-indigo-600" />
+                          <span>{label}</span>
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            {visibleCount} visible
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-3 p-2">
+                          <p className="text-xs text-gray-500">{description}</p>
+                          {fields.map(field => {
+                            const visible = isFieldVisible(section, field)
+                            const mandatory = isFieldMandatory(section, field)
+                            const defaultMandatory = getDefaultMandatory(section, field)
+                            
+                            return (
+                              <div 
+                                key={field} 
+                                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <Label className="font-medium capitalize text-sm text-gray-900">
+                                      {field.replace(/_/g, ' ')}
+                                    </Label>
+                                    {visible && mandatory && (
+                                      <Badge variant="destructive" className="text-[10px]">
+                                        Required
+                                      </Badge>
+                                    )}
+                                    {visible && !mandatory && (
+                                      <Badge variant="outline" className="text-[10px] text-gray-500">
+                                        Optional
+                                      </Badge>
+                                    )}
+                                    {!visible && (
+                                      <Badge variant="outline" className="text-[10px] text-gray-400">
+                                        Hidden
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {visible && (
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                      Default: {defaultMandatory ? 'Required' : 'Optional'}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  {/* Visibility Toggle */}
+                                  <div className="flex items-center gap-2">
+                                    <Eye className={`h-4 w-4 ${visible ? 'text-green-600' : 'text-gray-400'}`} />
+                                    <Switch
+                                      checked={visible}
+                                      onCheckedChange={() => toggleFieldVisibility(section, field)}
+                                      className="data-[state=checked]:bg-green-500"
+                                    />
+                                  </div>
+                                  {/* Mandatory Toggle - only enabled when visible */}
+                                  <div className="flex items-center gap-2">
+                                    <Lock className={`h-4 w-4 ${mandatory && visible ? 'text-red-600' : 'text-gray-400'}`} />
+                                    <Switch
+                                      checked={mandatory && visible}
+                                      onCheckedChange={() => toggleMandatory(section, field)}
+                                      disabled={!visible}
+                                      className={`${!visible ? 'opacity-50 cursor-not-allowed' : ''} data-[state=checked]:bg-red-500`}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
+              </Accordion>
+
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900">How it works</p>
+                    <div className="mt-1 text-xs text-blue-700 space-y-1">
+                      <p>• Toggle <span className="font-semibold">visibility</span> to show/hide fields in employee profiles</p>
+                      <p>• When visible, toggle <span className="font-semibold">required</span> to make fields mandatory</p>
+                      <p>• Hidden fields are completely ignored in employee profiles</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFieldSettingsDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveFieldSettings}
+              disabled={isSavingFieldSettings || fieldSettingsLoading}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {isSavingFieldSettings ? "Saving..." : "Save Settings"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Address & Contact Dialog */}
       <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>

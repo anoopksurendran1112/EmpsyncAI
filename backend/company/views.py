@@ -15,6 +15,7 @@ from user import serializer as s
 from django.utils.timezone import make_aware
 from punch.utils.report_utils import process_punch_logic
 from django.db.models import ProtectedError
+from django.db import transaction  
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
