@@ -76,6 +76,11 @@ class Leave(models.Model):
     status = models.CharField(choices=LEAVE_STATUS_CHOICES,max_length=50)
     custom_reason = models.TextField(null=True, blank=True)  # 🔥 For custom leave reason
     approval_trail = models.JSONField(default=dict,blank=True,null=True)
+    current_level = models.PositiveIntegerField(default=0)
+    current_approver = models.ForeignKey(
+        'user.CustomUser', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='leaves_to_approve'
+    )
 
     def __str__(self):
         return f"{self.user} - {self.leave_type or 'Custom'} ({self.from_date})"

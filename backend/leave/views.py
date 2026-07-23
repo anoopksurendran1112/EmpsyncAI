@@ -18,8 +18,10 @@ from django.core.paginator import Paginator
 from notification.views import send_push_notification
 from notification.models import FcmToken
 from datetime import date
-from django.utils import timezone
+from django.utils import timezone as tz
 from django.db import transaction
+from .services import get_flow_config, resolve_first_approver
+
 
 
 
@@ -405,6 +407,9 @@ def apply_leave(request):
         # ------------------------------------------------------------------
         # 4. Atomic Transaction: Credit Deduction + Creation
         # ------------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # 4. Atomic Transaction: Credit Deduction + Creation
+        # ------------------------------------------------------------------
         with transaction.atomic():
             # Check credit
             if leave_type.use_credit:
@@ -430,10 +435,38 @@ def apply_leave(request):
                 days_taken=leave_days
             )
 
-        # Notify company admins (Moved outside atomic block to keep transaction short)
-        admins = CompanyUser.objects.filter(company=company, is_admin=True).values_list('user', flat=True)
-        tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
-        send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
+            # ---------------- NEW: assign first approver in hierarchy ----------------
+            flow_config = get_flow_config(company)
+
+            if not flow_config:
+                # fallback-safe: no hierarchy configured yet, keep old behavior
+                leave.current_level = 0
+                leave.current_approver = None
+            else:
+                approver_id, level = resolve_first_approver(leave, flow_config)
+                if approver_id is None:
+                    # Entire hierarchy is the applicant themself — auto approve
+                    leave.status = 'A'
+                    leave.current_level = level
+                    leave.current_approver = None
+                else:
+                    leave.current_level = level
+                    leave.current_approver_id = approver_id
+
+            leave.save()
+            # ---------------------------------------------------------------------------
+
+        # Notify next approver if assigned, otherwise fall back to notifying all admins
+        if leave.current_approver_id:
+            tokens = list(FcmToken.objects.filter(user_id=leave.current_approver_id).values_list('fcm_token', flat=True))
+            send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave — pending your approval')
+        elif leave.status == 'A':
+            tokens = list(FcmToken.objects.filter(user=user).values_list('fcm_token', flat=True))
+            send_push_notification(tokens, 'Leave approved', 'Your leave request has been auto-approved')
+        else:
+            admins = CompanyUser.objects.filter(company=company, is_admin=True).values_list('user', flat=True)
+            tokens = list(FcmToken.objects.filter(user__in=admins).values_list('fcm_token', flat=True))
+            send_push_notification(tokens, 'Leave request', f'{user.first_name} requested a {leave.get_leave_choice_display()} leave')
 
         return Response({'success': True, 'message': 'Leave request submitted.'}, status=status.HTTP_201_CREATED)
     
@@ -455,7 +488,7 @@ def add_initial_credits_to_all_users(leave_type):
         LeaveCredit.objects.get_or_create(
             user=user,
             leave_type=leave_type,
-            year=timezone.now().year,
+            year=tz.now().year,
             defaults={'credits': leave_type.initial_credit}
         )
 
@@ -690,52 +723,51 @@ def update_leave_type(request):
 
 @api_view(['PUT'])
 def update_leave_status(request):
-    # ----------------------------------------------------------------------
-    # 1. AUTHENTICATION
-    # ----------------------------------------------------------------------
     company_id = request.data.get('company_id')
     try:
         if not CompanyUser.objects.get(user=request.user, company_id=company_id).is_admin:
-            return Response({
-                'status': status.HTTP_403_FORBIDDEN,
-                'success': False,
-                'message': 'Unauthorized access.'
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({'success': False, 'message': 'Unauthorized access.'}, status=status.HTTP_403_FORBIDDEN)
     except CompanyUser.DoesNotExist:
-        return Response({
-            'status': status.HTTP_403_FORBIDDEN,
-            'success': False,
-            'message': 'Unauthorized access or Company not found.'
-        }, status=status.HTTP_403_FORBIDDEN)
-        
+        return Response({'success': False, 'message': 'Unauthorized access or Company not found.'}, status=status.HTTP_403_FORBIDDEN)
+
     id = request.data.get('id')
     new_status = request.data.get('status')
+    remark = request.data.get('remark', '')
     leave = Leave.objects.get(id=id)
-    old_status = leave.status  # store previous status
+    old_status = leave.status
     leave.status = new_status
+
+    # ---- NEW: keep hierarchy fields + trail consistent with a manual override ----
+    trail = leave.approval_trail if isinstance(leave.approval_trail, list) else []
+    trail.append({
+        'level': leave.current_level,
+        'user_id': request.user.id,
+        'status': new_status,
+        'remark': remark,
+        'override': True,
+        'timestamp': timezone.now().isoformat(),
+    })
+    leave.approval_trail = trail
+    leave.current_approver = None  # override always ends the pending chain
+    # --------------------------------------------------------------------------
+
     leave.save()
 
-    # ✅ Restore credits if leave is rejected/cancelled AND was previously Approved or Pending
     if new_status in ['R', 'C'] and old_status in ['A', 'P']:
         leave_type = leave.leave_type
-        if leave_type.use_credit:
+        if leave_type and leave_type.use_credit:
             credit_obj, _ = LeaveCredit.objects.get_or_create(
-                user=leave.user,
-                leave_type=leave_type,
-                year=leave.from_date.year
+                user=leave.user, leave_type=leave_type, year=leave.from_date.year
             )
             credit_obj.credits += leave.days_taken
             credit_obj.save()
 
-    # Send notification
     status_display = leave.get_status_display()
     tokens = list(FcmToken.objects.filter(user=leave.user).values_list('fcm_token', flat=True))
     if tokens:
         send_push_notification(tokens, 'Leave status update', f'Your leave request has been {status_display}')
 
     return Response({'success': True, 'message': 'Status updated successfully.'})
-
-
 
 @api_view(['GET'])
 def get_requested_leaves(request,page):
@@ -1151,3 +1183,113 @@ def add_past_leave(request):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
+
+from django.db import transaction
+from django.utils import timezone as tz
+
+@api_view(['POST'])
+def approve_leave(request, id):
+    with transaction.atomic():
+        try:
+            leave = Leave.objects.select_for_update().get(id=id)
+        except Leave.DoesNotExist:
+            return Response({'success': False, 'message': 'Leave not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if leave.status != 'P':
+            return Response({'success': False, 'message': 'Leave is not pending'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if leave.current_approver_id != request.user.id:
+            return Response({'success': False, 'message': 'You are not authorized to act on this leave right now'}, status=status.HTTP_403_FORBIDDEN)
+
+        remark = request.data.get('remark', '')
+        flow_config = get_flow_config(leave.company)
+
+        trail = leave.approval_trail if isinstance(leave.approval_trail, list) else []
+        trail.append({
+            'level': leave.current_level,
+            'user_id': request.user.id,
+            'status': 'A',
+            'remark': remark,
+            'timestamp': tz.now().isoformat(),
+        })
+        leave.approval_trail = trail
+
+        next_level = leave.current_level + 1
+        if next_level >= len(flow_config):
+            leave.status = 'A'
+            leave.current_approver = None
+            leave.current_level = next_level
+        else:
+            leave.current_level = next_level
+            leave.current_approver_id = flow_config[next_level]
+
+        leave.save()
+
+    # notify next approver or applicant, outside the transaction
+    if leave.status == 'A':
+        tokens = list(FcmToken.objects.filter(user=leave.user).values_list('fcm_token', flat=True))
+        send_push_notification(tokens, 'Leave approved', 'Your leave request has been fully approved')
+    elif leave.current_approver_id:
+        tokens = list(FcmToken.objects.filter(user_id=leave.current_approver_id).values_list('fcm_token', flat=True))
+        send_push_notification(tokens, 'Leave request', f'A leave request from {leave.user.first_name} is pending your approval')
+
+    return Response({'success': True, 'message': 'Leave approved', 'status': leave.status})
+
+
+@api_view(['POST'])
+def reject_leave(request, id):
+    with transaction.atomic():
+        try:
+            leave = Leave.objects.select_for_update().get(id=id)
+        except Leave.DoesNotExist:
+            return Response({'success': False, 'message': 'Leave not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if leave.status != 'P':
+            return Response({'success': False, 'message': 'Leave is not pending'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if leave.current_approver_id != request.user.id:
+            return Response({'success': False, 'message': 'You are not authorized to act on this leave right now'}, status=status.HTTP_403_FORBIDDEN)
+
+        remark = request.data.get('remark', '')
+        if not remark:
+            return Response({'success': False, 'message': 'Remark is required for rejection'}, status=status.HTTP_400_BAD_REQUEST)
+
+        trail = leave.approval_trail if isinstance(leave.approval_trail, list) else []
+        trail.append({
+            'level': leave.current_level,
+            'user_id': request.user.id,
+            'status': 'R',
+            'remark': remark,
+            'timestamp': tz.now().isoformat(),
+        })
+        leave.approval_trail = trail
+        leave.status = 'R'
+        leave.current_approver = None
+        leave.save()
+
+        # restore credits, same logic you already have in update_leave_status
+        leave_type = leave.leave_type
+        if leave_type and leave_type.use_credit:
+            credit_obj, _ = LeaveCredit.objects.get_or_create(user=leave.user, leave_type=leave_type, year=leave.from_date.year)
+            credit_obj.credits += leave.days_taken
+            credit_obj.save()
+
+    tokens = list(FcmToken.objects.filter(user=leave.user).values_list('fcm_token', flat=True))
+    send_push_notification(tokens, 'Leave rejected', f'Your leave request was rejected: {remark}')
+
+    return Response({'success': True, 'message': 'Leave rejected'})
+
+@api_view(['GET'])
+def get_pending_approvals(request):
+    company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
+    qs = Leave.objects.filter(current_approver=request.user, status='P').select_related('user', 'leave_type')
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+    serializer = LeaveSerializer(qs, many=True)
+    return Response({'success': True, 'data': serializer.data})
