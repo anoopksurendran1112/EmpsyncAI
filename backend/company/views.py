@@ -1368,7 +1368,8 @@ def company_field_setting(request):
 
     company_id = request.data.get("company_id")
     config = request.data.get("config", {})
-
+    print("REQUEST DATA:", request.data)
+    print("CONFIG:", config)
     if not company_id:
         return Response(
             {
@@ -1386,9 +1387,16 @@ def company_field_setting(request):
             "config": config,
         },
     )
+   
+
+    print("Saved config:", setting.config)
+
+    setting.refresh_from_db()
+
+    print("DB config:", setting.config)
 
     serializer = CompanyFieldSettingSerializer(setting)
-
+    print("SERIALIZER DATA:", serializer.data)
     return Response(
         {
             "success": True,
