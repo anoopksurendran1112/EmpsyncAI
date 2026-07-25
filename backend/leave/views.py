@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Leave, LeaveType, Holiday,LeaveCredit
+from .models import Leave, LeaveType, Holiday,LeaveCredit,LeavePolicy
 from company.models import CompanyRole,Company, CompanyUser
 from punch.models import PunchRecords
 from user.models import CustomUser
@@ -558,14 +558,83 @@ def get_leave_types(request):
             return Response({'success': False, 'message': 'Unauthorized access'}, status=status.HTTP_403_FORBIDDEN)
 
     # -------------------------- GET --------------------------
+    # if request.method == 'GET':
+    #     leave_types = LeaveType.objects.filter(Q(company=company) | Q(is_global=True))
+    #     data = list(leave_types.values())
+    #     return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
     if request.method == 'GET':
         leave_types = LeaveType.objects.filter(Q(company=company) | Q(is_global=True))
-        data = list(leave_types.values())
+        
+        # 1. Fetch active policies for all leave types in one query
+        policies = LeavePolicy.objects.filter(company=company, is_active=True).select_related('staff_category')
+        
+        # 2. Group policies by their leave_type_id in memory
+        from collections import defaultdict
+        policies_by_type = defaultdict(list)
+        for p in policies:
+            policies_by_type[p.leave_type_id].append({
+                'id': p.id,
+                'staff_category_id': p.staff_category_id,
+                'staff_category_name': p.staff_category.category_name,
+                'monthly_limit': p.monthly_limit,
+                'yearly_limit': p.yearly_limit,
+                'initial_credit': p.initial_credit,
+                'allow_carry_forward': p.allow_carry_forward,
+                'use_credit': p.use_credit,
+                'custom_settings': p.custom_settings
+            })
+            
+        # 3. Build response payload
+        data = []
+        for lt in leave_types:
+            data.append({
+                'id': lt.id,
+                'leave_type': lt.leave_type,
+                'short_name': lt.short_name,
+                'monthly_limit': lt.monthly_limit,
+                'yearly_limit': lt.yearly_limit,
+                'initial_credit': lt.initial_credit,
+                'use_credit': lt.use_credit,
+                'is_global': lt.is_global,
+                'policies': policies_by_type[lt.id]  # Read in O(1) time
+            })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
 
+
     # -------------------------- PUT --------------------------
+    # elif request.method == 'PUT':
+    #     id = request.data.get('id')
+    #     if not id:
+    #         return Response({'success': False, 'message': 'ID is required'}, status=400)
+
+    #     try:
+    #         leave_type = LeaveType.objects.get(id=id)
+    #     except LeaveType.DoesNotExist:
+    #         return Response({'success': False, 'message': 'Leave type not found'}, status=404)
+
+    #     leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
+    #     leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
+    #     leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
+    #     leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
+    #     leave_type.use_credit = request.data.get("use_credit", False)
+    #     leave_type.save()
+
+    #     # Update credits for all users in this company
+    #     users = CustomUser.objects.filter(company=company)
+    #     for user in users:
+    #         credit_obj, _ = LeaveCredit.objects.get_or_create(
+    #             user=user,
+    #             leave_type=leave_type,
+    #             defaults={'credits': leave_type.initial_credit}
+    #         )
+    #         credit_obj.credits = leave_type.initial_credit
+    #         credit_obj.save()
+
+    #     return Response({'success': True, 'message': 'Updated successfully'}, status=200)
     elif request.method == 'PUT':
         id = request.data.get('id')
+        policies_data = request.data.get('policies', [])
+        
         if not id:
             return Response({'success': False, 'message': 'ID is required'}, status=400)
 
@@ -574,25 +643,103 @@ def get_leave_types(request):
         except LeaveType.DoesNotExist:
             return Response({'success': False, 'message': 'Leave type not found'}, status=404)
 
-        leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
-        leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
-        leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
-        leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
-        leave_type.use_credit = request.data.get("use_credit", False)
-        leave_type.save()
+        with transaction.atomic():
+            # 1. Update the base LeaveType attributes
+            leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
+            leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
+            leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
+            leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
+            leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.save()
 
-        # Update credits for all users in this company
-        users = CustomUser.objects.filter(company=company)
-        for user in users:
-            credit_obj, _ = LeaveCredit.objects.get_or_create(
-                user=user,
-                leave_type=leave_type,
-                defaults={'credits': leave_type.initial_credit}
-            )
-            credit_obj.credits = leave_type.initial_credit
-            credit_obj.save()
+            # 2. Fetch existing credits to verify and update in memory
+            existing_credits = LeaveCredit.objects.filter(leave_type=leave_type, user__company=company)
+            credit_by_user = {c.user_id: c for c in existing_credits}
+            
+            credits_to_create = []
+            credits_to_update = []
 
-        return Response({'success': True, 'message': 'Updated successfully'}, status=200)
+            # 3. IF policies exist in payload, save overrides and allocate credits
+            if policies_data:
+                visited_categories = []
+                for p_item in policies_data:
+                    category_id = p_item.get('staff_category_id')
+                    visited_categories.append(category_id)
+
+                    # Get existing settings to merge rather than override everything
+                    existing_policy = LeavePolicy.objects.filter(company=company, leave_type=leave_type, staff_category_id=category_id).first()
+                    existing_settings = existing_policy.custom_settings if existing_policy else {}
+                    
+                    new_settings = p_item.get("custom_settings", {})
+                    merged_settings = {**existing_settings, **new_settings}
+
+                    # Create or update policy
+                    policy, _ = LeavePolicy.objects.update_or_create(
+                        company=company,
+                        leave_type=leave_type,
+                        staff_category_id=category_id,
+                        defaults={
+                            'monthly_limit': float(p_item.get("monthly_limit") or 0),
+                            'yearly_limit': float(p_item.get("yearly_limit") or 0),
+                            'initial_credit': float(p_item.get("initial_credit") or 0),
+                            'allow_carry_forward': p_item.get("allow_carry_forward", True),
+                            'use_credit': p_item.get("use_credit", False),
+                            'custom_settings': merged_settings,
+                            'is_active': True
+                        }
+                    )
+
+                    # Stage credit assignments
+                    cat_users = CustomUser.objects.filter(company=company, profile__staff_category_id=category_id)
+                    for user in cat_users:
+                        if user.id in credit_by_user:
+                            credit_obj = credit_by_user[user.id]
+                            credit_obj.credits = policy.initial_credit
+                            credits_to_update.append(credit_obj)
+                        else:
+                            credits_to_create.append(
+                                LeaveCredit(user=user, leave_type=leave_type, credits=policy.initial_credit)
+                            )
+                
+                # Deactivate unused policies
+                LeavePolicy.objects.filter(company=company, leave_type=leave_type).exclude(staff_category_id__in=visited_categories).update(is_active=False)
+
+                # Fallback staging for uncategorized employees
+                categorized_users = CustomUser.objects.filter(company=company, profile__staff_category_id__in=visited_categories)
+                fallback_users = CustomUser.objects.filter(company=company).exclude(id__in=categorized_users)
+                for user in fallback_users:
+                    if user.id in credit_by_user:
+                        credit_obj = credit_by_user[user.id]
+                        credit_obj.credits = leave_type.initial_credit
+                        credits_to_update.append(credit_obj)
+                    else:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=leave_type, credits=leave_type.initial_credit)
+                        )
+
+            # 4. IF no policies exist (Legacy path), allocate credit globally
+            else:
+                all_users = CustomUser.objects.filter(company=company)
+                for user in all_users:
+                    if user.id in credit_by_user:
+                        credit_obj = credit_by_user[user.id]
+                        credit_obj.credits = leave_type.initial_credit
+                        credits_to_update.append(credit_obj)
+                    else:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=leave_type, credits=leave_type.initial_credit)
+                        )
+                
+                # Deactivate all active policies for this company/type if no policies passed
+                LeavePolicy.objects.filter(company=company, leave_type=leave_type).update(is_active=False)
+
+            # 5. Database Batch processing in single queries
+            if credits_to_create:
+                LeaveCredit.objects.bulk_create(credits_to_create)
+            if credits_to_update:
+                LeaveCredit.objects.bulk_update(credits_to_update, ['credits'])
+
+        return Response({'success': True, 'message': 'Updated successfully'}, status=status.HTTP_200_OK)
 
     # -------------------------- DELETE --------------------------
     elif request.method == 'DELETE':
@@ -619,17 +766,58 @@ def get_leave_types(request):
                 "use_credit": request.data.get("use_credit", False),
                 "company": company
             }
+            
+            policies_data = request.data.get("policies", [])
 
-            new_leave_type = LeaveType.objects.create(**leave_type_data)
+            with transaction.atomic():
+                new_leave_type = LeaveType.objects.create(**leave_type_data)
+                
+                credits_to_create = []
 
-            # Credit all users
-            users = CustomUser.objects.filter(company=company)
-            for user in users:
-                LeaveCredit.objects.get_or_create(
-                    user=user,
-                    leave_type=new_leave_type,
-                    defaults={'credits': new_leave_type.initial_credit}
-                )
+                if policies_data:
+                    visited_categories = []
+                    for p_item in policies_data:
+                        category_id = p_item.get('staff_category_id')
+                        visited_categories.append(category_id)
+
+                        policy = LeavePolicy.objects.create(
+                            company=company,
+                            leave_type=new_leave_type,
+                            staff_category_id=category_id,
+                            monthly_limit=float(p_item.get("monthly_limit") or 0),
+                            yearly_limit=float(p_item.get("yearly_limit") or 0),
+                            initial_credit=float(p_item.get("initial_credit") or 0),
+                            allow_carry_forward=p_item.get("allow_carry_forward", True),
+                            use_credit=p_item.get("use_credit", False),
+                            custom_settings=p_item.get("custom_settings", {})
+                        )
+
+                        # Build credits in memory for this category
+                        cat_users = CustomUser.objects.filter(company=company, profile__staff_category_id=category_id)
+                        for user in cat_users:
+                            credits_to_create.append(
+                                LeaveCredit(user=user, leave_type=new_leave_type, credits=policy.initial_credit)
+                            )
+
+                    # Build credits in memory for remaining fallback users
+                    categorized_users = CustomUser.objects.filter(company=company, profile__staff_category_id__in=visited_categories)
+                    fallback_users = CustomUser.objects.filter(company=company).exclude(id__in=categorized_users)
+                    for user in fallback_users:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=new_leave_type, credits=new_leave_type.initial_credit)
+                        )
+
+                else:
+                    # Build credits in memory for all users (legacy route)
+                    all_users = CustomUser.objects.filter(company=company)
+                    for user in all_users:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=new_leave_type, credits=new_leave_type.initial_credit)
+                        )
+
+                # Batch insert all records in ONE fast query!
+                if credits_to_create:
+                    LeaveCredit.objects.bulk_create(credits_to_create)
 
             return Response({
                 'success': True,
