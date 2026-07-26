@@ -50,15 +50,16 @@ const CORE_MANDATORY_FIELDS = [
 
 const CONFIGURABLE_FIELDS = {
   personal_information: {
-    fields: ['alternate_email', 'alternate_mobile', 'dob', 'gender', 'marital_status', 'religion', 'caste', 'blood_group'],
+    fields: ['alternate_email', 'alternate_mobile', 'dob', 'gender', 'religion', 'caste', 'blood_group'],
     label: "Personal Information",
     description: "Additional personal details of the employee"
   },
-  employment: {
-    fields: ['ktu_id', 'aicte_id', 'contract_completion_date'],
-    label: "Employment Details",
-    description: "Additional employment and identification details"
+  family: {
+    fields: ['guardians'],
+    label: "Family & Emergency",
+    description: "Family and emergency contact details"
   },
+ 
   address_settings: {
     fields: ['present_address_line', 'permanent_address_line'],
     label: "Address Settings",
@@ -75,14 +76,15 @@ const CONFIGURABLE_FIELDS = {
     description: "Work experience details"
   },
   identity_bank: {
-    fields: ['identity_details', 'bank_details'],
+    fields: [
+      'aadhar_no',     
+      'pan_no',         
+      'ktu_id',         
+      'aicte_id',      
+      'bank_details'    
+    ],
     label: "Identity & Bank Details",
     description: "Identity and banking information"
-  },
-  family: {
-    fields: ['guardians'],
-    label: "Family & Emergency",
-    description: "Family and emergency contact details"
   }
 }
 
@@ -93,16 +95,14 @@ const getDefaultMandatory = (section: string, field: string): boolean => {
       gender: true,
       alternate_email: false,
       alternate_mobile: false,
-      marital_status: false,
       religion: false,
       caste: false,
       blood_group: false
     },
-    employment: {
-      ktu_id: false,
-      aicte_id: false,
-      contract_completion_date: false
+    family: {
+      guardians: true
     },
+   
     address_settings: {
       present_address_line: true,
       permanent_address_line: false
@@ -114,16 +114,15 @@ const getDefaultMandatory = (section: string, field: string): boolean => {
       experience: false
     },
     identity_bank: {
-      identity_details: true,
-      bank_details: true
-    },
-    family: {
-      guardians: true
+      aadhar_no: true,      
+      pan_no: true,         
+      ktu_id: false,        
+      aicte_id: false,      
+      bank_details: true    
     }
   }
   return defaultMandatory[section]?.[field] || false
 }
-
 
 const getDefaultSettings = () => {
   const defaultSettings: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
@@ -256,91 +255,87 @@ export default function CompanyProfilePage() {
   }
 
   const handleSaveFieldSettings = async () => {
-    if (!company) return
-    setIsSavingFieldSettings(true)
-    setFieldSettingsError(null)
+  if (!company) return
+  setIsSavingFieldSettings(true)
+  setFieldSettingsError(null)
+  
+  try {
+    const config: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
     
-    try {
+    Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
+      const sectionConfig: Record<string, { visible: boolean; mandatory: boolean }> = {}
       
-      const config: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
-      
-      Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
-        const sectionConfig: Record<string, { visible: boolean; mandatory: boolean }> = {}
+      fields.forEach(field => {
+       
+        const currentSettings = fieldSettings[section]?.[field]
         
-        fields.forEach(field => {
-          
-          const currentSettings = fieldSettings[section]?.[field]
-          
-          
-          if (currentSettings) {
-            sectionConfig[field] = {
-              visible: currentSettings.visible,
-              mandatory: currentSettings.mandatory
-            }
-          } else {
-           
-            sectionConfig[field] = {
-              visible: false,
-              mandatory: getDefaultMandatory(section, field)
-            }
+        if (currentSettings) {
+          sectionConfig[field] = {
+            visible: currentSettings.visible,
+            mandatory: currentSettings.mandatory
           }
-        })
+        } else {
         
-        config[section] = sectionConfig
+          sectionConfig[field] = {
+            visible: false,
+            mandatory: getDefaultMandatory(section, field)
+          }
+        }
       })
-
-      const payload = {
-        company_id: company.id,
-        config: config
-      }
-
-      console.log("Sending payload:", JSON.stringify(payload, null, 2))
-
       
-      let response = await fetch('/api/company-field-setting/', {
-        method: 'POST',
+      config[section] = sectionConfig
+    })
+
+    
+    const payload = {
+      company_id: company.id,
+      config: config
+    }
+
+    console.log("Sending payload:", JSON.stringify(payload, null, 2))
+
+    let response = await fetch('/api/company-field-setting/', {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+
+    if (response.status === 400 || response.status === 405) {
+      console.log("POST failed, trying PUT...")
+      response = await fetch('/api/company-field-setting/', {
+        method: 'PUT',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-
-      
-      if (response.status === 400 || response.status === 405) {
-        console.log("POST failed, trying PUT...")
-        response = await fetch('/api/company-field-setting/', {
-          method: 'PUT',
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        })
-      }
-
-      const responseText = await response.text()
-      console.log(" Raw response:", responseText)
-
-      let responseData = {}
-      try {
-        if (responseText && responseText.trim()) {
-          responseData = JSON.parse(responseText)
-        }
-      } catch (parseErr) {
-        console.error(" Failed to parse response:", parseErr)
-      }
-
-     
-      toast.success("Field settings updated successfully!")
-      await fetchFieldSettings()
-      setShowFieldSettingsDialog(false)
-      
-    } catch (err) {
-      console.error(' Error saving field settings:', err)
-    
-      toast.success("Field settings updated successfully!")
-      await fetchFieldSettings()
-      setShowFieldSettingsDialog(false)
-    } finally {
-      setIsSavingFieldSettings(false)
     }
-  }
 
+    const responseText = await response.text()
+    console.log("Raw response:", responseText)
+
+    let responseData = {}
+    try {
+      if (responseText && responseText.trim()) {
+        responseData = JSON.parse(responseText)
+      }
+    } catch (parseErr) {
+      console.error("Failed to parse response:", parseErr)
+    }
+
+    toast.success("Field settings updated successfully!")
+    
+    await fetchFieldSettings()
+    
+    setShowFieldSettingsDialog(false)
+    
+  } catch (err) {
+    console.error('Error saving field settings:', err)
+    toast.success("Field settings updated successfully!")
+    await fetchFieldSettings()
+    setShowFieldSettingsDialog(false)
+  } finally {
+    setIsSavingFieldSettings(false)
+  }
+}
 
   const toggleFieldVisibility = useCallback((section: string, field: string) => {
     setFieldSettings(prev => {
