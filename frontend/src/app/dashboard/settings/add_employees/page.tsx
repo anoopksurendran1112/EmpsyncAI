@@ -72,6 +72,108 @@ export default function AddEmployeePage() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Draft States & Functions
+  const [hasDraft, setHasDraft] = useState(false);
+  const [draftPayload, setDraftPayload] = useState<any>(null);
+
+  useEffect(() => {
+    const checkDraft = async () => {
+      if (!companyId) return;
+      try {
+        const res = await fetch(`/api/employee-draft/?company_id=${companyId}`);
+        const data = await res.json();
+        if (res.ok && data.success && data.data) {
+          setHasDraft(true);
+          setDraftPayload(data.data);
+        } else {
+          setHasDraft(false);
+          setDraftPayload(null);
+        }
+      } catch (err) {
+        console.error("Error checking draft:", err);
+      }
+    };
+    checkDraft();
+  }, [companyId]);
+
+  const saveDraft = async (stepIndex: number, showSuccessMessage = false) => {
+    if (!companyId) return;
+    try {
+      const draftData = {
+        formData,
+        profileData,
+        bankDetails,
+        qualifications: qualifications.map(({ certificate, ...rest }) => ({ ...rest, certificate: null })),
+        experiences: experiences.map(({ experience_letter, ...rest }) => ({ ...rest, experience_letter: null })),
+        prof_img_base64: imagePreview,
+      };
+
+      const payload = {
+        company_id: Number(companyId),
+        last_step: stepIndex,
+        draft_data: draftData,
+      };
+
+      const res = await fetch("/api/employee-draft/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to save draft");
+      if (showSuccessMessage) {
+        setMessage("Draft saved successfully!");
+      }
+    } catch (err: any) {
+      console.error("Error saving draft:", err);
+      if (showSuccessMessage) {
+        setMessage(err.message || "Error saving draft");
+      }
+    }
+  };
+
+  const resumeDraft = () => {
+    if (!draftPayload) return;
+    const { last_step, draft_data } = draftPayload;
+    if (draft_data) {
+      if (draft_data.formData) {
+        setFormData({
+          ...formData,
+          ...draft_data.formData,
+          company_id: companyId
+        });
+      }
+      if (draft_data.profileData) setProfileData(draft_data.profileData);
+      if (draft_data.bankDetails) setBankDetails(draft_data.bankDetails);
+      if (draft_data.qualifications) setQualifications(draft_data.qualifications);
+      if (draft_data.experiences) setExperiences(draft_data.experiences);
+      if (draft_data.prof_img_base64) {
+        setImagePreview(draft_data.prof_img_base64);
+      }
+    }
+    setCurrentStep(last_step);
+    setHasDraft(false);
+    setMessage("Draft loaded successfully.");
+  };
+
+  const discardDraft = async () => {
+    if (!companyId) return;
+    try {
+      const res = await fetch(`/api/employee-draft/?company_id=${companyId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setHasDraft(false);
+        setDraftPayload(null);
+        setMessage("Draft discarded.");
+      }
+    } catch (err) {
+      console.error("Error discarding draft:", err);
+    }
+  };
+
   // ---------- Generic fetch function ----------
   const fetchData = async (url: string, setter: (data: any[]) => void) => {
     try {
@@ -142,6 +244,52 @@ export default function AddEmployeePage() {
     const updated = [...experiences];
     updated[idx][field] = val;
     setExperiences(updated);
+  };
+
+  const handleQualFileChange = (idx: number, file: File | null) => {
+    if (!file) {
+      updateQual(idx, 'certificate', null);
+      updateQual(idx, 'certificate_base64', null);
+      updateQual(idx, 'certificate_name', null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setQualifications(prev => {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          certificate: file,
+          certificate_base64: reader.result as string,
+          certificate_name: file.name
+        };
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleExpFileChange = (idx: number, file: File | null) => {
+    if (!file) {
+      updateExp(idx, 'experience_letter', null);
+      updateExp(idx, 'experience_letter_base64', null);
+      updateExp(idx, 'experience_letter_name', null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setExperiences(prev => {
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx],
+          experience_letter: file,
+          experience_letter_base64: reader.result as string,
+          experience_letter_name: file.name
+        };
+        return updated;
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const addDesig = (expIdx: number) => {
@@ -354,7 +502,7 @@ export default function AddEmployeePage() {
       }
 
       // Profile Photo Validation
-      if (!profileImage) {
+      if (!profileImage && !imagePreview) {
         newErrors.photo = "Profile Photo is required";
       }
 
@@ -595,7 +743,7 @@ export default function AddEmployeePage() {
         }
 
         // Certificate
-        if (!q.certificate) {
+        if (!q.certificate && !q.certificate_base64) {
           newErrors[`qual_${i}_certificate`] =
             "Certificate is required";
         }
@@ -670,7 +818,7 @@ export default function AddEmployeePage() {
         }
 
 
-        if (!exp.experience_letter) {
+        if (!exp.experience_letter && !exp.experience_letter_base64) {
           newErrors[`exp_${i}_letter`] =
             "Experience letter is required";
         }
@@ -874,7 +1022,14 @@ export default function AddEmployeePage() {
     return true;
   };
 
-  const handleNext = () => { if (validateStep(currentStep)) setCurrentStep(p => p + 1); };
+  const handleNext = () => {
+    if (validateStep(currentStep)) {
+      const nextStep = currentStep + 1;
+      setCurrentStep(nextStep);
+      saveDraft(currentStep);
+      setMessage("");
+    }
+  };
   const handlePrev = () => { setCurrentStep(p => p - 1); setMessage(""); };
 
   // ---------- Submit ----------
@@ -931,7 +1086,11 @@ export default function AddEmployeePage() {
         });
       }
       fd.append('guardians', JSON.stringify(mappedGuardians));
-      if (profileImage) fd.append('prof_img', profileImage);
+      if (profileImage) {
+        fd.append('prof_img', profileImage);
+      } else if (imagePreview && imagePreview.startsWith("data:image/")) {
+        fd.append('prof_img_base64', imagePreview);
+      }
 
       const mappedBankDetails = bankDetails.map(bank => ({
         acc_holder_name: bank.acc_holder_name || `${formData.first_name} ${formData.last_name}`.trim(),
@@ -951,7 +1110,9 @@ export default function AddEmployeePage() {
         start_year: q.start_year,
         passing_year: q.passing_year,
         percentage: q.percentage,
-        certificate: q.certificate
+        certificate: q.certificate,
+        certificate_base64: q.certificate_base64 || null,
+        certificate_name: q.certificate_name || null
       }));
 
       const mappedExperiences = experiences.map(exp => ({
@@ -962,6 +1123,8 @@ export default function AddEmployeePage() {
         end_year: exp.end_year,
         description: exp.description,
         experience_letter: exp.experience_letter,
+        experience_letter_base64: exp.experience_letter_base64 || null,
+        experience_letter_name: exp.experience_letter_name || null,
         designations: (exp.designations || []).map((des: any) => ({
           designation: des.designation,
           company_role_id: des.company_role_id ? Number(des.company_role_id) : null,
@@ -993,6 +1156,13 @@ export default function AddEmployeePage() {
       if (!response.ok) throw new Error(resData.message || "Failed to create complete employee profile");
 
       setMessage("Employee and complete profile created successfully!");
+      try {
+        await fetch(`/api/employee-draft/?company_id=${companyId}`, { method: "DELETE" });
+        setHasDraft(false);
+        setDraftPayload(null);
+      } catch (err) {
+        console.error("Failed to delete draft:", err);
+      }
       queryClient.invalidateQueries({ queryKey: ["employees", companyId] });
       setCurrentStep(0);
       setBankDetails([]);
@@ -1693,16 +1863,16 @@ export default function AddEmployeePage() {
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
                     <Upload className="w-4 h-4" />
-                    <span>{q.certificate ? (q.certificate as File).name : "Upload Certificate"}</span>
+                    <span>{q.certificate ? (q.certificate as File).name : q.certificate_name ? q.certificate_name : "Upload Certificate"}</span>
                     <input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
                       className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; updateQual(idx, 'certificate', f); }}
+                      onChange={e => { const f = e.target.files?.[0] || null; handleQualFileChange(idx, f); }}
                     />
                   </label>
-                  {q.certificate && (
-                    <button type="button" onClick={() => updateQual(idx, 'certificate', null)} className="text-red-400 hover:text-red-600 transition-colors">
+                  {(q.certificate || q.certificate_base64) && (
+                    <button type="button" onClick={() => handleQualFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -1817,16 +1987,16 @@ export default function AddEmployeePage() {
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
                     <Upload className="w-4 h-4" />
-                    <span>{exp.experience_letter ? (exp.experience_letter as File).name : "Upload Experience Letter"}</span>
+                    <span>{exp.experience_letter ? (exp.experience_letter as File).name : exp.experience_letter_name ? exp.experience_letter_name : "Upload Experience Letter"}</span>
                     <input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png"
                       className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; updateExp(idx, 'experience_letter', f); }}
+                      onChange={e => { const f = e.target.files?.[0] || null; handleExpFileChange(idx, f); }}
                     />
                   </label>
-                  {exp.experience_letter && (
-                    <button type="button" onClick={() => updateExp(idx, 'experience_letter', null)} className="text-red-400 hover:text-red-600 transition-colors">
+                  {(exp.experience_letter || exp.experience_letter_base64) && (
+                    <button type="button" onClick={() => handleExpFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
                       <X className="w-4 h-4" />
                     </button>
                   )}
@@ -2117,6 +2287,28 @@ export default function AddEmployeePage() {
           </div>
         </div>
 
+        {hasDraft && (
+          <div className="bg-[#fdf3dc] border border-[#e8b84b] rounded-lg p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#e8b84b]/20 p-2 rounded-full text-[#c9962a]">
+                <Save className="h-5 w-5" />
+              </div>
+              <div>
+                <h5 className="font-semibold text-sm text-[#1a1a2e]">Resume Unfinished Onboarding?</h5>
+                <p className="text-xs text-[#445069]">We found a saved draft for this company. Would you like to pick up where you left off?</p>
+              </div>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button type="button" onClick={resumeDraft} className="bg-[#c9962a] hover:bg-[#b08221] text-white text-xs h-8 px-4 rounded-[7px] w-full sm:w-auto">
+                Resume Draft
+              </Button>
+              <Button type="button" onClick={discardDraft} variant="outline" className="border-[#dde3ec] text-[#445069] hover:bg-[#f4f7fb] text-xs h-8 px-4 rounded-[7px] w-full sm:w-auto">
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(15,39,68,0.08)] p-6 mb-8 border border-[#dde3ec]">
           <div className="flex items-center justify-between relative px-4">
             <div className="absolute left-[5%] right-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#dde3ec] z-0 rounded-full"></div>
@@ -2154,6 +2346,11 @@ export default function AddEmployeePage() {
             <Button type="button" variant="outline" onClick={handlePrev} disabled={currentStep === 0 || loading} className="w-32 gap-2 border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb]">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
+            
+            <Button type="button" variant="outline" onClick={() => saveDraft(currentStep, true)} disabled={loading} className="border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb] gap-2">
+              <Save className="w-4 h-4" /> Save Draft
+            </Button>
+
             {currentStep < steps.length - 1 ? (
               <Button type="button" onClick={handleNext} className="w-32 gap-2 bg-[#0f2744] hover:bg-[#1a3a5c] text-white shadow-sm">
                 Next <ArrowRight className="w-4 h-4" />

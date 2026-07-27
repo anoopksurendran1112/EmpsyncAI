@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
+import { useEmployees } from "@/hooks/employees/useGetEmployees";
 
 interface Request {
   id: number;
@@ -22,9 +23,14 @@ interface Request {
   status: "pending" | "approved" | "rejected";
   created_at: string;
 }
-
 export default function CandidateRequestPage() {
   const { company } = useAuth();
+
+  const { data: employeesData } = useEmployees(
+    company?.id || 0,
+    1,
+    1000
+  );
 
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,21 +39,29 @@ export default function CandidateRequestPage() {
   const [shareableUrl, setShareableUrl] = useState("");
 
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [selectedApplication, setSelectedApplication] = useState<Request | null>(null);
+  const [selectedApplication, setSelectedApplication] =
+    useState<Request | null>(null);
+
   const [password, setPassword] = useState("");
   const [wfhEnabled, setWfhEnabled] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [autoGenerateStaffId, setAutoGenerateStaffId] = useState(false);
   const [staffId, setStaffId] = useState("");
-  const [actionType, setActionType] = useState("");
+  const [actionType, setActionType] = useState("");    
 
   const fetchRequests = async () => {
     if (!company?.id) return;
+
     try {
       setLoading(true);
+
       const res = await fetch(`/api/candidate_request?company_id=${company.id}`);
       const result = await res.json();
+
+      console.log("Candidate API response:", result);
+
       if (res.ok && result.success) {
+        console.log("Candidate data:", result.data);
         setRequests(Array.isArray(result.data) ? result.data : []);
       }
     } catch (err) {
@@ -79,106 +93,123 @@ export default function CandidateRequestPage() {
   };
 
   //Accept handler 
-  const handleAccept = async () => {
-    if (!selectedApplication) return;
-    if (!password.trim()) {
-      alert("Please enter a password.");
-      return;
+ const handleAccept = async () => {
+  if (!selectedApplication) return;
+
+  if (!password.trim()) {
+    alert("Please enter a password.");
+    return;
+  }
+
+  if (!autoGenerateStaffId && !staffId.trim()) {
+    alert("Please enter a Staff ID.");
+    return;
+  }
+
+  const appId = selectedApplication.id;
+  setActionType("accept");
+  setUpdating(true);
+
+  try {
+    const payload = {
+      application_id: appId,
+      status: "approved",
+      wfh: wfhEnabled,
+      password: password.trim(),
+      ...(autoGenerateStaffId
+        ? {}
+        : { staff_id: staffId.trim() }),
+    };
+
+    console.log("Payload before fetch:", payload);
+
+    const res = await fetch("/api/candidate_request", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await res.json();
+
+    console.log("Approve Response:", result);
+
+    if (result.success) {
+      await fetchRequests();
+
+      alert(result.message);
+
+      setDetailDialogOpen(false);
+      setSelectedApplication(null);
+      setPassword("");
+      setStaffId("");
+      setAutoGenerateStaffId(false);
+      setWfhEnabled(false);
+    } else {
+      alert(result.message || "Failed to approve application.");
     }
+  } catch (err) {
+    console.error(err);
+    alert("An unexpected error occurred.");
+  } finally {
+    setUpdating(false);
+    setActionType("");
+  }
+};
+ // ----- Reject handler -----
+const handleReject = async () => {
+  if (!selectedApplication) return;
 
-    if (!autoGenerateStaffId && !staffId.trim()) {
-      alert("Please enter a Staff ID.");
-      return;
+  if (!confirm("Reject this application?")) return;
+
+  const appId = selectedApplication.id;
+  setActionType("reject");
+  setUpdating(true);
+
+  try {
+    const payload = {
+      application_id: appId,
+      status: "rejected",
+    };
+
+    console.log("Reject Payload:", payload);
+
+    const res = await fetch("/api/candidate_request", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const result = await res.json();
+
+    console.log("Reject Response:", result);
+
+    if (result.success) {
+      await fetchRequests();
+
+      alert(result.message);
+
+      setDetailDialogOpen(false);
+      setSelectedApplication(null);
+    } else {
+      alert(result.message || "Failed to reject application.");
     }
-
-    const appId = selectedApplication.id;
-    setActionType("accept");
-    setUpdating(true);
-
-    try {
-      const payload = {
-        application_id: appId,
-        status: "approved",
-        wfh: wfhEnabled,
-        password: password.trim(),
-        ...(autoGenerateStaffId ? {} : { staff_id: staffId.trim() }),
-      };
-
-      console.log("Payload before fetch:", payload);
-
-      const res = await fetch("/api/candidate_request", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-
-      const result = await res.json();
-
-      if (result.success) {
-        await fetchRequests();
-
-        alert(result.message);
-
-        setDetailDialogOpen(false);
-        setSelectedApplication(null);
-        setPassword("");
-        setStaffId("");
-        setAutoGenerateStaffId(false);
-        setWfhEnabled(false);
-      } else {
-        alert(result.message || "Failed to approve application.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("An unexpected error occurred.");
-    } finally {
-      setUpdating(false);
-      setActionType("");
-    }
-  };
-
-  // ----- Reject handler (similar) -----
-  const handleReject = async () => {
-    if (!selectedApplication) return;
-    if (!confirm("Reject this application?")) return;
-
-    const appId = selectedApplication.id;
-    setActionType("reject");
-    setUpdating(true);
-
-    try {
-      const res = await fetch("/api/candidate_request", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          application_id: appId,
-          status: "rejected",
-        }),
-      });
-
-      const result = await res.json();
-      if (result.success) {
-        await fetchRequests();
-        alert(result.message);
-        setDetailDialogOpen(false);
-        setSelectedApplication(null);
-      } else {
-        alert(result.message || "Failed to reject application.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("An unexpected error occurred.");
-    } finally {
-      setUpdating(false);
-    }
-  };
-
+  } catch (err) {
+    console.error("Reject Error:", err);
+    alert("An unexpected error occurred.");
+  } finally {
+    setUpdating(false);
+    setActionType("");
+  }
+};
   const total = requests.length;
-  const approved = requests.filter((r) => r.status === "approved").length;
-  const pending = requests.filter((r) => r.status === "pending").length;
-  const rejected = requests.filter((r) => r.status === "rejected").length;
-
+  const approved = requests.filter(r => r.status === "approved").length;
+  const pending = requests.filter(r => r.status === "pending").length;
+  const rejected = requests.filter(r => r.status === "rejected").length;
+  console.log("Current requests:", requests);
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
@@ -250,19 +281,50 @@ export default function CandidateRequestPage() {
                   <TableHead>Candidate</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>User ID</TableHead>
+                  <TableHead>Biometric ID</TableHead>
                   <TableHead>Requested On</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {requests.length > 0 ? (
-                  requests.map((req) => (
-                    <TableRow key={req.id}>
-                      <TableCell className="font-medium">
-                        {req.first_name} {req.last_name}
-                      </TableCell>
-                      <TableCell>{req.role}</TableCell>
+                  requests.map((req) => {
+                  const requestEmail = req.email.trim().toLowerCase();
+
+                  console.log("Request Email:", req.email);
+                  console.log("Employees:", employeesData?.employees);
+                  employeesData?.employees?.forEach((emp) => {
+                    console.log(
+                      "Employee Email:",
+                      emp.email,
+                      "| ID:",
+                      emp.id,
+                      "| Biometric:",
+                      emp.biometric_id
+                    );
+                  });
+                  const employee = employeesData?.employees?.find(
+                    (u) =>
+                      u.email?.trim().toLowerCase() ===
+                      req.email?.trim().toLowerCase()
+                  );
+
+                  console.log("Matched Employee:", employee);
+                  
+                    return (
+                      <TableRow key={req.id}>
+                        <TableCell className="font-medium">
+                          {req.first_name} {req.last_name}
+                        </TableCell>
+
+                        <TableCell>{req.role}</TableCell>
                       <TableCell>{req.group}</TableCell>
+
+                     <TableCell>{employee?.id ?? "-"}</TableCell>
+
+                      <TableCell>{employee?.biometric_id ?? "-"}</TableCell>
+
                       <TableCell>
                         {new Date(req.created_at).toLocaleDateString()}
                       </TableCell>
@@ -294,7 +356,8 @@ export default function CandidateRequestPage() {
                         )}
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-gray-500 py-8">
