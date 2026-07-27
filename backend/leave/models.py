@@ -75,11 +75,17 @@ class Leave(models.Model):
     leave_choice = models.CharField(choices=LEAVE_CHOICES,max_length=70)
     status = models.CharField(choices=LEAVE_STATUS_CHOICES,max_length=50)
     custom_reason = models.TextField(null=True, blank=True)  # 🔥 For custom leave reason
+    approval_trail = models.JSONField(default=dict,blank=True,null=True)
 
     def __str__(self):
         return f"{self.user} - {self.leave_type or 'Custom'} ({self.from_date})"
 
-    
+class LeaveFlowHierarchy(models.Model):
+    company = models.OneToOneField('company.Company',on_delete=models.CASCADE,related_name='leave_hierarchy')
+    flow_config = models.JSONField(default=list,blank=True,help_text='Stores ordered user IDs or steps between team lead and company head')
+
+    def __str__(self):
+        return f"Leave Flow for {self.company}"
 
 class LeaveCredit(models.Model):
     user = models.ForeignKey('user.CustomUser', on_delete=models.CASCADE)
@@ -87,3 +93,25 @@ class LeaveCredit(models.Model):
     credits = models.FloatField(default=0)
     year = models.IntegerField(default=timezone.now().year)
 
+class LeavePolicy(models.Model):
+    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='leave_policies')
+    leave_type = models.ForeignKey('leave.LeaveType', on_delete=models.CASCADE, related_name='policies')
+    staff_category = models.ForeignKey('company.StaffCategory', on_delete=models.CASCADE, related_name='leave_policies')
+    
+    monthly_limit = models.FloatField(null=True, blank=True)
+    yearly_limit = models.FloatField(null=True, blank=True)
+    initial_credit = models.FloatField(default=0)
+    allow_carry_forward = models.BooleanField(default=True)
+    use_credit = models.BooleanField(default=False)
+    custom_settings = models.JSONField(default=dict, blank=True)
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('company', 'staff_category', 'leave_type')
+        verbose_name_plural = "Leave Policies"
+
+    def __str__(self):
+        return f"{self.company.company_name} - {self.staff_category.category_name} - {self.leave_type.leave_type}"

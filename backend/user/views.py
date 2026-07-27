@@ -1,10 +1,13 @@
 # 1. Standard Library Imports
+import re
 import jwt
 import json
 import random
 import logging
 import requests
 import re
+
+
 import traceback
 from collections import defaultdict
 from datetime import date, datetime, timedelta
@@ -45,7 +48,7 @@ from company.serializer import CompanySerializer
 from company.models import CompanyFieldSetting
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeOnboardingDraft
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
@@ -884,120 +887,116 @@ def candidateApplication(request):
         return Response({ 'success': False, 'message': 'Invalid data', 
                         'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
-    elif request.method == 'PUT':
-        app_id = request.data.get('application_id')
-        app_status = request.data.get('status')
+    elif request.method == "PUT":
+        app_id = request.data.get("application_id")
+        app_status = request.data.get("status")
 
         if not app_id or not app_status:
-            return Response({'success': False, 'message': 'Application ID and status are required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success": False,"message": "Application ID and status are required",},status=status.HTTP_400_BAD_REQUEST,)
 
         try:
             app = CandidateApplications.objects.get(id=app_id)
         except CandidateApplications.DoesNotExist:
-            return Response({'success': False, 'message': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"success": False, "message": "Application not found"},status=status.HTTP_404_NOT_FOUND,)
 
-        if app_status == 'approved':
-            password = request.data.get('password')
-            if not password:
-                return Response({'success': False, 'message': 'Password is required for approval'}, status=status.HTTP_400_BAD_REQUEST)
+        if CustomUser.objects.filter(Q(email=app.email) | Q(mobile=app.phone)).exists():
+            return Response({"success": False,"message": "A user with this email or phone already exists"},status=status.HTTP_400_BAD_REQUEST,)
 
-            if CustomUser.objects.filter(Q(email=app.email) | Q(mobile=app.phone)).exists():
-                return Response({'success': False, 'message': 'A user with this email or phone already exists'}, 
-                                status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                if app_status == "approved":
+                    company = Company.objects.get(id=app.company_id)
+                    password = request.data.get("password")
+                    provided_staff_id = request.data.get("staff_id")
 
-        with transaction.atomic():
-            try:
-                if app_status == 'approved':
-                    company = Company.objects.get(id=app.company_id)    
-                    provided_staff_id = request.data.get('staff_id')
+                    if not password:
+                        return Response({"success": False,"message": "Password is required for approval",},status=status.HTTP_400_BAD_REQUEST,)
 
-                    config = StaffIdConfig.objects.select_for_update().filter(company=company).first()
+                    config = StaffIdConfig.objects.filter(company=company).first()
+
                     if not provided_staff_id:
                         if config:
-                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company).exclude(staff_id__isnull=True).exclude(staff_id="").values_list('staff_id', flat=True)
-                            
+                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company).exclude(staff_id__isnull=True).exclude(staff_id="").values_list("staff_id", flat=True)
                             if existing_ids:
-                                highest_num = max((extract_number_from_string(sid, config) or 0 for sid in existing_ids), default=config.start_id - 1)
+                                highest_num = max((extract_number_from_string(sid, config) or 0 for sid in existing_ids),default=config.start_id - 1,)
                                 next_num = highest_num + 1
                             else:
                                 next_num = config.start_id
-
+                            
                             final_staff_id = generate_formatted_staff_id(config, next_num)
                         else:
                             fallback_config = StaffIdConfig(staff_id_prefix="EMP-", start_id=1)
-                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company, staff_id__startswith="EMP-").values_list('staff_id', flat=True)
-                            
+                            existing_ids = (EmployeeProfile.objects.filter(user__parent_company=company, staff_id__startswith="EMP-").values_list("staff_id", flat=True))
                             if existing_ids:
-                                highest_num = max((extract_number_from_string(sid, fallback_config) or 0 for sid in existing_ids), default=0)
+                                highest_num = max((extract_number_from_string(sid, fallback_config) or 0 for sid in existing_ids),default=0,)
                                 next_num = highest_num + 1
                             else:
                                 next_num = 1
-
+                            
                             final_staff_id = generate_formatted_staff_id(fallback_config, next_num)
-
                     else:
                         input_numeric = extract_number_from_string(provided_staff_id)
                         if input_numeric is None:
-                            raise ValueError('Custom Staff ID must contain a valid number.')
+                            return Response({"success": False,"message": "Custom Staff ID must contain a valid number.",},status=status.HTTP_400_BAD_REQUEST,)
 
                         if config:
                             final_staff_id = generate_formatted_staff_id(config, input_numeric)
                         else:
-                            prefix_match = re.match(r'^([a-zA-Z\-_]+)', provided_staff_id)
+                            prefix_match = re.match(r"^([a-zA-Z\-_]+)", provided_staff_id)
                             new_prefix = prefix_match.group(1) if prefix_match else "EMP-"
-                            config = StaffIdConfig.objects.create(company=company, staff_id_prefix=new_prefix, start_id=input_numeric)
+                            config = StaffIdConfig.objects.create(company=company, staff_id_prefix=new_prefix, start_id=input_numeric,)
                             final_staff_id = generate_formatted_staff_id(config, input_numeric)
 
                     if EmployeeProfile.objects.filter(staff_id=final_staff_id).exists():
-                        raise ValueError(f"Staff ID '{final_staff_id}' is already assigned to an employee.")
-                    
-                    last_user = CustomUser.objects.filter(company=company, biometric_id__regex=r'^\d+$').annotate(
-                                                        bio_int=Cast('biometric_id', IntegerField())
-                                                    ).order_by('-bio_int').first()
-                    
-                    last_biometric_id = last_user.bio_int if last_user else 0
+                        return Response({"success": False,"message": f"Staff ID '{final_staff_id}' is already assigned to an employee.",},status=status.HTTP_400_BAD_REQUEST,)
+
+                    try:
+                        last_user = (CustomUser.objects.filter(company=company, biometric_id__regex=r"^\d+$").annotate(bio_int=Cast("biometric_id", IntegerField())).order_by("-bio_int").first())
+                        last_biometric_id = last_user.bio_int if last_user else 0
+                    except ValueError:
+                        last_biometric_id = 0
+
                     new_biometric_id = last_biometric_id + 1
 
-                    user = CustomUser.objects.create(email=app.email, mobile=app.phone, first_name=app.first_name, last_name=app.last_name)
-            
+                    user, created = CustomUser.objects.get_or_create(email=app.email,defaults={"mobile": app.phone, "first_name": app.first_name,"last_name": app.last_name})
+                    
                     user.set_password(password)
                     user.biometric_id = str(new_biometric_id)
+                    user.first_name = app.first_name
+                    user.last_name = app.last_name
+                    user.mobile = app.phone
                     user.role = app.role
                     user.group = app.group
-                    
-                    wfh_val = request.data.get('wfh', False)
+
+                    wfh_val = request.data.get("wfh", False)
                     user.is_wfh = bool(wfh_val) if wfh_val is not None else False
                     user.is_active = True
                     user.company.add(company)
-                    
+
                     if not user.parent_company:
                         user.parent_company = company
                     user.save()
 
                     profile, created = EmployeeProfile.objects.get_or_create(user=user)
                     profile.staff_id = final_staff_id
-                   
-                    if request.data.get('date_of_joining'):
-                        profile.date_of_joining = request.data.get('date_of_joining')
+                    
+                    if request.data.get("date_of_joining"):
+                        profile.date_of_joining = request.data.get("date_of_joining")
+                    
                     profile.save()
-
                     app.status = app_status
                     app.save()
 
-                elif app_status == 'rejected':
-                    app.status = 'rejected'
-                    app.save()         
+                elif app_status == "rejected":
+                    app.status = "rejected"
+                    app.save()
 
-            except ValueError as ve:
-                return Response({'success': False, 'message': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response({'success': True, 'message': 'Application status updated successfully'}, status=status.HTTP_200_OK)
+        except Exception:
+            traceback.print_exc()
+            return Response({"success": False, "message": "Failed to update application status"},status=status.HTTP_500_INTERNAL_SERVER_ERROR,)
+        return Response({"success": True, "message": "Application status updated successfully"},status=status.HTTP_200_OK,)
 
-    
+
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllUsers(request, page):
@@ -2328,6 +2327,24 @@ def employee_with_profile(request):
                     user_payload['password'] = request.data.get('password')
                 if 'prof_img' in request.FILES:
                     user_payload['prof_img'] = request.FILES['prof_img']
+                elif 'prof_img_base64' in request.data and request.data.get('prof_img_base64'):
+                    from django.core.files.base import ContentFile
+                    import base64
+                    base64_str = request.data.get('prof_img_base64')
+                    try:
+                        if ';base64,' in base64_str:
+                            format, imgstr = base64_str.split(';base64,')
+                            ext = format.split('/')[-1]
+                            # Clean up ext if it has metadata like ;charset=utf-8
+                            if ';' in ext:
+                                ext = ext.split(';')[0]
+                            data = ContentFile(base64.b64decode(imgstr), name=f"draft_profile.{ext}")
+                            user_payload['prof_img'] = data
+                        else:
+                            data = ContentFile(base64.b64decode(base64_str), name="draft_profile.jpg")
+                            user_payload['prof_img'] = data
+                    except Exception as e:
+                        logger.error(f"Error decoding prof_img_base64: {e}")
 
                 user_serializer = UserSerializer(data=user_payload)
 
@@ -2445,6 +2462,26 @@ def employee_with_profile(request):
                         if cert_key in request.FILES:
                             q_data['certificate'] = request.FILES[cert_key]
 
+                        elif 'certificate_base64' in q_data and q_data.get('certificate_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = q_data.get('certificate_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=cert_name)
+                                    q_data['certificate'] = data
+                                else:
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=cert_name)
+                                    q_data['certificate'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding qualifications[{idx}] certificate base64: {e}")
+
                     q_serializer = EmployeeQualificationSerializer(data=qualifications, many=True)
                     if not q_serializer.is_valid():
                         raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
@@ -2466,6 +2503,25 @@ def employee_with_profile(request):
                         if exp_letter_key in request.FILES:
                             e_data['experience_letter'] = request.FILES[exp_letter_key]
 
+                        elif 'experience_letter_base64' in e_data and e_data.get('experience_letter_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = e_data.get('experience_letter_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=letter_name)
+                                    e_data['experience_letter'] = data
+                                else:
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=letter_name)
+                                    e_data['experience_letter'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding experiences[{idx}] letter base64: {e}")
                         designations = e_data.pop('designations', [])
 
                         e_serializer = EmployeeExperienceSerializer(data=e_data)
@@ -2529,6 +2585,65 @@ def employee_with_profile(request):
                 return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_employee_draft(request):
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        draft = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).first()
+        if not draft:
+            return Response({'success': True, 'data': None}, status=status.HTTP_200_OK)
+            
+        return Response({
+            'success': True,
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+                'draft_data': draft.draft_data
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        company_id = request.data.get('company_id')
+        last_step = request.data.get('last_step', 0)
+        draft_data = request.data.get('draft_data', {})
+        
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        draft, created = EmployeeOnboardingDraft.objects.update_or_create(
+            company_id=company_id,
+            created_by=request.user,
+            defaults={
+                'last_step': int(last_step),
+                'draft_data': draft_data
+            }
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Draft saved successfully',
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'DELETE':
+        company_id = request.query_params.get('company_id') or request.data.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        deleted_count, _ = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).delete()
+        return Response({
+            'success': True,
+            'message': 'Draft deleted successfully' if deleted_count > 0 else 'No draft found to delete'
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
@@ -2829,6 +2944,7 @@ def manageEmployeeProfile(request):
                                 },
                                 status=status.HTTP_400_BAD_REQUEST,
                             )
+
                     profile = serializer.save()
                     response_data = serializer.data
 

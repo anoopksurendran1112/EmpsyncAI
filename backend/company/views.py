@@ -15,6 +15,7 @@ from user import serializer as s
 from django.utils.timezone import make_aware
 from punch.utils.report_utils import process_punch_logic
 from django.db.models import ProtectedError
+from django.db import transaction  
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
@@ -1324,83 +1325,57 @@ def employee_report(request):
         import traceback
         traceback.print_exc()
         return Response({"error": str(e)}, status=500)
-@api_view(["GET", "POST"])
+
+
+@api_view(["GET", "POST", "PUT"])
 @permission_classes([AllowAny])
 def company_field_setting(request):
-    """
-    GET  -> fetch company field setting
-    POST -> create/update company field setting
-    """
-
     if request.method == "GET":
-        company_id = request.GET.get("company_id")
+        company_id = request.GET.get("company_id") or request.query_params.get('company_id')
 
         if not company_id:
-            return Response(
-                {
-                    "success": False,
-                    "message": "company_id is required",
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({ "success": False, "message": "company_id is required",}, 
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
             setting = CompanyFieldSetting.objects.get(company_id=company_id)
             serializer = CompanyFieldSettingSerializer(setting)
-
-            return Response(
-                {
-                    "success": True,
-                    "data": serializer.data,
-                }
-            )
+            return Response({ "success": True,  "data": serializer.data})
 
         except CompanyFieldSetting.DoesNotExist:
-            return Response(
-                {
-                    "success": True,
-                    "data": {
-                        "company_id": company_id,
-                        "config": {},
-                    },
-                }
-            )
+            return Response({ "success": False, "company_id": company_id, "message": "Config not found"}, 
+                            status=status.HTTP_404_NOT_FOUND)
 
     company_id = request.data.get("company_id")
     config = request.data.get("config", {})
     print("REQUEST DATA:", request.data)
     print("CONFIG:", config)
     if not company_id:
-        return Response(
-            {
-                "success": False,
-                "message": "company_id is required",
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        return Response({ "success": False, "message": "company_id is required"}, 
+                        status=status.HTTP_400_BAD_REQUEST)
 
-    company = Company.objects.get(id=company_id)
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response({ "success": False,  "message": "Company not found" }, 
+                        status=status.HTTP_404_NOT_FOUND)
 
-    setting, created = CompanyFieldSetting.objects.update_or_create(
-        company=company,
-        defaults={
-            "config": config,
-        },
-    )
-   
 
-    print("Saved config:", setting.config)
+    if request.method == "PUT" and not CompanyFieldSetting.objects.filter(company=company).exists():
+        return Response({"success": False,"message": "Field setting configuration not found for update"}, 
+                        status=status.HTTP_404_NOT_FOUND)
 
-    setting.refresh_from_db()
-
-    print("DB config:", setting.config)
+    try:
+        with transaction.atomic():
+            setting, created = CompanyFieldSetting.objects.update_or_create(
+                company=company, defaults={ "config": config,},)
+    except Exception as e:
+        return Response({ "success": False, "message": f"An error occurred: {str(e)}" }, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     serializer = CompanyFieldSettingSerializer(setting)
-    print("SERIALIZER DATA:", serializer.data)
-    return Response(
-        {
-            "success": True,
-            "message": "Saved successfully",
-            "data": serializer.data,
-        }
-    )
+    action_message = "Created successfully" if created else "Updated successfully"
+
+    return Response({"success": True, "message": action_message, "data": serializer.data},
+                    status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
