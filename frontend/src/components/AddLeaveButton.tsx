@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import { format } from "date-fns";
 
 interface LeaveType {
   id: number;

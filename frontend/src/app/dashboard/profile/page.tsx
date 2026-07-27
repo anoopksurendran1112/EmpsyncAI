@@ -1891,7 +1891,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Professional Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("professional")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("professional")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -1927,7 +1927,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Contact Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("contact")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("contact")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -2002,7 +2002,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Address Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("address")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("address")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -2207,7 +2207,7 @@ export default function ProfilePage() {
                       </div>
                       <h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3>
                     </div>
-                    <button variant="outline" onClick={() => handleEditExtended("legal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                    <button onClick={() => handleEditExtended("legal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                       <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                     </button>
                   </div>
@@ -2253,7 +2253,7 @@ export default function ProfilePage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Settings className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Notification Preferences</h3></div>
-                    <button variant="outline" onClick={() => handleEditExtended("preferences")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
+                    <button onClick={() => handleEditExtended("preferences")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><MessageCircle className="h-4 w-4 text-green-500" /><span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span></div><span className={`text-xs px-2.5 py-1 rounded-full font-bold ${user?.is_whatsapp ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{user?.is_whatsapp ? "Enabled" : "Disabled"}</span></div>
@@ -3472,7 +3472,7 @@ export default function ProfilePage() {
                         let newCompanyName = currentExp.company_name;
                         let newLocation = currentExp.location;
                         if (isInternal && company) {
-                          newCompanyName = company.company_name || company.name || "Internal Organization";
+                          newCompanyName = company.company_name || "Internal Organization";
                           if (companyProfile) {
                             const addressParts = [
                               companyProfile.city,
@@ -3485,7 +3485,7 @@ export default function ProfilePage() {
                             newLocation = "";
                           }
                         } else if (!isInternal && !currentExp.company_name) {
-                          const defaultCompany = company?.company_name || company?.name || "Internal Organization";
+                          const defaultCompany = company?.company_name || "Internal Organization";
                           if (newCompanyName === defaultCompany) newCompanyName = "";
                           if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
                         }
@@ -3740,7 +3740,7 @@ export default function ProfilePage() {
               {/* Trigger Node to Reveal Form */}
               {!expFormOpen && (
                 <button
-                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", designations: [] }); setExpFormOpen(true); }}
+                  onClick={() => { setCurrentExp({ is_internal: false, company_name: "", location: "", start_year: "", designations: [] }); setExpFormOpen(true); }}
                   className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" /> Add Experience Record

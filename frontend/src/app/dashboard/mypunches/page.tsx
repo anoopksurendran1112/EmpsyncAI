@@ -14,7 +14,6 @@ import {
 import DatePicker from "react-datepicker";
 import { format, differenceInMinutes, startOfMonth } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
-import "react-datepicker/dist/react-datepicker.css";
 
 // Helper to extract time from datetime string
 const extractTime = (datetime: string | null): string => {
@@ -75,7 +74,7 @@ const extractTime = (datetime: string | null): string => {
 // Circular Progress Component
 function TimeCircle({
   totalHours,
-  size = 70,
+  size = 80,
   isTodayPartial = false,
   isOldPartial = false,
 }: {
@@ -86,45 +85,115 @@ function TimeCircle({
 }) {
   const hasValidData = totalHours !== "--" && !totalHours.includes("NaN") && !isOldPartial;
 
-  const calculateProgress = () => {
-    if (isOldPartial) return 100;
-    if (!hasValidData) return 0;
+  const getProgressData = () => {
+    if (isOldPartial) {
+      return { 
+        progress: 100, 
+        strokeColor: "#eab308", 
+        label: "Forgot Out", 
+        bgColor: "#fef08a",
+        textColor: "#b45309"
+      };
+    }
+    if (isTodayPartial) {
+      return { 
+        progress: 100, 
+        strokeColor: "#9333ea", 
+        label: "Active Now", 
+        bgColor: "#f3e8ff",
+        textColor: "#7e22ce"
+      };
+    }
+    if (!hasValidData) {
+      return { 
+        progress: 0, 
+        strokeColor: "#d1d5db", 
+        label: "No Data", 
+        bgColor: "#f3f4f6",
+        textColor: "#6b7280"
+      };
+    }
+
     try {
       const hours = parseFloat(totalHours);
-      return Math.min((hours / 8) * 100, 100);
+      
+      if (hours >= 8) {
+        // Green - On Time
+        return { 
+          progress: 100, 
+          strokeColor: "#10b981", 
+          label: "On Time", 
+          bgColor: "#d1fae5",
+          textColor: "#047857"
+        };
+      } else if (hours >= 4) {
+        // Blue - Half Day
+        return { 
+          progress: 50, 
+          strokeColor: "#3b82f6", 
+          label: "Half Day", 
+          bgColor: "#dbeafe",
+          textColor: "#1d4ed8"
+        };
+      } else if (hours > 0) {
+        // Red - Low Hours
+        return { 
+          progress: 25, 
+          strokeColor: "#ef4444", 
+          label: "Low Hours", 
+          bgColor: "#fee2e2",
+          textColor: "#dc2626"
+        };
+      } else {
+        // Gray - No hours worked
+        return { 
+          progress: 0, 
+          strokeColor: "#d1d5db", 
+          label: "No Hours", 
+          bgColor: "#f3f4f6",
+          textColor: "#6b7280"
+        };
+      }
     } catch {
-      return 0;
+      return { 
+        progress: 0, 
+        strokeColor: "#d1d5db", 
+        label: "No Data", 
+        bgColor: "#f3f4f6",
+        textColor: "#6b7280"
+      };
     }
   };
 
-  const progress = calculateProgress();
-  const strokeWidth = 4;
+  const { progress, strokeColor, label, bgColor, textColor } = getProgressData();
+  const strokeWidth = 5;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
-  let strokeColor = "#3b82f6"; // Default Blue
-  if (isOldPartial) {
-    strokeColor = "#eab308"; // Yellow-600
-  } else if (isTodayPartial) {
-    strokeColor = "#9333ea"; // Purple-600
-  } else if (parseFloat(totalHours) >= 8) {
-    strokeColor = "#10b981"; // Green-500
-  }
-
   return (
     <div className="flex flex-col items-center justify-center">
+      {/* SVG Circle Ring */}
       <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
+        <svg 
+          width={size} 
+          height={size} 
+          className="transform -rotate-90"
+          style={{ filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.05))` }}
+        >
+          {/* Background circle */}
           <circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={isOldPartial ? "#fef08a" : "#e5e7eb"} // Lighter yellow for bg if partial
+            stroke={bgColor}
             strokeWidth={strokeWidth}
             fill="none"
+            opacity="0.5"
           />
-          {(hasValidData || isOldPartial) && (
+          
+          {/* Progress circle */}
+          {progress > 0 && (
             <circle
               cx={size / 2}
               cy={size / 2}
@@ -139,20 +208,28 @@ function TimeCircle({
             />
           )}
         </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            {isOldPartial ? (
-              <Clock className="h-5 w-5 text-yellow-600 mx-auto" aria-hidden="true" />
-            ) : (
-              <>
-                <div className="text-sm font-bold text-gray-900">
-                  {hasValidData ? totalHours : "--"}
-                </div>
-                <div className="text-[10px] text-gray-500 font-medium">HRS</div>
-              </>
-            )}
-          </div>
+
+        {/* Center content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {hasValidData && (
+            <>
+              <div className="text-lg font-bold text-gray-900">
+                {totalHours}
+              </div>
+              <div className="text-[10px] text-gray-500 font-medium">hrs</div>
+            </>
+          )}
         </div>
+      </div>
+
+      {/* Label below ring */}
+      <div className="mt-3 text-center">
+        <p className="text-xs font-semibold" style={{ color: textColor }}>
+          {label}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-0.5">
+          {progress}%
+        </p>
       </div>
     </div>
   );
@@ -168,6 +245,7 @@ export default function MyPunchesPage() {
   const [punches, setPunches] = useState<any[]>([]);
   const [multiMode, setMultiMode] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [stats, setStats] = useState({
     workingDays: 0,
     activeDays: 0,
@@ -516,61 +594,65 @@ export default function MyPunchesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+      <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200 flex items-start gap-4">
+          <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+            <Calendar className="h-5 w-5 text-blue-600" />
+          </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 mb-1">
               Working Days
             </h3>
-            <p className="text-3xl font-bold text-blue-600">
+            <p className="text-2xl font-bold text-gray-900">
               {stats.workingDays}
             </p>
-          </div>
-          <div className="p-3 bg-blue-100 rounded-full">
-            <Calendar className="h-6 w-6 text-blue-600" />
+            <p className="text-xs text-gray-400 mt-1">This Month</p>
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200 flex items-start gap-4">
+          <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+            <Calendar className="h-5 w-5 text-green-600" />
+          </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 mb-1">
               Active Days
             </h3>
-            <p className="text-3xl font-bold text-green-600">
+            <p className="text-2xl font-bold text-gray-900">
               {stats.activeDays}
             </p>
-          </div>
-          <div className="p-3 bg-green-100 rounded-full">
-            <Calendar className="h-6 w-6 text-green-600" />
+            <p className="text-xs text-gray-400 mt-1">This Month</p>
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200 flex items-start gap-4">
+          <div className="p-2 bg-yellow-100 rounded-lg flex-shrink-0">
+            <Calendar className="h-5 w-5 text-yellow-500" />
+          </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 mb-1">
               Partial Days
             </h3>
-            <p className="text-3xl font-bold text-yellow-600">
+            <p className="text-2xl font-bold text-gray-900">
               {stats.partialDays}
             </p>
-          </div>
-          <div className="p-3 bg-yellow-100 rounded-full">
-            <Calendar className="h-6 w-6 text-yellow-600" />
+            <p className="text-xs text-gray-400 mt-1">This Month</p>
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-200 flex items-start gap-4">
+          <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+            <Clock className="h-5 w-5 text-purple-600" />
+          </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">
+            <h3 className="text-xs font-semibold text-gray-500 mb-1">
               Avg. Hours
             </h3>
-            <p className="text-3xl font-bold text-purple-600">
+            <p className="text-2xl font-bold text-gray-900">
               {stats.avgWorkingHours}
-              <span className="text-lg text-purple-400">h</span>
+              <span className="text-sm text-gray-500">h</span>
             </p>
-          </div>
-          <div className="p-3 bg-purple-100 rounded-full">
-            <Clock className="h-6 w-6 text-purple-600" />
+            <p className="text-xs text-gray-400 mt-1">This Month</p>
           </div>
         </div>
       </div>
@@ -581,7 +663,7 @@ export default function MyPunchesPage() {
           <History className="h-5 w-5 text-gray-600" />Daily Punch Records</h1>
 
         {/* Date Range Selector - with grouped buttons */}
-        <div className="flex flex-wrap items-end gap-5 mb-4">
+        <div className="flex flex-wrap items-end gap-4 mb-6">
           {/* Start Date */}
           <div className="flex flex-col">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -592,7 +674,7 @@ export default function MyPunchesPage() {
               onChange={(d: Date | null) => setStartDate(d)}
               dateFormat="dd-MMM-yyyy"
               placeholderText="Select start date"
-              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-sm"
               maxDate={new Date()}
             />
           </div>
@@ -607,184 +689,281 @@ export default function MyPunchesPage() {
               onChange={(d: Date | null) => setEndDate(d)}
               dateFormat="dd-MMM-yyyy"
               placeholderText="Select end date"
-              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+              className="border border-gray-300 px-3 py-2 rounded-md w-full md:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow text-sm"
               maxDate={new Date()}
             />
           </div>
 
-          {/* Refresh Button */}
-          <button
-            onClick={fetchPunches}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 px-6 py-[9px] bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-70 font-medium text-sm h-[42px]"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            {loading ? "Loading..." : "Refresh"}
-          </button>
+          {/* Buttons Group */}
+          <div className="flex gap-2">
+            {/* Refresh Button */}
+            <button
+              onClick={fetchPunches}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition disabled:opacity-70 font-medium text-sm"
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+              Refresh
+            </button>
+
+            {/* Grid/List View Buttons */}
+            <div className="flex border border-gray-300 rounded-md">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`px-3 py-2 text-sm font-medium transition ${
+                  viewMode === "grid"
+                    ? "bg-teal-600 text-white"
+                    : "bg-white text-gray-700 hover:bg-gray-50"
+                } border-r border-gray-300`}
+              >
+                ⊞ Grid View
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-2 text-sm font-medium transition ${
+                  viewMode === "list"
+                    ? "bg-teal-600 text-white"
+                    : "bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                ≡ List View
+              </button>
+            </div>
+          </div>
         </div>
 
-        <ul className="space-y-4">
+        <ul className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" : "space-y-4"}>
           {error && (
-            <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100 text-center">
+            <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-100 text-center col-span-full">
               {error}
             </div>
           )}
           {!loading && punches.length === 0 && !error && (
-            <div className="p-8 text-center text-gray-500 bg-white rounded-lg border border-gray-200">
-              No punch records found for the selected period.
+            <div className="p-8 text-center text-gray-500 bg-white rounded-lg border border-gray-200 col-span-full">
+              No punch record found for the selected period.
             </div>
           )}
           {punches.map((record) => (
             <li
               key={record.id}
-              className={`border border-gray-200 p-4 rounded-lg transition-colors shadow-sm group relative ${
-                record.isOff && !record.hasPunches
-                  ? "bg-gray-50 opacity-80"
-                  : "bg-white hover:bg-gray-50 cursor-pointer"
+              className={`border border-gray-200 transition-colors shadow-sm group relative ${
+                viewMode === "grid"
+                  ? `p-4 rounded-xl ${
+                      record.isOff && !record.hasPunches
+                        ? "bg-gray-50 opacity-80"
+                        : "bg-white hover:bg-gray-50 cursor-pointer"
+                    }`
+                  : `p-4 rounded-lg ${
+                      record.isOff && !record.hasPunches
+                        ? "bg-gray-50 opacity-80"
+                        : "bg-white hover:bg-gray-50 cursor-pointer"
+                    }`
               }`}
               onMouseEnter={() => setHoveredId(record.id)}
               onMouseLeave={() => setHoveredId(null)}
             >
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                {/* Left Section - Date Details */}
-                <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                  {/* Custom Date Icon Container */}
-                  <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 text-blue-700">
-                    <span className="text-xl font-bold leading-none">
-                      {record.date.split("-")[2]}
-                    </span>
-                    <span className="text-xs font-semibold uppercase mt-1">
-                      {new Date(record.date).toLocaleString("default", {
-                        month: "short",
-                      })}
-                    </span>
-                  </div>
-
-                  {/* Day specifics */}
-                  <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p
-                        className={`font-semibold text-lg truncate ${record.isOff && !record.hasPunches ? "text-gray-600" : "text-gray-900"}`}
-                      >
-                        {record.day}
-                      </p>
+              {viewMode === "grid" ? (
+                // Grid View - Ring Chart Focused
+                <div className="flex flex-col gap-3 h-full items-center justify-between">
+                  {/* Date Header */}
+                  <div className="text-center w-full">
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xl font-bold text-teal-600">
+                        {record.date.split("-")[2]}
+                      </span>
+                      <span className="text-xs text-gray-500 font-medium uppercase">
+                        {new Date(record.date).toLocaleString("default", {
+                          month: "short",
+                        })}
+                      </span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">
-                      {format(new Date(record.date), "dd-MMM-yyyy")}
+                    <p className="text-xs text-gray-500 mt-1">
+                      {record.day}
                     </p>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {record.isOff && !record.hasPunches && !record.isTodayPartial && !record.isOldPartial && (
-                        <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                          Weekend / Day Off
-                        </span>
-                      )}
-                      {record.isAbsent && (
-                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
-                          Absent / No Data
-                        </span>
-                      )}
-                      {record.isTodayPartial && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                          Active Now
-                        </span>
-                      )}
-                      {record.isOldPartial && (
-                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
-                          Forgot Checkout
-                        </span>
-                      )}
-                      {record.multiMode && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                          Multiple Sessions
-                        </span>
-                      )}
-                    </div>
                   </div>
-                </div>
 
-                {/* Middle Section - Punch Times */}
-                <div className="flex items-center gap-8 mx-4 sm:mx-8">
-                  {/* Check-in */}
-                  <div className="flex flex-col items-center min-w-[60px]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <ArrowUpCircle
-                        className={`h-4 w-4 ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-green-500"}`}
-                      />
-                      <span className="text-xs font-medium text-gray-500">
-                        IN
+                  {/* Circular Progress Ring - Center Focus */}
+                  <div className="flex justify-center py-4">
+                    <TimeCircle 
+                      totalHours={record.totalHours} 
+                      isTodayPartial={record.isTodayPartial}
+                      isOldPartial={record.isOldPartial}
+                      size={90}
+                    />
+                  </div>
+
+                  {/* IN/OUT Times - Below Ring */}
+                  <div className="flex justify-around w-full gap-2 text-xs">
+                    <div className="flex flex-col items-center flex-1">
+                      <span className="text-gray-500 font-medium mb-1">IN</span>
+                      <span className={`font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-green-600"}`}>
+                        {record.checkIn}
                       </span>
                     </div>
-                    <span
-                      className={`text-lg font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-gray-900"}`}
-                    >
-                      {record.checkIn}
-                    </span>
-                  </div>
-
-                  {/* Check-out */}
-                  <div className="flex flex-col items-center min-w-[60px]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <ArrowDownCircle
-                        className={`h-4 w-4 ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-red-500"}`}
-                      />
-                      <span className="text-xs font-medium text-gray-500">
-                        OUT
+                    <div className="border-r border-gray-200"></div>
+                    <div className="flex flex-col items-center flex-1">
+                      <span className="text-gray-500 font-medium mb-1">OUT</span>
+                      <span className={`font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-red-600"}`}>
+                        {record.checkOut}
                       </span>
                     </div>
-                    <span
-                      className={`text-lg font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-gray-900"}`}
-                    >
-                      {record.checkOut}
-                    </span>
                   </div>
                 </div>
+              ) : (
+                // List View
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  {/* Left Section - Date Details */}
+                  <div className="flex items-center gap-4 flex-1 min-w-[200px]">
+                    {/* Custom Date Icon Container */}
+                    <div className="h-14 w-14 rounded-xl border-2 border-teal-200 bg-teal-50 flex flex-col items-center justify-center flex-shrink-0 text-teal-700">
+                      <span className="text-xl font-bold leading-none">
+                        {record.date.split("-")[2]}
+                      </span>
+                      <span className="text-xs font-semibold uppercase mt-1">
+                        {new Date(record.date).toLocaleString("default", {
+                          month: "short",
+                        })}
+                      </span>
+                    </div>
 
-                {/* Right Section - Total Work Hours */}
-                <div className="flex items-center justify-end flex-shrink-0">
-                  <TimeCircle 
-                    totalHours={record.totalHours} 
-                    isTodayPartial={record.isTodayPartial}
-                    isOldPartial={record.isOldPartial}
-                  />
+                    {/* Day specifics */}
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p
+                          className={`font-semibold text-lg truncate ${record.isOff && !record.hasPunches ? "text-gray-600" : "text-gray-900"}`}
+                        >
+                          {record.day}
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-500 truncate">
+                        {format(new Date(record.date), "dd-MMM-yyyy")}
+                      </p>
+
+                      {/* Tags */}
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {record.isOff && !record.hasPunches && !record.isTodayPartial && !record.isOldPartial && (
+                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
+                            Weekend / Day Off
+                          </span>
+                        )}
+                        {record.isAbsent && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-medium">
+                            Absent / No Data
+                          </span>
+                        )}
+                        {record.isTodayPartial && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                            Active Now
+                          </span>
+                        )}
+                        {record.isOldPartial && (
+                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
+                            Forgot Checkout
+                          </span>
+                        )}
+                        {record.multiMode && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+                            Multiple Sessions
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Middle Section - Punch Times */}
+                  <div className="flex items-center gap-8 mx-4 sm:mx-8">
+                    {/* Check-in */}
+                    <div className="flex flex-col items-center min-w-[60px]">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ArrowUpCircle
+                          className={`h-4 w-4 ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-green-500"}`}
+                        />
+                        <span className="text-xs font-medium text-gray-500">
+                          IN
+                        </span>
+                      </div>
+                      <span
+                        className={`text-lg font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-gray-900"}`}
+                      >
+                        {record.checkIn}
+                      </span>
+                    </div>
+
+                    {/* Check-out */}
+                    <div className="flex flex-col items-center min-w-[60px]">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ArrowDownCircle
+                          className={`h-4 w-4 ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-red-500"}`}
+                        />
+                        <span className="text-xs font-medium text-gray-500">
+                          OUT
+                        </span>
+                      </div>
+                      <span
+                        className={`text-lg font-bold ${record.isOff && !record.hasPunches ? "text-gray-400" : "text-gray-900"}`}
+                      >
+                        {record.checkOut}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right Section - Total Work Hours */}
+                  <div className="flex items-center justify-end flex-shrink-0">
+                    <TimeCircle 
+                      totalHours={record.totalHours} 
+                      isTodayPartial={record.isTodayPartial}
+                      isOldPartial={record.isOldPartial}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Multiple Sessions Viewer directly embedded */}
+              {/* Multiple Sessions Viewer */}
               {record.multiMode &&
                 record.sessions.length > 0 &&
                 hoveredId === record.id && (
-                  <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex items-center mb-3">
-                      <Clock className="w-4 h-4 text-blue-600 mr-2" />
-                      <span className="text-sm font-semibold text-blue-800">
-                        Punch Sessions Breakdown
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  viewMode === "grid" ? (
+                    <div className="mt-3 p-2 bg-blue-50/50 rounded-lg border border-blue-100 animate-in fade-in slide-in-from-top-2 duration-200 text-xs">
+                      <span className="text-blue-800 font-semibold">Sessions: </span>
                       {record.sessions.map((session: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="bg-white p-3 rounded-md border border-blue-100 flex flex-col justify-center text-sm shadow-sm"
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-gray-500 font-medium">
-                              Session {idx + 1}
-                            </span>
-                            <span className="font-bold text-blue-600">
-                              {session.duration}h
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-700 font-medium">
-                            <span>{session.checkIn}</span>
-                            <span className="text-gray-300">-</span>
-                            <span>{session.checkOut}</span>
-                          </div>
-                        </div>
+                        <span key={idx} className="text-blue-700">
+                          {session.checkIn}-{session.checkOut} ({session.duration}h)
+                          {idx < record.sessions.length - 1 ? ", " : ""}
+                        </span>
                       ))}
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center mb-3">
+                        <Clock className="w-4 h-4 text-blue-600 mr-2" />
+                        <span className="text-sm font-semibold text-blue-800">
+                          Punch Sessions Breakdown
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {record.sessions.map((session: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="bg-white p-3 rounded-md border border-blue-100 flex flex-col justify-center text-sm shadow-sm"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-500 font-medium">
+                                Session {idx + 1}
+                              </span>
+                              <span className="font-bold text-blue-600">
+                                {session.duration}h
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-700 font-medium">
+                              <span>{session.checkIn}</span>
+                              <span className="text-gray-300">-</span>
+                              <span>{session.checkOut}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
                 )}
             </li>
           ))}
