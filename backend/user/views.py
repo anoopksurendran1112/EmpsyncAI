@@ -37,7 +37,10 @@ from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 
-# 4. Local App & Model Imports
+# 4. Local Utility Imports
+from .utils.data_entry_progress import evaluate_user_completion
+
+# 5. Local App & Model Imports
 from company import models as c
 from punch.models import PunchRecords
 from notification.models import FcmToken
@@ -2654,121 +2657,90 @@ def employee_with_profile(request):
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-def evaluate_user_completion(user, config_dict):
-    """
-    Evaluates a single user's completion status by checking fields 
-    scattered across CustomUser, EmployeeProfile, and related records.
-    """
-    profile = getattr(user, 'profile', None)
-    
-    # Fallback default configuration if the company config is entirely empty/missing
-    if not config_dict:
-        config_dict = {
-            "personal_information": {
-                "dob": {"mandatory": True},
-                "blood_group": {"mandatory": True},
-                "gender": {"mandatory": True},
-                "mobile": {"mandatory": True},
-                "email": {"mandatory": True},
-            }
-        }
-
-    total_mandatory = 0
-    filled_mandatory = 0
-    missing_fields = []
-
-    for section_name, fields in config_dict.items():
-        if not isinstance(fields, dict):
-            continue
-            
-        for field_name, rule in fields.items():
-            if isinstance(rule, dict) and rule.get('mandatory') is True:
-                total_mandatory += 1
-                is_filled = False
-
-                # 1. Check fields in EmployeeProfile model
-                if profile and hasattr(profile, field_name):
-                    val = getattr(profile, field_name)
-                    if val is not None and val != "":
-                        is_filled = True
-
-                # 2. Check fields in CustomUser model
-                elif hasattr(user, field_name):
-                    val = getattr(user, field_name)
-                    if val is not None and val != "":
-                        is_filled = True
-
-                # 3. Check fields in related tables (e.g., Bank Details or Addresses)
-                elif field_name in ["account_number", "ifsc_code", "bank_name"]:
-                    # Checks if the user has at least one valid bank detail record filled
-                    bank = user.bank_details.first()
-                    if bank and getattr(bank, field_name, None):
-                        is_filled = True
-
-                elif field_name in ["present_address", "permanent_address"]:
-                    addr = getattr(profile, field_name, None)
-                    if addr and addr.city and addr.pincode:  # Basic completeness check
-                        is_filled = True
-
-                if is_filled:
-                    filled_mandatory += 1
-                else:
-                    missing_fields.append({
-                        "section": section_name,
-                        "field": field_name
-                    })
-
-    percentage = round((filled_mandatory / total_mandatory) * 100, 2) if total_mandatory > 0 else 100.0
-
-    return {
-        "user_id": user.id,
-        "email": user.email,
-        "name": f"{user.first_name} {user.last_name}",
-        "completion_percentage": percentage,
-        "total_mandatory_fields": total_mandatory,
-        "filled_mandatory_fields": filled_mandatory,
-        "non_filled_fields": missing_fields
-    }
-
-
-@api_view(["POST"])
-@permission_classes([AllowAny])
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
 def calculate_data_entry_percentage(request):
-    company_id = request.data.get("company_id")
-    user_id = request.data.get("user_id")  # Optional: Check for a single employee
+    company_id = request.data.get("company_id") or request.query_params.get("company_id")
+    user_id = request.data.get("user_id") or request.query_params.get("user_id")
+
+    if user_id and not company_id:
+        try:
+            target_user = CustomUser.objects.prefetch_related('company', 'company_links').get(id=user_id)
+            if target_user.parent_company_id:
+                company_id = target_user.parent_company_id
+            elif target_user.company.exists():
+                company_id = target_user.company.first().id
+            elif target_user.company_links.exists():
+                company_id = target_user.company_links.first().company_id
+        except CustomUser.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": f"User with ID {user_id} not found"
+            }, status=status.HTTP_404_NOT_FOUND)
 
     if not company_id:
         return Response({
             "success": False,
-            "message": "company_id is required"
+            "message": "company_id is required (or provide a valid user_id to infer company_id)"
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    # Attempt to fetch the company-specific field configuration
     try:
         setting = CompanyFieldSetting.objects.get(company_id=company_id)
         config_dict = setting.config or {}
     except CompanyFieldSetting.DoesNotExist:
-        config_dict = {}  # Will trigger default fallback in helper function
+        config_dict = {}
 
-    # Target users filtering (Optimized with select_related/prefetch_related for performance)
+    user_queryset = CustomUser.objects.select_related(
+        'profile', 'profile__present_address', 'profile__permanent_address',
+        'profile__religion', 'profile__caste', 'profile__staff_type', 'profile__staff_category'
+        ).prefetch_related('qualifications', 'experiences', 'bank_details', 'guardians')
+
     if user_id:
-        users = CustomUser.objects.filter(id=user_id, company__id=company_id).select_related('profile').prefetch_related('bank_details')
+        users = user_queryset.filter(id=user_id, company__id=company_id).distinct()
+        if not users.exists():
+            users = user_queryset.filter(
+                    Q(id=user_id) & (Q(parent_company__id=company_id) | Q(company_links__company__id=company_id))
+                ).distinct()
+
         if not users.exists():
             return Response({
                 "success": False,
-                "message": "User not found or does not belong to this company"
+                "message": "User not found or does not belong to the specified company"
             }, status=status.HTTP_404_NOT_FOUND)
+
+        user_data = evaluate_user_completion(users.first(), config_dict)
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "data": user_data
+        }, status=status.HTTP_200_OK)
+
     else:
-        users = CustomUser.objects.filter(company__id=company_id, is_active=True).distinct().select_related('profile').prefetch_related('bank_details')
+        users = user_queryset.filter(
+            Q(company__id=company_id) | Q(parent_company__id=company_id) | Q(company_links__company__id=company_id),
+            is_active=True
+        ).distinct()
 
-    results = [evaluate_user_completion(user, config_dict) for user in users]
+        results = [evaluate_user_completion(user, config_dict) for user in users]
 
-    return Response({
-        "success": True,
-        "company_id": company_id,
-        "count": len(results),
-        "data": results
-    }, status=status.HTTP_200_OK)
+        total_employees = len(results)
+        avg_percentage = round(sum(r["completion_percentage"] for r in results) / total_employees, 2) if total_employees > 0 else 100.0
+        fully_completed = sum(1 for r in results if r["completion_percentage"] == 100.0)
+
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "summary": {
+                "total_employees": total_employees,
+                "average_completion_percentage": avg_percentage,
+                "fully_completed_count": fully_completed,
+                "incomplete_count": total_employees - fully_completed
+            },
+            "count": total_employees,
+            "data": results
+        }, status=status.HTTP_200_OK)
+
+
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def manageReligion(request):
 
