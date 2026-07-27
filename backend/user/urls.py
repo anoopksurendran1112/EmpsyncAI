@@ -4,9 +4,10 @@ from .views import (
     verify_otp, reset_password, request_login_otp, verify_login_otp, privacy_policy,
     logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
     manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail, manageQualification,
-    manageExperience, employee_with_profile,available_id, candidateApplication, manage_employee_draft
+    manageExperience, employee_with_profile, available_id, candidateApplication,
+    calculate_data_entry_percentage,  manage_employee_draft
 )
-
+ 
 
 urlpatterns = [
     path('api/signup',signUp ),
@@ -38,4 +39,6 @@ urlpatterns = [
     path('api/manage-banks/', manageBankDetail, name='manage-bank-detail'),
     path('api/manage-qualification/', manageQualification, name='manage-qualification'),
     path('api/manage-experience/', manageExperience, name='manage-experience'),
+    
+    path('api/data-entry-percentage/', calculate_data_entry_percentage, name='data-entry-percentage'),
 ]

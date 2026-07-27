@@ -40,7 +40,10 @@ from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 
-# 4. Local App & Model Imports
+# 4. Local Utility Imports
+from .utils.data_entry_progress import evaluate_user_completion
+
+# 5. Local App & Model Imports
 from company import models as c
 from punch.models import PunchRecords
 from notification.models import FcmToken
@@ -2587,6 +2590,90 @@ def employee_with_profile(request):
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def calculate_data_entry_percentage(request):
+    company_id = request.data.get("company_id") or request.query_params.get("company_id")
+    user_id = request.data.get("user_id") or request.query_params.get("user_id")
+
+    if user_id and not company_id:
+        try:
+            target_user = CustomUser.objects.prefetch_related('company', 'company_links').get(id=user_id)
+            if target_user.parent_company_id:
+                company_id = target_user.parent_company_id
+            elif target_user.company.exists():
+                company_id = target_user.company.first().id
+            elif target_user.company_links.exists():
+                company_id = target_user.company_links.first().company_id
+        except CustomUser.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": f"User with ID {user_id} not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    if not company_id:
+        return Response({
+            "success": False,
+            "message": "company_id is required (or provide a valid user_id to infer company_id)"
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        setting = CompanyFieldSetting.objects.get(company_id=company_id)
+        config_dict = setting.config or {}
+    except CompanyFieldSetting.DoesNotExist:
+        config_dict = {}
+
+    user_queryset = CustomUser.objects.select_related(
+        'profile', 'profile__present_address', 'profile__permanent_address',
+        'profile__religion', 'profile__caste', 'profile__staff_type', 'profile__staff_category'
+        ).prefetch_related('qualifications', 'experiences', 'bank_details', 'guardians')
+
+    if user_id:
+        users = user_queryset.filter(id=user_id, company__id=company_id).distinct()
+        if not users.exists():
+            users = user_queryset.filter(
+                    Q(id=user_id) & (Q(parent_company__id=company_id) | Q(company_links__company__id=company_id))
+                ).distinct()
+
+        if not users.exists():
+            return Response({
+                "success": False,
+                "message": "User not found or does not belong to the specified company"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        user_data = evaluate_user_completion(users.first(), config_dict)
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "data": user_data
+        }, status=status.HTTP_200_OK)
+
+    else:
+        users = user_queryset.filter(
+            Q(company__id=company_id) | Q(parent_company__id=company_id) | Q(company_links__company__id=company_id),
+            is_active=True
+        ).distinct()
+
+        results = [evaluate_user_completion(user, config_dict) for user in users]
+
+        total_employees = len(results)
+        avg_percentage = round(sum(r["completion_percentage"] for r in results) / total_employees, 2) if total_employees > 0 else 100.0
+        fully_completed = sum(1 for r in results if r["completion_percentage"] == 100.0)
+
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "summary": {
+                "total_employees": total_employees,
+                "average_completion_percentage": avg_percentage,
+                "fully_completed_count": fully_completed,
+                "incomplete_count": total_employees - fully_completed
+            },
+            "count": total_employees,
+            "data": results
+          }, status=status.HTTP_200_OK)
+
+          
 @api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def manage_employee_draft(request):
