@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Leave, LeaveType, Holiday,LeaveCredit
+from .models import Leave, LeaveType, Holiday,LeaveCredit,LeaveFlowHierarchy
 from company.models import CompanyRole,Company, CompanyUser
 from punch.models import PunchRecords
 from user.models import CustomUser
@@ -13,7 +13,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view
 from collections import defaultdict
 from django.db.models.functions import TruncDate
-from .serializer import LeaveSerializer
+from .serializer import LeaveSerializer,LeaveFlowHierarchySerializer
 from django.core.paginator import Paginator
 from notification.views import send_push_notification
 from notification.models import FcmToken
@@ -640,6 +640,98 @@ def get_leave_types(request):
         except Exception as e:
             return Response({'success': False, 'message': str(e)}, status=400)
 
+@api_view(['GET', 'POST','PUT','DELETE'])
+def get_leave_flow_hierarchy(request):
+
+    if request.method == 'GET':
+        company_id = request.headers.get('X-Company-ID')
+
+        if not company_id:
+            return Response({
+                'success': False,
+                'message': 'Missing X-Company-ID header.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        company_id = request.data.get('company_id')
+        flow_config = request.data.get('flow_config', [])
+
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Company not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy = LeaveFlowHierarchy.objects.create(
+            company=company,
+            flow_config=flow_config
+        )
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy created successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
+    elif request.method == 'PUT':
+        company_id = request.data.get('company_id')
+        flow_config = request.data.get('flow_config')
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy.flow_config = flow_config
+        hierarchy.save()
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy updated successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    elif request.method == 'DELETE':
+        company_id = request.data.get('company_id')
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy.delete()
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy deleted successfully.'
+        }, status=status.HTTP_200_OK)
 
 
 def carry_forward_unused_leaves():
