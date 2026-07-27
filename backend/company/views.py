@@ -15,6 +15,7 @@ from user import serializer as s
 from django.utils.timezone import make_aware
 from punch.utils.report_utils import process_punch_logic
 from django.db.models import ProtectedError
+from django.db import transaction  
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
@@ -1330,7 +1331,7 @@ def employee_report(request):
 @permission_classes([AllowAny])
 def company_field_setting(request):
     if request.method == "GET":
-        company_id = request.GET.get("company_id")
+        company_id = request.GET.get("company_id") or request.query_params.get('company_id')
 
         if not company_id:
             return Response({ "success": False, "message": "company_id is required",}, 
@@ -1347,7 +1348,8 @@ def company_field_setting(request):
 
     company_id = request.data.get("company_id")
     config = request.data.get("config", {})
-
+    print("REQUEST DATA:", request.data)
+    print("CONFIG:", config)
     if not company_id:
         return Response({ "success": False, "message": "company_id is required"}, 
                         status=status.HTTP_400_BAD_REQUEST)
@@ -1357,6 +1359,7 @@ def company_field_setting(request):
     except Company.DoesNotExist:
         return Response({ "success": False,  "message": "Company not found" }, 
                         status=status.HTTP_404_NOT_FOUND)
+
 
     if request.method == "PUT" and not CompanyFieldSetting.objects.filter(company=company).exists():
         return Response({"success": False,"message": "Field setting configuration not found for update"}, 
@@ -1375,3 +1378,4 @@ def company_field_setting(request):
 
     return Response({"success": True, "message": action_message, "data": serializer.data},
                     status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+

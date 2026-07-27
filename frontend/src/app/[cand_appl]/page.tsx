@@ -51,6 +51,14 @@ export default function CandidateApplicationPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const [validationErrors, setValidationErrors] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    group: "",
+    role: "",
+  });
   // Helper to extract array from nested responses
   const extractArray = (data: unknown): any[] => {
     if (Array.isArray(data)) return data;
@@ -123,19 +131,101 @@ export default function CandidateApplicationPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+
+    if (name === "first_name") {
+      const regex = /^[A-Za-z\s'-]*$/;
+
+      if (value && !regex.test(value)) {
+        setValidationErrors(prev => ({
+          ...prev,
+          first_name:
+            "First name should contain only letters, spaces, hyphens (-), and apostrophes (').",
+        }));
+      } else {
+        setValidationErrors(prev => ({
+          ...prev,
+          first_name: "",
+        }));
+      }
+    }
+    if (name === "last_name") {
+      const regex = /^[A-Za-z\s'-]*$/;
+
+      if (value && !regex.test(value)) {
+        setValidationErrors(prev => ({
+          ...prev,
+          last_name:
+            "Last name should contain only letters, spaces, hyphens (-), and apostrophes (').",
+        }));
+      } else {
+        setValidationErrors(prev => ({
+          ...prev,
+          last_name: "",
+        }));
+      }
+    }
+    if (name === "email") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (value && !emailRegex.test(value)) {
+        setValidationErrors(prev => ({
+          ...prev,
+          email: "Please enter a valid email address.",
+        }));
+      } else {
+        setValidationErrors(prev => ({
+          ...prev,
+          email: "",
+        }));
+      }
+    }
+    if (name === "phone") {
+      
+      if (!/^\d*$/.test(value)) {
+        return;
+      }
+
+      if (value.length > 10) {
+        return;
+      }
+
+      if (value.length > 0 && value.length !== 10) {
+        setValidationErrors(prev => ({
+          ...prev,
+          phone: "Phone number must contain exactly 10 digits.",
+        }));
+      } else {
+        setValidationErrors(prev => ({
+          ...prev,
+          phone: "",
+        }));
+      }
+    }
     setForm(prev => ({
       ...prev,
       [name]:
-        name === 'group' || name === 'role'
+        name === "group" || name === "role"
           ? parseInt(value, 10) || 0
           : value,
     }));
+
     setSuccess(false);
     setError(null);
   };
+  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (
+      validationErrors.first_name ||
+      validationErrors.last_name ||
+      validationErrors.email ||
+      validationErrors.phone
+    ) {
+      setError("Please fix the validation errors before submitting.");
+      return;
+    }
+
     if (
       !form.company_id ||
       !form.first_name?.trim() ||
@@ -267,6 +357,26 @@ export default function CandidateApplicationPage() {
                 />
                 <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               </div>
+              {validationErrors.first_name && (
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.first_name}
+                </p>
+              )}
+              {validationErrors.last_name && (
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.last_name}
+                </p>
+              )}
+              {validationErrors.email && (
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.email}
+                </p>
+              )}
+              {validationErrors.phone && (
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.phone}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <label htmlFor="last_name" className="flex items-center gap-2 text-sm font-semibold text-gray-700">

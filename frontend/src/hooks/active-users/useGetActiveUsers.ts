@@ -37,7 +37,7 @@ async function fetchActiveUsers(
   page: number, 
   limit: number
 ): Promise<PaginatedActiveUsersResponse> {
-  const res = await fetch("/api/active_users", {
+  const res = await fetch("/api/active-users", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

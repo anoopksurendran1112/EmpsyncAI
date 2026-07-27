@@ -166,7 +166,7 @@ export async function POST(req: Request) {
     }
 
     const responseData = await res.json();
-    
+    console.log("Django Raw Response:", responseData);
     // Cache individual employees from this page
     if (responseData.data?.length > 0) {
       responseData.data.forEach((emp: any) => {

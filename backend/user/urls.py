@@ -5,7 +5,7 @@ from .views import (
     logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
     manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail, manageQualification,
     manageExperience, employee_with_profile, available_id, candidateApplication,
-    calculate_data_entry_percentage
+    calculate_data_entry_percentage,  manage_employee_draft
 )
  
 
@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/candidate_request/',candidateApplication,name='candidate_request'),
     
     path('api/employee-with-profile/', employee_with_profile, name='employee-with-profile'),
+    path('api/employee-draft/', manage_employee_draft, name='employee-draft'),
     path('api/manage-religion/', manageReligion, name='manage-religion'),
     path('api/manage-caste/', manageCaste, name='manage-caste'),
     path('api/employee-profile/', manageEmployeeProfile, name='employee-profile'),

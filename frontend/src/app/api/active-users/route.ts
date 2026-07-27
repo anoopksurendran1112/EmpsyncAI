@@ -6,6 +6,8 @@ const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export async function POST(req: Request) {
+  console.log("🔥 Active Users API route called");
+
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("access_token")?.value;
@@ -33,7 +35,8 @@ export async function POST(req: Request) {
 
     console.log("📡 Fetching active users from backend...");
 
-    const url = `${apiUrl}/api/admin/active-users/${page}`;
+    const url = `${apiUrl}/admin/active-users/${page}`;
+    console.log("Final Backend URL:", url);
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -57,6 +60,8 @@ export async function POST(req: Request) {
     }
 
     const data = await res.json();
+    console.log("Active Users Response:", JSON.stringify(data, null, 2));
+    console.log("🔍 Backend Response:", data);
 
     // 🧠 Cache result for future requests
     cache.set(cacheKey, { data, timestamp: Date.now() });
