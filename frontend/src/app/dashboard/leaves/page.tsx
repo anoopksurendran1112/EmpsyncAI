@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -63,15 +64,35 @@ const DUMMY_STATS = {
 
 
 
+interface LeavePolicy {
+  id?: number;
+  staff_category_id: number;
+  staff_category_name?: string;
+
+  monthly_limit: number;
+  yearly_limit: number;
+  initial_credit: number;
+
+  allow_carry_forward: boolean;
+  use_credit: boolean;
+
+  custom_settings?: Record<string, any>;
+}
+
 interface LeaveType {
   id: number;
   leave_type: string;
-  name?: string; // Sometimes returned as name
+  name?: string;
+
   short_name: string;
+
   monthly_limit: number;
   yearly_limit: number;
   initial_credit?: number;
+
   use_credit?: boolean;
+
+  policies?: LeavePolicy[];
 }
 
 interface LeaveRequest {
@@ -157,7 +178,8 @@ const DUMMY_HIERARCHY_EMPLOYEES: HierarchyEmployee[] = [
 export default function LeavesPage() {
   const { company, isAdmin } = useAuth();
   const companyId = company?.id;
-
+  const { data: staffCategories = [] } = useStaffCategories();
+  console.log("Staff Categories:", staffCategories);
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
@@ -193,7 +215,9 @@ export default function LeavesPage() {
     yearly_limit: 0,
     initial_credit: 0,
     use_credit: false,
+    policies: [],
   });
+  const [activePolicyTab, setActivePolicyTab] = useState(0);
   const [editingLeaveType, setEditingLeaveType] = useState<LeaveType | null>(null);
   const [isLeaveTypeLoading, setIsLeaveTypeLoading] = useState(false);
   const [isLeaveTypeSubmitting, setIsLeaveTypeSubmitting] = useState(false);
@@ -554,6 +578,7 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
+  
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -574,12 +599,17 @@ export default function LeavesPage() {
 
     try {
       const method = editingLeaveType ? "PUT" : "POST";
+      console.log("Data before payload:", data);
+      console.log("Policies before payload:", data.policies);
+
       const payload = {
         ...data,
         company_id: companyId,
         leave_type: data.leave_type.trim(),
-        short_name: data.short_name.trim()
+        short_name: data.short_name.trim(),
       };
+
+      console.log("Payload:", payload); 
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -600,13 +630,14 @@ export default function LeavesPage() {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
-            leave_type: "",
-            short_name: "",
-            monthly_limit: 0,
-            yearly_limit: 0,
-            initial_credit: 0,
-            use_credit: false,
-          });
+          leave_type: "",
+          short_name: "",
+          monthly_limit: 0,
+          yearly_limit: 0,
+          initial_credit: 0,
+          use_credit: false,
+          policies: [],
+        });
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -1273,9 +1304,41 @@ export default function LeavesPage() {
                   <h3 className="font-bold text-gray-900">Configured Leave Types</h3>
                   <p className="text-xs text-gray-500">Define how many days can be taken for each category</p>
                 </div>
-                <Button onClick={() => setIsAddTypeOpen(true)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                  <Plus className="h-4 w-4 mr-2" /> Add Leave Type
-                </Button>
+                <Button
+                  onClick={() => {
+                    setEditingLeaveType(null);
+
+                    setLeaveTypeForm({
+                      leave_type: "",
+                      short_name: "",
+                      monthly_limit: 0,
+                      yearly_limit: 0,
+                      initial_credit: 0,
+                      use_credit: false,
+
+                      policies: staffCategories.map((category: any) => ({
+                        staff_category_id: category.id,
+                        staff_category_name: category.name,
+
+                        monthly_limit: 0,
+                        yearly_limit: 0,
+                        initial_credit: 0,
+
+                        allow_carry_forward: true,
+                        use_credit: false,
+
+                        custom_settings: {},
+                      })),
+                    });
+
+                  setIsAddTypeOpen(true);
+                    }}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Leave Type
+                  </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1298,6 +1361,9 @@ export default function LeavesPage() {
                             size="icon"
                             className="h-8 w-8 text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
                             onClick={() => {
+                              console.log("Editing Leave Type:", type);
+                              console.log("Policies:", type.policies);
+
                               setEditingLeaveType(type);
                               setIsAddTypeOpen(true);
                             }}
@@ -1667,7 +1733,7 @@ export default function LeavesPage() {
 
       {/* 1. Apply Leave Request Dialog */}
       <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
             <DialogDescription>Submit your leave application for approval</DialogDescription>
@@ -1853,6 +1919,123 @@ export default function LeavesPage() {
               />
               <Label htmlFor="use_credit">Enable Leave Credit</Label>
             </div>
+            <hr className="my-2" />
+
+          <div className="space-y-5">
+          <h3 className="font-semibold text-sm border-b pb-2">
+            Staff Category Policies
+          </h3>
+
+          {(() => {
+            const policies = editingLeaveType
+              ? editingLeaveType.policies || []
+              : leaveTypeForm.policies || [];
+
+            const policy = policies[activePolicyTab];
+
+            if (!policy) return null;
+
+            return (
+              <>
+                {/* Tabs */}
+                <div className="flex flex-wrap gap-2">
+                  {policies.map((p, index) => (
+                    <Button
+                      key={p.staff_category_id}
+                      type="button"
+                      size="sm"
+                      variant={activePolicyTab === index ? "default" : "outline"}
+                      onClick={() => setActivePolicyTab(index)}
+                    >
+                      {p.staff_category_name}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Active Policy */}
+                <div className="rounded-lg border p-4 mt-3 space-y-4">
+
+                  <div className="grid grid-cols-3 gap-4">
+
+                    <div>
+                      <Label>Monthly</Label>
+                      <Input
+                        type="number"
+                        value={policy.monthly_limit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].monthly_limit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Yearly</Label>
+                      <Input
+                        type="number"
+                        value={policy.yearly_limit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].yearly_limit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Initial Credit</Label>
+                      <Input
+                        type="number"
+                        value={policy.initial_credit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].initial_credit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                  </div>
+
+                </div>
+              </>
+            );
+          })()}
+        </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddTypeOpen(false)}>Cancel</Button>
               <Button type="submit" className="bg-blue-600 text-white" disabled={isLeaveTypeSubmitting}>
@@ -2045,7 +2228,7 @@ export default function LeavesPage() {
 
       {/* 4. Add Past Leave Dialog (Admin Only) */}
       <Dialog open={isAddPastLeaveOpen} onOpenChange={setIsAddPastLeaveOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Add Past Leave Record</DialogTitle>
             <DialogDescription>Record a past leave for an employee (Past dates only)</DialogDescription>
