@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import {
   Calendar,
   Clock,
@@ -24,12 +26,16 @@ import {
   CheckCircle,
   Save,
   X,
+  UserRoundPlus,
+  GripVertical,
+  BadgeCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useEmployees } from "@/hooks/employees/useGetEmployees";
 import {
   Dialog,
   DialogContent,
@@ -58,15 +64,35 @@ const DUMMY_STATS = {
 
 
 
+interface LeavePolicy {
+  id?: number;
+  staff_category_id: number;
+  staff_category_name?: string;
+
+  monthly_limit: number;
+  yearly_limit: number;
+  initial_credit: number;
+
+  allow_carry_forward: boolean;
+  use_credit: boolean;
+
+  custom_settings?: Record<string, any>;
+}
+
 interface LeaveType {
   id: number;
   leave_type: string;
-  name?: string; // Sometimes returned as name
+  name?: string;
+
   short_name: string;
+
   monthly_limit: number;
   yearly_limit: number;
   initial_credit?: number;
+
   use_credit?: boolean;
+
+  policies?: LeavePolicy[];
 }
 
 interface LeaveRequest {
@@ -106,10 +132,54 @@ interface ActiveEmployee {
   email?: string;
 }
 
+type HierarchyEmployee = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  initials: string;
+};
+
+const DUMMY_HIERARCHY_EMPLOYEES: HierarchyEmployee[] = [
+  {
+    id: "dummy-1",
+    name: "Arun Kumar",
+    email: "arun.kumar@example.com",
+    role: "HR Manager",
+    department: "Human Resources",
+    initials: "AK",
+  },
+  {
+    id: "dummy-2",
+    name: "Meera Nair",
+    email: "meera.nair@example.com",
+    role: "Team Lead",
+    department: "Engineering",
+    initials: "MN",
+  },
+  {
+    id: "dummy-3",
+    name: "Rahul Menon",
+    email: "rahul.menon@example.com",
+    role: "Project Manager",
+    department: "Operations",
+    initials: "RM",
+  },
+  {
+    id: "dummy-4",
+    name: "Anjali Joseph",
+    email: "anjali.joseph@example.com",
+    role: "Department Head",
+    department: "Administration",
+    initials: "AJ",
+  },
+];
 export default function LeavesPage() {
   const { company, isAdmin } = useAuth();
   const companyId = company?.id;
-
+  const { data: staffCategories = [] } = useStaffCategories();
+  console.log("Staff Categories:", staffCategories);
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
@@ -145,7 +215,9 @@ export default function LeavesPage() {
     yearly_limit: 0,
     initial_credit: 0,
     use_credit: false,
+    policies: [],
   });
+  const [activePolicyTab, setActivePolicyTab] = useState(0);
   const [editingLeaveType, setEditingLeaveType] = useState<LeaveType | null>(null);
   const [isLeaveTypeLoading, setIsLeaveTypeLoading] = useState(false);
   const [isLeaveTypeSubmitting, setIsLeaveTypeSubmitting] = useState(false);
@@ -163,7 +235,7 @@ export default function LeavesPage() {
     leave_choice: "full_day",
   });
   const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
-  
+
   // Add Past Leave States
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [isEmployeesLoading, setIsEmployeesLoading] = useState(false);
@@ -177,6 +249,142 @@ export default function LeavesPage() {
     leave_choice: "full_day",
     status: "A",
   });
+
+  // Leave Hierarchy States
+  const isHierarchyEmployeesLoading = false;
+
+  const [hierarchySearch, setHierarchySearch] = useState("");
+  const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
+  const [leaveHierarchy, setLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
+  const [hierarchySelectionType, setHierarchySelectionType] = useState<"user" | "role">("user");
+  const [selectedHierarchyRole, setSelectedHierarchyRole] = useState("");
+  const [savedLeaveHierarchy, setSavedLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
+  const [draggedHierarchyIndex, setDraggedHierarchyIndex] = useState<number | null>(null);
+  const [isHierarchySaving, setIsHierarchySaving] = useState(false);
+  const hierarchyEmployees: HierarchyEmployee[] =
+    DUMMY_HIERARCHY_EMPLOYEES;
+
+  const filteredHierarchyEmployees = hierarchyEmployees.filter((employee) => {
+    const searchValue = hierarchySearch.trim().toLowerCase();
+
+    if (!searchValue) return false;
+
+    const alreadyAdded = leaveHierarchy.some(
+      (item) => item.id === employee.id
+    );
+
+    if (alreadyAdded) return false;
+
+    return (
+      employee.name.toLowerCase().includes(searchValue) ||
+      employee.email.toLowerCase().includes(searchValue) ||
+      employee.role.toLowerCase().includes(searchValue) ||
+      employee.department.toLowerCase().includes(searchValue)
+    );
+  });
+  const handleSelectHierarchyEmployee = (employee: HierarchyEmployee) => {
+    setSelectedHierarchyEmployeeId(employee.id);
+    setHierarchySearch(employee.name);
+  };
+  const handleAddEmployeeToHierarchy = () => {
+    // Existing User selection logic
+    if (hierarchySelectionType === "user") {
+      if (!selectedHierarchyEmployeeId) {
+        toast.error("Please select an employee");
+        return;
+      }
+
+      const selectedEmployee = hierarchyEmployees.find(
+        (employee) => employee.id === selectedHierarchyEmployeeId
+      );
+
+      if (!selectedEmployee) return;
+
+      const alreadyExists = leaveHierarchy.some(
+        (employee) => employee.id === selectedEmployee.id
+      );
+
+      if (alreadyExists) {
+        toast.error("Employee is already added to the hierarchy");
+        return;
+      }
+
+      setLeaveHierarchy((previous) => [...previous, selectedEmployee]);
+
+      setHierarchySearch("");
+      setSelectedHierarchyEmployeeId("");
+      return;
+    }
+
+    // New Role selection logic
+    if (hierarchySelectionType === "role") {
+      if (!selectedHierarchyRole) {
+        toast.error("Please select a role");
+        return;
+      }
+
+      const roleLabels: Record<string, string> = {
+        team_lead: "Team Lead",
+        hod: "HOD",
+        intermediate_approver: "Intermediate Approver",
+        company_head: "Company Head",
+      };
+
+      const roleName = selectedHierarchyRole;
+
+      const roleHierarchyItem: HierarchyEmployee = {
+        id: `role-${selectedHierarchyRole
+          .toLowerCase()
+          .replace(/\s+/g, "-")}`,
+        name: roleName,
+        email: "All employees assigned to this role",
+        role: "Role",
+        department: "All departments",
+        initials: roleName
+          .split(" ")
+          .map((word) => word[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
+      };
+
+      const alreadyExists = leaveHierarchy.some(
+        (item) => item.id === roleHierarchyItem.id
+      );
+
+      if (alreadyExists) {
+        toast.error("Role is already added to the hierarchy");
+        return;
+      }
+
+      setLeaveHierarchy((previous) => [
+        ...previous,
+        roleHierarchyItem,
+      ]);
+
+      setSelectedHierarchyRole("");
+    }
+  };
+
+  const handleHierarchyDrop = (dropIndex: number) => {
+    if (
+      draggedHierarchyIndex === null ||
+      draggedHierarchyIndex === dropIndex
+    ) {
+      return;
+    }
+
+    const updatedHierarchy = [...leaveHierarchy];
+    const [draggedEmployee] = updatedHierarchy.splice(
+      draggedHierarchyIndex,
+      1
+    );
+
+    updatedHierarchy.splice(dropIndex, 0, draggedEmployee);
+
+    setLeaveHierarchy(updatedHierarchy);
+    setDraggedHierarchyIndex(null);
+  };
 
   // Stats State
   const [leaveStats, setLeaveStats] = useState({
@@ -215,7 +423,7 @@ export default function LeavesPage() {
       console.log(`📋 Fetching leave requests for company: ${companyId}, page: ${page}`);
       const res = await fetch(`/api/leave/requests?company_id=${companyId}&page=${page}`);
       const result = await res.json();
-      
+
       if (res.ok) {
         setLeaveRequests(result.data || []);
         setPagination({
@@ -251,11 +459,11 @@ export default function LeavesPage() {
       if (res.ok) {
         const leaves = data.data || [];
         setMyLeaves(leaves);
-        
+
         // Update stats based on my leaves
         const approved = leaves.filter((r: LeaveRequest) => r.status === 'A');
         const pending = leaves.filter((r: LeaveRequest) => r.status === 'P');
-        
+
         setLeaveStats({
           leavesTaken: approved.length,
           fullDayLeaves: approved.filter((r: LeaveRequest) => r.leave_choice === 'F' || r.leave_choice === 'full_day').length,
@@ -328,7 +536,7 @@ export default function LeavesPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ company_id: companyId }),
           });
-          
+
           const data = await res.json();
           if (data.success) {
             console.log('✅ Company cookie synced successfully');
@@ -354,8 +562,8 @@ export default function LeavesPage() {
           fetchHolidays();
           fetchRoles();
         }
-      } 
-      
+      }
+
       if (viewMode !== "admin") {
         fetchMyLeaves();
       }
@@ -370,32 +578,38 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
+  
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
-    
+
     // Explicit validation matching settings page
     if (!data.leave_type?.trim() || !data.short_name?.trim()) {
       setLeaveTypeMessage({ type: "error", text: "Name and Short Name are required" });
       return;
     }
-    
+
     if (!companyId) {
       setLeaveTypeMessage({ type: "error", text: "No company selected" });
       return;
     }
-    
+
     setIsLeaveTypeSubmitting(true);
     setLeaveTypeMessage(null);
 
     try {
       const method = editingLeaveType ? "PUT" : "POST";
-      const payload = { 
-        ...data, 
+      console.log("Data before payload:", data);
+      console.log("Policies before payload:", data.policies);
+
+      const payload = {
+        ...data,
         company_id: companyId,
         leave_type: data.leave_type.trim(),
-        short_name: data.short_name.trim()
+        short_name: data.short_name.trim(),
       };
+
+      console.log("Payload:", payload); 
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -410,19 +624,20 @@ export default function LeavesPage() {
 
       if (res.ok && result.success) {
         setLeaveTypeMessage({ type: "success", text: `Leave type ${editingLeaveType ? "updated" : "added"} successfully!` });
-        
+
         // Short delay before closing to show success message
         setTimeout(() => {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
-            leave_type: "",
-            short_name: "",
-            monthly_limit: 0,
-            yearly_limit: 0,
-            initial_credit: 0,
-            use_credit: false,
-          });
+          leave_type: "",
+          short_name: "",
+          monthly_limit: 0,
+          yearly_limit: 0,
+          initial_credit: 0,
+          use_credit: false,
+          policies: [],
+        });
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -470,7 +685,7 @@ export default function LeavesPage() {
         body: JSON.stringify({ ...requestForm, company_id: companyId }),
       });
       const result = await res.json();
-      
+
       console.log('📡 Leave application response:', { status: res.status, data: result });
 
       if (res.ok && result.success) {
@@ -528,7 +743,7 @@ export default function LeavesPage() {
 
     // Date validation
     const today = new Date();
-    today.setHours(23, 59, 59, 999); 
+    today.setHours(23, 59, 59, 999);
     if (new Date(pastLeaveForm.from_date) > today || new Date(pastLeaveForm.to_date) > today) {
       setPastLeaveMessage({ type: "error", text: "Past leave dates cannot be in the future" });
       return;
@@ -649,7 +864,7 @@ export default function LeavesPage() {
           body: JSON.stringify(requestData),
         });
         const result = await res.json();
-        
+
         console.log('📡 Update response:', { status: res.status, data: result });
 
         if (res.ok && result.success) {
@@ -764,14 +979,14 @@ export default function LeavesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leave Statistics</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {viewMode === "user" 
-              ? "Overview of your leaves and leave records" 
+            {viewMode === "user"
+              ? "Overview of your leaves and leave records"
               : "Review employee requests and maintain company holiday schedules"}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button 
+          <Button
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
             onClick={() => setIsRequestDialogOpen(true)}
           >
@@ -787,9 +1002,9 @@ export default function LeavesPage() {
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              {viewMode === "user" 
-              ? "Leaves Taken" 
-              : "Leaves Approved"}
+              {viewMode === "user"
+                ? "Leaves Taken"
+                : "Leaves Approved"}
             </h3>
             <p className="text-3xl font-bold text-blue-600">{leaveStats.leavesTaken}</p>
           </div>
@@ -821,9 +1036,9 @@ export default function LeavesPage() {
         <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-500 mb-1">
-              {viewMode === "user" 
-              ? "Pending" 
-              : "Pending Approvals"}
+              {viewMode === "user"
+                ? "Pending"
+                : "Pending Approvals"}
             </h3>
             <p className="text-3xl font-bold text-amber-600">{leaveStats.pendingRequests}</p>
           </div>
@@ -843,23 +1058,23 @@ export default function LeavesPage() {
             </h1>
             <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500">
               {isAdmin && (
-              <Button 
-                variant="outline" 
-                className="border-gray-200 hover:bg-gray-50 bg-white shadow-sm"
-                onClick={() => setViewMode(viewMode === "user" ? "admin" : "user")}
-              >
-                {viewMode === "user" ? (
-                  <>
-                    <Settings className="h-4 w-4 mr-2" />
-                    Manage Leaves
-                  </>
-                ) : (
-                  <>
-                    <CalendarCheck className="h-4 w-4 mr-2" />
-                    My Leaves
-                  </>
-                )}
-              </Button>
+                <Button
+                  variant="outline"
+                  className="border-gray-200 hover:bg-gray-50 bg-white shadow-sm"
+                  onClick={() => setViewMode(viewMode === "user" ? "admin" : "user")}
+                >
+                  {viewMode === "user" ? (
+                    <>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Manage Leaves
+                    </>
+                  ) : (
+                    <>
+                      <CalendarCheck className="h-4 w-4 mr-2" />
+                      My Leaves
+                    </>
+                  )}
+                </Button>
               )}
             </div>
           </div>
@@ -872,19 +1087,19 @@ export default function LeavesPage() {
               </div>
             ) : (
               myLeaves.map((leave) => (
-                <div 
-                  key={leave.id} 
+                <div
+                  key={leave.id}
                   className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:bg-gray-50 cursor-pointer transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                  <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 text-blue-700">
-                    <span className="text-xl font-bold leading-none">
-                      {new Date(leave.from_date).getDate()}
-                    </span>
-                    <span className="text-xs font-semibold uppercase mt-1">
-                      {format(new Date(leave.from_date), "MMM")}
-                    </span>
-                  </div>
+                    <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 text-blue-700">
+                      <span className="text-xl font-bold leading-none">
+                        {new Date(leave.from_date).getDate()}
+                      </span>
+                      <span className="text-xs font-semibold uppercase mt-1">
+                        {format(new Date(leave.from_date), "MMM")}
+                      </span>
+                    </div>
                     <div>
                       <h3 className="font-semibold text-lg text-gray-900 leading-tight">
                         {leave.leave_type?.leave_type || leave.leave_type?.name || "Leave"}
@@ -899,12 +1114,12 @@ export default function LeavesPage() {
                   <div className="flex items-center gap-4">
                     <Badge variant={
                       leave.status === 'A' ? 'default' :
-                      leave.status === 'P' ? 'secondary' :
-                      'destructive'
+                        leave.status === 'P' ? 'secondary' :
+                          'destructive'
                     } className={
                       leave.status === 'A' ? 'bg-green-500' :
-                      leave.status === 'P' ? 'bg-amber-500 text-white border-none' :
-                      ''
+                        leave.status === 'P' ? 'bg-amber-500 text-white border-none' :
+                          ''
                     }>
                       {leave.status === 'A' ? 'Approved' : leave.status === 'P' ? 'Pending' : 'Rejected'}
                     </Badge>
@@ -919,28 +1134,29 @@ export default function LeavesPage() {
         <div className="space-y-6">
           <Tabs defaultValue="requests" className="w-full">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-1">
-                  <ShieldCheck className="h-5 w-5 text-gray-600" />
-                  Manage Leave and Holiday
-                </h1>
-              
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-1">
+                <ShieldCheck className="h-5 w-5 text-gray-600" />
+                Manage Leave and Holiday
+              </h1>
+
               <div className="flex items-center gap-2">
-                 <Button 
-                    variant="outline" 
-                    className="border-gray-200 hover:bg-gray-50 bg-white shadow-sm"
-                    onClick={() => setViewMode("user")}
-                  >
-                      <>
-                        <CalendarCheck className="h-4 w-4 mr-2" />
-                        My Leaves
-                      </>
-                  </Button>
+                <Button
+                  variant="outline"
+                  className="border-gray-200 hover:bg-gray-50 bg-white shadow-sm"
+                  onClick={() => setViewMode("user")}
+                >
+                  <>
+                    <CalendarCheck className="h-4 w-4 mr-2" />
+                    My Leaves
+                  </>
+                </Button>
               </div>
             </div>
             <TabsList className="bg-gray-100 p-1 rounded-lg w-fit mb-4">
               <TabsTrigger value="requests" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Requests</TabsTrigger>
               <TabsTrigger value="types" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Types</TabsTrigger>
               <TabsTrigger value="holidays" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Holiday Schedule</TabsTrigger>
+              <TabsTrigger value="hierarchy" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Hierarchy</TabsTrigger>
             </TabsList>
 
 
@@ -957,14 +1173,13 @@ export default function LeavesPage() {
               </div>
 
               {statusMessage && (
-                <div className={`p-3 rounded-lg flex items-center gap-2 text-sm max-w-md mx-auto mb-4 ${
-                  statusMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                }`}>
+                <div className={`p-3 rounded-lg flex items-center gap-2 text-sm max-w-md mx-auto mb-4 ${statusMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
                   {statusMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                   {statusMessage.text}
                 </div>
               )}
-              
+
               <div className="grid gap-4">
                 {isRequestsLoading ? (
                   <div className="flex items-center justify-center py-12"><div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full"></div></div>
@@ -976,13 +1191,13 @@ export default function LeavesPage() {
                   <>
                     <div className="grid gap-4">
                       {leaveRequests.map((req) => (
-                        <div 
-                          key={req.id} 
+                        <div
+                          key={req.id}
                           className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:bg-gray-50 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-4">
                             <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">
-                               {req.user?.first_name.charAt(0)}
+                              {req.user?.first_name.charAt(0)}
                             </div>
                             <div>
                               <h3 className="font-semibold text-lg text-gray-900 leading-tight">{req.user?.first_name} {req.user?.last_name || ""}</h3>
@@ -993,20 +1208,20 @@ export default function LeavesPage() {
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-3">
                             {req.status === 'P' ? (
                               <div className="flex items-center gap-2">
-                                <Button 
-                                  size="sm" 
+                                <Button
+                                  size="sm"
                                   className="bg-green-500 hover:bg-green-600 text-white min-w-[80px] shadow-sm h-8"
                                   onClick={() => handleUpdateStatus(req.id, "A")}
                                 >
                                   Approve
                                 </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
+                                <Button
+                                  size="sm"
+                                  variant="outline"
                                   className="text-red-500 border-red-200 bg-red-50 hover:bg-red-100 min-w-[80px] h-8"
                                   onClick={() => handleUpdateStatus(req.id, "R")}
                                 >
@@ -1032,9 +1247,9 @@ export default function LeavesPage() {
                           Showing page {pagination.currentPage} of {pagination.totalPages} • {pagination.totalItems} total requests
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             disabled={pagination.currentPage === 1}
                             onClick={() => fetchLeaveRequests(pagination.currentPage - 1)}
                             className="h-8 text-xs"
@@ -1044,10 +1259,10 @@ export default function LeavesPage() {
                           <div className="flex items-center gap-1">
                             {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                               // Simple pagination logic for 5 pages around current
-                              let pageNum = pagination.currentPage <= 3 
-                                ? i + 1 
+                              let pageNum = pagination.currentPage <= 3
+                                ? i + 1
                                 : Math.min(pagination.currentPage - 2 + i, pagination.totalPages - 4 + i);
-                              
+
                               if (pageNum <= 0) pageNum = i + 1;
                               if (pageNum > pagination.totalPages) return null;
 
@@ -1064,9 +1279,9 @@ export default function LeavesPage() {
                               );
                             })}
                           </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             disabled={pagination.currentPage === pagination.totalPages}
                             onClick={() => fetchLeaveRequests(pagination.currentPage + 1)}
                             className="h-8 text-xs"
@@ -1089,9 +1304,41 @@ export default function LeavesPage() {
                   <h3 className="font-bold text-gray-900">Configured Leave Types</h3>
                   <p className="text-xs text-gray-500">Define how many days can be taken for each category</p>
                 </div>
-                <Button onClick={() => setIsAddTypeOpen(true)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                   <Plus className="h-4 w-4 mr-2" /> Add Leave Type
-                </Button>
+                <Button
+                  onClick={() => {
+                    setEditingLeaveType(null);
+
+                    setLeaveTypeForm({
+                      leave_type: "",
+                      short_name: "",
+                      monthly_limit: 0,
+                      yearly_limit: 0,
+                      initial_credit: 0,
+                      use_credit: false,
+
+                      policies: staffCategories.map((category: any) => ({
+                        staff_category_id: category.id,
+                        staff_category_name: category.name,
+
+                        monthly_limit: 0,
+                        yearly_limit: 0,
+                        initial_credit: 0,
+
+                        allow_carry_forward: true,
+                        use_credit: false,
+
+                        custom_settings: {},
+                      })),
+                    });
+
+                  setIsAddTypeOpen(true);
+                    }}
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Leave Type
+                  </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1109,20 +1356,23 @@ export default function LeavesPage() {
                           {type.short_name}
                         </div>
                         <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
                             onClick={() => {
+                              console.log("Editing Leave Type:", type);
+                              console.log("Policies:", type.policies);
+
                               setEditingLeaveType(type);
                               setIsAddTypeOpen(true);
                             }}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8 text-red-600 border-red-100 bg-red-50 hover:bg-red-100"
                             onClick={() => handleDeleteLeaveType(type.id)}
                           >
@@ -1132,14 +1382,14 @@ export default function LeavesPage() {
                       </div>
                       <h4 className="font-bold text-gray-900 mb-1">{type.leave_type}</h4>
                       <div className="grid grid-cols-2 gap-4 mt-4">
-                         <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                           <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Monthly</p>
-                           <p className="text-sm font-bold text-gray-700">{type.monthly_limit} Day</p>
-                         </div>
-                         <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                           <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Yearly</p>
-                           <p className="text-sm font-bold text-gray-700">{type.yearly_limit} Days</p>
-                         </div>
+                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Monthly</p>
+                          <p className="text-sm font-bold text-gray-700">{type.monthly_limit} Day</p>
+                        </div>
+                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Yearly</p>
+                          <p className="text-sm font-bold text-gray-700">{type.yearly_limit} Days</p>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -1150,12 +1400,12 @@ export default function LeavesPage() {
 
             {/* Admin: Holidays Tab */}
             <TabsContent value="holidays" className="space-y-6">
-               <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-gray-900">Holiday Calendar 2026</h3>
                   <p className="text-xs text-gray-500">Public and company-wide holidays</p>
                 </div>
-                <Button 
+                <Button
                   onClick={() => {
                     setEditingHoliday(null);
                     setHolidayForm({
@@ -1171,11 +1421,11 @@ export default function LeavesPage() {
                     setHolidayErrors({});
                     setHolidayMessage(null);
                     setIsHolidayDialogOpen(true);
-                  }} 
-                  size="sm" 
+                  }}
+                  size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
                 >
-                   <Plus className="h-4 w-4 mr-2" /> Add Holiday
+                  <Plus className="h-4 w-4 mr-2" /> Add Holiday
                 </Button>
               </div>
 
@@ -1212,7 +1462,7 @@ export default function LeavesPage() {
                             </div>
                           </div>
                           <p className="text-sm text-gray-500 font-medium mt-1 uppercase tracking-wider text-[11px]">
-                            {holiday.end_date 
+                            {holiday.end_date
                               ? `${format(new Date(holiday.date), "PPP")} - ${format(new Date(holiday.end_date), "PPP")}`
                               : format(new Date(holiday.date), "PPPP")
                             }
@@ -1221,23 +1471,23 @@ export default function LeavesPage() {
                       </div>
                       <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-none pt-3 sm:pt-0">
                         <div className="text-right hidden md:block">
-                           <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Applies To</p>
-                           <p className="text-xs font-semibold text-gray-700">
-                             {holiday.is_full_holiday ? "All Employees" : `${holiday.role_ids?.length || 0} Role(s)`}
-                           </p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Applies To</p>
+                          <p className="text-xs font-semibold text-gray-700">
+                            {holiday.is_full_holiday ? "All Employees" : `${holiday.role_ids?.length || 0} Role(s)`}
+                          </p>
                         </div>
                         <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-9 w-9 text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
                             onClick={() => handleEditHoliday(holiday)}
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-9 w-9 text-red-600 border-red-100 bg-red-50 hover:bg-red-100"
                             onClick={() => holiday.id && handleDeleteHoliday(holiday.id)}
                           >
@@ -1251,24 +1501,247 @@ export default function LeavesPage() {
               </div>
 
             </TabsContent>
+
+
+            {/* Admin: Leave Hierarchy Tab */}
+            <TabsContent value="hierarchy" className="space-y-6">
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex items-center gap-2 w-[220px]">
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                    Select By
+                  </label>
+
+                  <Select
+                    value={hierarchySelectionType}
+                    onValueChange={(value: "user" | "role") => {
+                      setHierarchySelectionType(value);
+                      setHierarchySearch("");
+                      setSelectedHierarchyEmployeeId("");
+                      setSelectedHierarchyRole("");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+
+                    <SelectContent>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="role">Role</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {hierarchySelectionType === "user" && (
+                  <div className="relative flex-1 -ml-20">
+                    <Input
+                      placeholder="Search employee..."
+                      value={hierarchySearch}
+                      onChange={(e) => {
+                        setHierarchySearch(e.target.value);
+                        setSelectedHierarchyEmployeeId("");
+                      }}
+                    />
+
+
+                    {hierarchySearch && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-md border bg-white shadow-lg">
+                        {isHierarchyEmployeesLoading ? (
+                          <p className="px-3 py-2 text-sm text-gray-500">
+                            Loading employees...
+                          </p>
+                        ) : filteredHierarchyEmployees.length > 0 ? (
+                          filteredHierarchyEmployees.map((employee) => (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onClick={() => handleSelectHierarchyEmployee(employee)}
+                              className="block w-full px-3 py-2 text-left hover:bg-gray-50"
+                            >
+                              <p className="text-sm font-medium">{employee.name}</p>
+
+                              <p className="text-xs text-gray-500">
+                                {employee.role} • {employee.email}
+                              </p>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-2 text-sm text-gray-500">
+                            No employees found
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {hierarchySelectionType === "role" && (
+                   <div className="relative flex-1 -ml-20">
+                    <Select
+                      value={selectedHierarchyRole}
+                      onValueChange={setSelectedHierarchyRole}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select employee role" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        {Array.from(
+                          new Set(DUMMY_HIERARCHY_EMPLOYEES.map((employee) => employee.role))
+                        ).map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <Button onClick={handleAddEmployeeToHierarchy}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add to Flow
+                </Button>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-visible">
+                <div className="grid grid-cols-[48px_120px_150px_1.2fr_1fr_80px] items-center gap-4 bg-gray-50 border-b border-gray-200 px-4 py-3">
+                  <div></div>
+
+                  <p className="text-xs font-semibold text-gray-600 uppercase -ml-4">
+                    Approval Levels
+                  </p>
+
+                  <p className="text-xs font-semibold text-gray-600 uppercase -ml-4">
+                    Selection Type
+                  </p>
+
+                  <p className="text-xs font-semibold text-gray-600 uppercase -ml-9">
+                    Hierarchy Name
+                  </p>
+
+                  <p className="text-xs font-semibold text-gray-600 uppercase -mr-4">
+                    Details
+                  </p>
+
+                  <p className="text-xs font-semibold text-gray-600 uppercase text-right">
+                    Actions
+                  </p>
+                </div>
+
+                {leaveHierarchy.map((employee, index) => (
+                  <div
+                    key={employee.id}
+                    draggable
+                    onDragStart={() => setDraggedHierarchyIndex(index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      handleHierarchyDrop(index);
+                      setDraggedHierarchyIndex(null);
+                    }}
+                    onDragEnd={() => setDraggedHierarchyIndex(null)}
+                    className={`group grid grid-cols-[48px_120px_150px_1.2fr_1fr_80px] items-center min-h-[84px] px-4 border-b border-gray-100 transition-all duration-200 ${draggedHierarchyIndex === index
+                      ? "bg-blue-200/70 ring-1 ring-inset ring-blue-400 shadow-md"
+                      : "bg-white hover:bg-blue-100/70 hover:shadow-sm"
+                      }`}
+                  >
+                    <div className="flex items-center">
+                      <GripVertical
+                        className={`h-4 w-4 cursor-grab transition-colors active:cursor-grabbing ${draggedHierarchyIndex === index
+                          ? "text-blue-700"
+                          : "text-gray-400 group-hover:text-blue-600"
+                          }`}
+                      />
+                    </div>
+
+                    <div className="flex items-center">
+                      <Badge
+                        variant="secondary"
+                        className="bg-blue-50 text-blue-600 border-none"
+                      >
+                        Level {index + 1}
+                      </Badge>
+                    </div>
+                    <p className="text-sm font-medium text-gray-700 ml-5">
+                      {employee.id.startsWith("role-") ? "Role" : "User"}
+                    </p>
+
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 ml-3">
+                        {employee.name}
+                      </p>
+                      {!employee.id.startsWith("role-") && (
+                        <p className="text-xs text-gray-500 ml-3">
+                          {employee.email}
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-sm text-gray-700">
+                      {employee.id.startsWith("role-")
+                        ? `${hierarchyEmployees.filter(
+                          (item) => item.role === employee.name
+                        ).length} employee(s)`
+                        : employee.role}
+                    </p>
+
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-red-600 bg-red-50 hover:bg-red-100"
+                        onClick={() =>
+                          setLeaveHierarchy((prev) =>
+                            prev.filter((item) => item.id !== employee.id)
+                          )
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setLeaveHierarchy(savedLeaveHierarchy);
+                    toast.success("Changes discarded");
+                  }}
+                >
+                  Discard Changes
+                </Button>
+
+                <Button
+                  className="bg-blue-600 text-white"
+                  onClick={() => {
+                    setSavedLeaveHierarchy([...leaveHierarchy]);
+                    toast.success("Leave hierarchy saved");
+                  }}
+                >
+                  Save Hierarchy
+                </Button>
+              </div>
+
+            </TabsContent>
           </Tabs>
         </div>
       )}
 
       {/* Dialogs */}
-      
+
       {/* 1. Apply Leave Request Dialog */}
       <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
             <DialogDescription>Submit your leave application for approval</DialogDescription>
           </DialogHeader>
 
           {requestMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
-              requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
-            }`}>
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
+              }`}>
               {requestMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {requestMessage.text}
             </div>
@@ -1278,22 +1751,22 @@ export default function LeavesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="from_date">From Date</Label>
-                <Input 
-                  id="from_date" 
-                  type="date" 
+                <Input
+                  id="from_date"
+                  type="date"
                   required
                   value={requestForm.from_date}
-                  onChange={(e) => setRequestForm({...requestForm, from_date: e.target.value})}
+                  onChange={(e) => setRequestForm({ ...requestForm, from_date: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to_date">To Date</Label>
-                <Input 
-                  id="to_date" 
-                  type="date" 
+                <Input
+                  id="to_date"
+                  type="date"
                   required
                   value={requestForm.to_date}
-                  onChange={(e) => setRequestForm({...requestForm, to_date: e.target.value})}
+                  onChange={(e) => setRequestForm({ ...requestForm, to_date: e.target.value })}
                   min={requestForm.from_date}
                 />
               </div>
@@ -1303,7 +1776,7 @@ export default function LeavesPage() {
                 <Label htmlFor="leave_id">Leave Type</Label>
                 <Select
                   value={requestForm.leave_id}
-                  onValueChange={(val) => setRequestForm({...requestForm, leave_id: val})}
+                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_id: val })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Category" />
@@ -1317,9 +1790,9 @@ export default function LeavesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="leave_choice">Duration</Label>
-                <Select 
+                <Select
                   value={requestForm.leave_choice}
-                  onValueChange={(val) => setRequestForm({...requestForm, leave_choice: val})}
+                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_choice: val })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1333,12 +1806,12 @@ export default function LeavesPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="reason">Reason for Leave</Label>
-              <textarea 
+              <textarea
                 id="reason"
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Enter short details..."
                 value={requestForm.custom_reason}
-                onChange={(e) => setRequestForm({...requestForm, custom_reason: e.target.value})}
+                onChange={(e) => setRequestForm({ ...requestForm, custom_reason: e.target.value })}
                 required
               ></textarea>
             </div>
@@ -1361,11 +1834,10 @@ export default function LeavesPage() {
             </DialogTitle>
             <DialogDescription>Define a new leave category and its limits</DialogDescription>
           </DialogHeader>
-          
+
           {leaveTypeMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
-              leaveTypeMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
-            }`}>
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${leaveTypeMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
+              }`}>
               {leaveTypeMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {leaveTypeMessage.text}
             </div>
@@ -1374,26 +1846,26 @@ export default function LeavesPage() {
           <form onSubmit={handleLeaveTypeSubmit} className="grid gap-6 py-4">
             <div className="space-y-2">
               <Label>Type Name *</Label>
-              <Input 
-                placeholder="e.g. Sick Leave" 
+              <Input
+                placeholder="e.g. Sick Leave"
                 value={editingLeaveType ? editingLeaveType.leave_type : leaveTypeForm.leave_type}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (editingLeaveType) setEditingLeaveType({...editingLeaveType, leave_type: val});
-                  else setLeaveTypeForm({...leaveTypeForm, leave_type: val});
+                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, leave_type: val });
+                  else setLeaveTypeForm({ ...leaveTypeForm, leave_type: val });
                 }}
                 required
               />
             </div>
             <div className="space-y-2">
               <Label>Short Name *</Label>
-              <Input 
-                placeholder="e.g. SL" 
+              <Input
+                placeholder="e.g. SL"
                 value={editingLeaveType ? editingLeaveType.short_name : leaveTypeForm.short_name}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (editingLeaveType) setEditingLeaveType({...editingLeaveType, short_name: val});
-                  else setLeaveTypeForm({...leaveTypeForm, short_name: val});
+                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, short_name: val });
+                  else setLeaveTypeForm({ ...leaveTypeForm, short_name: val });
                 }}
                 required
               />
@@ -1401,52 +1873,169 @@ export default function LeavesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Monthly Limit</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   value={editingLeaveType ? editingLeaveType.monthly_limit : leaveTypeForm.monthly_limit}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({...editingLeaveType, monthly_limit: val});
-                    else setLeaveTypeForm({...leaveTypeForm, monthly_limit: val});
+                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, monthly_limit: val });
+                    else setLeaveTypeForm({ ...leaveTypeForm, monthly_limit: val });
                   }}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Yearly Limit</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   value={editingLeaveType ? editingLeaveType.yearly_limit : leaveTypeForm.yearly_limit}
                   onChange={(e) => {
                     const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({...editingLeaveType, yearly_limit: val});
-                    else setLeaveTypeForm({...leaveTypeForm, yearly_limit: val});
+                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, yearly_limit: val });
+                    else setLeaveTypeForm({ ...leaveTypeForm, yearly_limit: val });
                   }}
                 />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Initial Credit</Label>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={editingLeaveType ? editingLeaveType.initial_credit : leaveTypeForm.initial_credit}
                 onChange={(e) => {
                   const val = parseInt(e.target.value) || 0;
-                  if (editingLeaveType) setEditingLeaveType({...editingLeaveType, initial_credit: val});
-                  else setLeaveTypeForm({...leaveTypeForm, initial_credit: val});
+                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, initial_credit: val });
+                  else setLeaveTypeForm({ ...leaveTypeForm, initial_credit: val });
                 }}
               />
             </div>
             <div className="flex items-center gap-2 pt-2">
-              <Switch 
+              <Switch
                 id="use_credit"
                 checked={editingLeaveType ? editingLeaveType.use_credit : leaveTypeForm.use_credit}
                 onCheckedChange={(checked) => {
-                  if (editingLeaveType) setEditingLeaveType({...editingLeaveType, use_credit: checked});
-                  else setLeaveTypeForm({...leaveTypeForm, use_credit: checked});
+                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, use_credit: checked });
+                  else setLeaveTypeForm({ ...leaveTypeForm, use_credit: checked });
                 }}
               />
               <Label htmlFor="use_credit">Enable Leave Credit</Label>
             </div>
+            <hr className="my-2" />
+
+          <div className="space-y-5">
+          <h3 className="font-semibold text-sm border-b pb-2">
+            Staff Category Policies
+          </h3>
+
+          {(() => {
+            const policies = editingLeaveType
+              ? editingLeaveType.policies || []
+              : leaveTypeForm.policies || [];
+
+            const policy = policies[activePolicyTab];
+
+            if (!policy) return null;
+
+            return (
+              <>
+                {/* Tabs */}
+                <div className="flex flex-wrap gap-2">
+                  {policies.map((p, index) => (
+                    <Button
+                      key={p.staff_category_id}
+                      type="button"
+                      size="sm"
+                      variant={activePolicyTab === index ? "default" : "outline"}
+                      onClick={() => setActivePolicyTab(index)}
+                    >
+                      {p.staff_category_name}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Active Policy */}
+                <div className="rounded-lg border p-4 mt-3 space-y-4">
+
+                  <div className="grid grid-cols-3 gap-4">
+
+                    <div>
+                      <Label>Monthly</Label>
+                      <Input
+                        type="number"
+                        value={policy.monthly_limit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].monthly_limit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Yearly</Label>
+                      <Input
+                        type="number"
+                        value={policy.yearly_limit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].yearly_limit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <Label>Initial Credit</Label>
+                      <Input
+                        type="number"
+                        value={policy.initial_credit}
+                        onChange={(e) => {
+                          const updated = [...policies];
+                          updated[activePolicyTab].initial_credit = Number(e.target.value);
+
+                          if (editingLeaveType) {
+                            setEditingLeaveType({
+                              ...editingLeaveType,
+                              policies: updated,
+                            });
+                          } else {
+                            setLeaveTypeForm({
+                              ...leaveTypeForm,
+                              policies: updated,
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+
+                  </div>
+
+                </div>
+              </>
+            );
+          })()}
+        </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddTypeOpen(false)}>Cancel</Button>
               <Button type="submit" className="bg-blue-600 text-white" disabled={isLeaveTypeSubmitting}>
@@ -1468,11 +2057,10 @@ export default function LeavesPage() {
               {editingHoliday ? "Update holiday details" : "Add a public or company-wide holiday to the calendar"}
             </DialogDescription>
           </DialogHeader>
-          
+
           {holidayMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
-              holidayMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}>
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${holidayMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}>
               {holidayMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {holidayMessage.text}
             </div>
@@ -1481,14 +2069,14 @@ export default function LeavesPage() {
           <form onSubmit={handleHolidaySubmit} className="grid gap-6 py-4">
             <div className="space-y-2">
               <Label htmlFor="h_name">Holiday Name *</Label>
-              <Input 
+              <Input
                 id="h_name"
-                placeholder="e.g. Independence Day" 
+                placeholder="e.g. Independence Day"
                 value={editingHoliday ? editingHoliday.holiday : holidayForm.holiday}
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (editingHoliday) setEditingHoliday({...editingHoliday, holiday: val});
-                  else setHolidayForm({...holidayForm, holiday: val});
+                  if (editingHoliday) setEditingHoliday({ ...editingHoliday, holiday: val });
+                  else setHolidayForm({ ...holidayForm, holiday: val });
                 }}
               />
               {holidayErrors.holiday && <p className="text-red-500 text-xs">{holidayErrors.holiday}</p>}
@@ -1496,12 +2084,12 @@ export default function LeavesPage() {
 
             <div className="flex items-center justify-between">
               <Label htmlFor="multi_day_toggle" className="text-sm font-medium cursor-pointer">Multi-day Holiday</Label>
-              <Switch 
+              <Switch
                 id="multi_day_toggle"
                 checked={editingHoliday ? editingHoliday.is_multi_day : holidayForm.is_multi_day}
                 onCheckedChange={(checked) => {
-                  if (editingHoliday) setEditingHoliday({...editingHoliday, is_multi_day: checked});
-                  else setHolidayForm({...holidayForm, is_multi_day: checked});
+                  if (editingHoliday) setEditingHoliday({ ...editingHoliday, is_multi_day: checked });
+                  else setHolidayForm({ ...holidayForm, is_multi_day: checked });
                 }}
               />
             </div>
@@ -1509,14 +2097,14 @@ export default function LeavesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="h_date">{editingHoliday?.is_multi_day || holidayForm.is_multi_day ? "Start Date" : "Date"} *</Label>
-                <Input 
+                <Input
                   id="h_date"
-                  type="date" 
+                  type="date"
                   value={editingHoliday ? editingHoliday.date : holidayForm.date}
                   onChange={(e) => {
                     const val = e.target.value;
-                    if (editingHoliday) setEditingHoliday({...editingHoliday, date: val});
-                    else setHolidayForm({...holidayForm, date: val});
+                    if (editingHoliday) setEditingHoliday({ ...editingHoliday, date: val });
+                    else setHolidayForm({ ...holidayForm, date: val });
                   }}
                 />
                 {holidayErrors.date && <p className="text-red-500 text-xs">{holidayErrors.date}</p>}
@@ -1525,14 +2113,14 @@ export default function LeavesPage() {
               {(editingHoliday?.is_multi_day || holidayForm.is_multi_day) && (
                 <div className="space-y-2">
                   <Label htmlFor="h_end_date">End Date *</Label>
-                  <Input 
+                  <Input
                     id="h_end_date"
-                    type="date" 
+                    type="date"
                     value={editingHoliday ? editingHoliday.end_date : holidayForm.end_date}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (editingHoliday) setEditingHoliday({...editingHoliday, end_date: val});
-                      else setHolidayForm({...holidayForm, end_date: val});
+                      if (editingHoliday) setEditingHoliday({ ...editingHoliday, end_date: val });
+                      else setHolidayForm({ ...holidayForm, end_date: val });
                     }}
                     min={editingHoliday ? editingHoliday.date : holidayForm.date}
                   />
@@ -1550,39 +2138,39 @@ export default function LeavesPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-               <div className="flex items-center gap-2">
-                  <Switch 
-                    id="h_recurring"
-                    checked={editingHoliday ? editingHoliday.is_recurring : holidayForm.is_recurring}
-                    onCheckedChange={(checked) => {
-                      if (editingHoliday) setEditingHoliday({...editingHoliday, is_recurring: checked});
-                      else setHolidayForm({...holidayForm, is_recurring: checked});
-                    }}
-                  />
-                  <Label htmlFor="h_recurring" className="text-xs cursor-pointer">Recurring</Label>
-               </div>
-               <div className="flex items-center gap-2">
-                  <Switch 
-                    id="h_full"
-                    checked={editingHoliday ? editingHoliday.is_full_holiday : holidayForm.is_full_holiday}
-                    onCheckedChange={(checked) => {
-                      if (editingHoliday) setEditingHoliday({...editingHoliday, is_full_holiday: checked});
-                      else setHolidayForm({...holidayForm, is_full_holiday: checked});
-                    }}
-                  />
-                  <Label htmlFor="h_full" className="text-xs cursor-pointer">Full Day</Label>
-               </div>
-               <div className="flex items-center gap-2">
-                  <Switch 
-                    id="h_global"
-                    checked={editingHoliday ? editingHoliday.is_global : holidayForm.is_global}
-                    onCheckedChange={(checked) => {
-                      if (editingHoliday) setEditingHoliday({...editingHoliday, is_global: checked});
-                      else setHolidayForm({...holidayForm, is_global: checked});
-                    }}
-                  />
-                  <Label htmlFor="h_global" className="text-xs cursor-pointer">Global</Label>
-               </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="h_recurring"
+                  checked={editingHoliday ? editingHoliday.is_recurring : holidayForm.is_recurring}
+                  onCheckedChange={(checked) => {
+                    if (editingHoliday) setEditingHoliday({ ...editingHoliday, is_recurring: checked });
+                    else setHolidayForm({ ...holidayForm, is_recurring: checked });
+                  }}
+                />
+                <Label htmlFor="h_recurring" className="text-xs cursor-pointer">Recurring</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="h_full"
+                  checked={editingHoliday ? editingHoliday.is_full_holiday : holidayForm.is_full_holiday}
+                  onCheckedChange={(checked) => {
+                    if (editingHoliday) setEditingHoliday({ ...editingHoliday, is_full_holiday: checked });
+                    else setHolidayForm({ ...holidayForm, is_full_holiday: checked });
+                  }}
+                />
+                <Label htmlFor="h_full" className="text-xs cursor-pointer">Full Day</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="h_global"
+                  checked={editingHoliday ? editingHoliday.is_global : holidayForm.is_global}
+                  onCheckedChange={(checked) => {
+                    if (editingHoliday) setEditingHoliday({ ...editingHoliday, is_global: checked });
+                    else setHolidayForm({ ...holidayForm, is_global: checked });
+                  }}
+                />
+                <Label htmlFor="h_global" className="text-xs cursor-pointer">Global</Label>
+              </div>
             </div>
 
             {!(editingHoliday ? editingHoliday.is_full_holiday : holidayForm.is_full_holiday) && roles.length > 0 && (
@@ -1591,19 +2179,19 @@ export default function LeavesPage() {
                 <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg max-h-32 overflow-y-auto bg-gray-50">
                   {roles.map(role => (
                     <div key={role.id} className="flex items-center gap-2">
-                      <input 
+                      <input
                         type="checkbox"
                         id={`role-${role.id}`}
                         checked={editingHoliday ? editingHoliday.role_ids.includes(role.id) : holidayForm.role_ids.includes(role.id)}
                         onChange={(e) => {
                           const isEditing = !!editingHoliday;
                           const currentData = isEditing ? editingHoliday! : holidayForm;
-                          const newRoles = e.target.checked 
+                          const newRoles = e.target.checked
                             ? [...currentData.role_ids, role.id]
                             : currentData.role_ids.filter(id => id !== role.id);
-                          
-                          if (isEditing) setEditingHoliday({...editingHoliday!, role_ids: newRoles});
-                          else setHolidayForm({...holidayForm, role_ids: newRoles});
+
+                          if (isEditing) setEditingHoliday({ ...editingHoliday!, role_ids: newRoles });
+                          else setHolidayForm({ ...holidayForm, role_ids: newRoles });
                         }}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
@@ -1613,11 +2201,11 @@ export default function LeavesPage() {
                 </div>
               </div>
             )}
-            
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsHolidayDialogOpen(false)}>Cancel</Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-blue-600 text-white min-w-[120px]"
                 disabled={isHolidaySubmitting}
               >
@@ -1640,16 +2228,15 @@ export default function LeavesPage() {
 
       {/* 4. Add Past Leave Dialog (Admin Only) */}
       <Dialog open={isAddPastLeaveOpen} onOpenChange={setIsAddPastLeaveOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Add Past Leave Record</DialogTitle>
             <DialogDescription>Record a past leave for an employee (Past dates only)</DialogDescription>
           </DialogHeader>
 
           {pastLeaveMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
-              pastLeaveMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}>
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${pastLeaveMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}>
               {pastLeaveMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
               {pastLeaveMessage.text}
             </div>
@@ -1658,9 +2245,9 @@ export default function LeavesPage() {
           <form onSubmit={handlePastLeaveSubmit} className="grid gap-6 py-4">
             <div className="space-y-2">
               <Label htmlFor="past_user_id">Employee *</Label>
-              <Select 
+              <Select
                 value={pastLeaveForm.user_id}
-                onValueChange={(val) => setPastLeaveForm({...pastLeaveForm, user_id: val})}
+                onValueChange={(val) => setPastLeaveForm({ ...pastLeaveForm, user_id: val })}
               >
                 <SelectTrigger id="past_user_id">
                   <SelectValue placeholder={isEmployeesLoading ? "Loading employees..." : "Select Employee"} />
@@ -1681,34 +2268,34 @@ export default function LeavesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="past_from_date">From Date *</Label>
-                <Input 
-                  id="past_from_date" 
-                  type="date" 
+                <Input
+                  id="past_from_date"
+                  type="date"
                   required
                   value={pastLeaveForm.from_date}
                   max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setPastLeaveForm({...pastLeaveForm, from_date: e.target.value})}
+                  onChange={(e) => setPastLeaveForm({ ...pastLeaveForm, from_date: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="past_to_date">To Date *</Label>
-                <Input 
-                  id="past_to_date" 
-                  type="date" 
+                <Input
+                  id="past_to_date"
+                  type="date"
                   required
                   value={pastLeaveForm.to_date}
                   min={pastLeaveForm.from_date}
                   max={new Date().toISOString().split('T')[0]}
-                  onChange={(e) => setPastLeaveForm({...pastLeaveForm, to_date: e.target.value})}
+                  onChange={(e) => setPastLeaveForm({ ...pastLeaveForm, to_date: e.target.value })}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="past_leave_id">Leave Type *</Label>
-              <Select 
+              <Select
                 value={pastLeaveForm.leave_id}
-                onValueChange={(val) => setPastLeaveForm({...pastLeaveForm, leave_id: val})}
+                onValueChange={(val) => setPastLeaveForm({ ...pastLeaveForm, leave_id: val })}
               >
                 <SelectTrigger id="past_leave_id">
                   <SelectValue placeholder="Select Category" />
@@ -1724,9 +2311,9 @@ export default function LeavesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="past_leave_choice">Duration</Label>
-                <Select 
+                <Select
                   value={pastLeaveForm.leave_choice}
-                  onValueChange={(val) => setPastLeaveForm({...pastLeaveForm, leave_choice: val})}
+                  onValueChange={(val) => setPastLeaveForm({ ...pastLeaveForm, leave_choice: val })}
                 >
                   <SelectTrigger id="past_leave_choice">
                     <SelectValue />
@@ -1739,9 +2326,9 @@ export default function LeavesPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="past_status">Status</Label>
-                <Select 
+                <Select
                   value={pastLeaveForm.status}
-                  onValueChange={(val) => setPastLeaveForm({...pastLeaveForm, status: val})}
+                  onValueChange={(val) => setPastLeaveForm({ ...pastLeaveForm, status: val })}
                 >
                   <SelectTrigger id="past_status">
                     <SelectValue />
@@ -1757,12 +2344,12 @@ export default function LeavesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="past_reason">Reason (Optional)</Label>
-              <textarea 
+              <textarea
                 id="past_reason"
                 className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Enter details..."
                 value={pastLeaveForm.custom_reason}
-                onChange={(e) => setPastLeaveForm({...pastLeaveForm, custom_reason: e.target.value})}
+                onChange={(e) => setPastLeaveForm({ ...pastLeaveForm, custom_reason: e.target.value })}
               ></textarea>
             </div>
 

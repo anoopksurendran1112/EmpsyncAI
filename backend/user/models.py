@@ -101,6 +101,7 @@ class CustomUser(AbstractUser):
     first_name = models.CharField(max_length=50)
     group = models.ForeignKey('company.CompanyGroup',on_delete=models.SET_NULL,null=True,blank=True)
     team_lead = models.BooleanField(default=False)
+    company_head = models.BooleanField(default=False)
     is_sms = models.BooleanField(default=True)
     is_wfh = models.BooleanField(default=False)
     is_whatsapp = models.BooleanField(default=True)
@@ -156,7 +157,7 @@ class EmployeeProfile(models.Model):
     date_of_joining = models.DateField(null=True, blank=True)
     date_of_relieving = models.DateField(null=True, blank=True, help_text="Date of Relieving / Termination / Retirement")
     date_of_contract_completion = models.DateField(null=True, blank=True)
-    staff_id = models.CharField(max_length=50, null=True, blank=True)
+    staff_id = models.CharField(max_length=50, unique=True, null=True, blank=True)
     ktu_id = models.CharField(max_length=100, null=True, blank=True)
     aicte_id = models.CharField(max_length=100, null=True, blank=True)
     
@@ -342,3 +343,19 @@ class BankDetail(models.Model):
             BankDetail.objects.filter(user=self.user, is_primary=True).exclude(pk=self.pk).update(is_primary=False)
             
         super().save(*args, **kwargs)
+
+
+class EmployeeOnboardingDraft(models.Model):
+    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='employee_drafts')
+    created_by = models.ForeignKey('CustomUser', on_delete=models.CASCADE, related_name='created_drafts')
+    draft_data = models.JSONField(default=dict)
+    last_step = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('company', 'created_by')]
+
+    def __str__(self):
+        return f"Draft by {self.created_by.email} for {self.company.name}"
+

@@ -1,9 +1,14 @@
 # 1. Standard Library Imports
+import re
 import jwt
 import json
 import random
 import logging
 import requests
+import re
+
+
+import traceback
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -17,10 +22,10 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.http import HttpResponse
 from django.core.mail import send_mail
-from django.db.models import Q, F, Value, Max
+from django.db.models import Q, F, Value, Max, IntegerField
 from django.core.paginator import Paginator
 from django.db import connections, transaction
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Cast
 from django.core.validators import validate_email
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -35,14 +40,18 @@ from rest_framework.decorators import api_view, permission_classes
 from drf_spectacular.utils import extend_schema, extend_schema_field
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 
-# 4. Local App & Model Imports
+# 4. Local Utility Imports
+from .utils.data_entry_progress import evaluate_user_completion
+
+# 5. Local App & Model Imports
 from company import models as c
 from punch.models import PunchRecords
 from notification.models import FcmToken
 from company.serializer import CompanySerializer
+from company.models import CompanyFieldSetting
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeOnboardingDraft
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
@@ -802,9 +811,39 @@ def delete_user(request):
         return Response({'success': False, 'message': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
+def increment_staff_id(last_id):
+    match = re.match(r"^(.*?)(\d+)$", last_id)
+
+    if not match:
+        raise ValueError(f"Invalid staff ID format: {last_id}")
+
+    prefix, number = match.groups()
+    return f"{prefix}{int(number) + 1}"
+
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def candidateApplication(request):
+
+    def generate_formatted_staff_id(config_obj, numeric_value):
+        prefix = config_obj.staff_id_prefix or ""
+        suffix = config_obj.staff_id_suffix or ""
+        
+        pad_length = max(3, len(str(config_obj.start_id)))
+        padded_num = str(numeric_value).zfill(pad_length)
+        
+        return f"{prefix}{padded_num}{suffix}"
+
+    def extract_number_from_string(staff_id_str, config_obj=None):
+        clean_str = staff_id_str
+        if config_obj:
+            if config_obj.staff_id_prefix and clean_str.startswith(config_obj.staff_id_prefix):
+                clean_str = clean_str[len(config_obj.staff_id_prefix):]
+            if config_obj.staff_id_suffix and clean_str.endswith(config_obj.staff_id_suffix):
+                clean_str = clean_str[:-len(config_obj.staff_id_suffix)]
+                
+        digits = re.findall(r'\d+', clean_str)
+        return int("".join(digits)) if digits else None
+
 
     if request.method == 'GET':
         company_id = request.query_params.get('company_id')
@@ -851,57 +890,78 @@ def candidateApplication(request):
         return Response({ 'success': False, 'message': 'Invalid data', 
                         'errors': serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
-    elif request.method == 'PUT':
-        app_id = request.data.get('application_id')
-        app_status = request.data.get('status')
+    elif request.method == "PUT":
+        app_id = request.data.get("application_id")
+        app_status = request.data.get("status")
 
         if not app_id or not app_status:
-            return Response({'success': False, 'message': 'Application ID and status are required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success": False,"message": "Application ID and status are required",},status=status.HTTP_400_BAD_REQUEST,)
 
         try:
             app = CandidateApplications.objects.get(id=app_id)
         except CandidateApplications.DoesNotExist:
-            return Response({'success': False, 'message': 'Application not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"success": False, "message": "Application not found"},status=status.HTTP_404_NOT_FOUND,)
 
-        with transaction.atomic():
-            try:
-                app.status = app_status
-                app.save()
+        if CustomUser.objects.filter(Q(email=app.email) | Q(mobile=app.phone)).exists():
+            return Response({"success": False,"message": "A user with this email or phone already exists"},status=status.HTTP_400_BAD_REQUEST,)
 
-                if app_status == 'approved':
-                    company = Company.objects.get(id=app.company_id)                    
-                    password = request.data.get('password')
+        try:
+            with transaction.atomic():
+                if app_status == "approved":
+                    company = Company.objects.get(id=app.company_id)
+                    password = request.data.get("password")
+                    provided_staff_id = request.data.get("staff_id")
+
+                    if not password:
+                        return Response({"success": False,"message": "Password is required for approval",},status=status.HTTP_400_BAD_REQUEST,)
 
                     config = StaffIdConfig.objects.filter(company=company).first()
-                    prefix = config.prefix if config else "EMP"
 
-                    provided_staff_id = request.data.get('staff_id')
-
-                    if provided_staff_id:
-                        final_staff_id = provided_staff_id
+                    if not provided_staff_id:
+                        if config:
+                            existing_ids = EmployeeProfile.objects.filter(user__parent_company=company).exclude(staff_id__isnull=True).exclude(staff_id="").values_list("staff_id", flat=True)
+                            if existing_ids:
+                                highest_num = max((extract_number_from_string(sid, config) or 0 for sid in existing_ids),default=config.start_id - 1,)
+                                next_num = highest_num + 1
+                            else:
+                                next_num = config.start_id
+                            
+                            final_staff_id = generate_formatted_staff_id(config, next_num)
+                        else:
+                            fallback_config = StaffIdConfig(staff_id_prefix="EMP-", start_id=1)
+                            existing_ids = (EmployeeProfile.objects.filter(user__parent_company=company, staff_id__startswith="EMP-").values_list("staff_id", flat=True))
+                            if existing_ids:
+                                highest_num = max((extract_number_from_string(sid, fallback_config) or 0 for sid in existing_ids),default=0,)
+                                next_num = highest_num + 1
+                            else:
+                                next_num = 1
+                            
+                            final_staff_id = generate_formatted_staff_id(fallback_config, next_num)
                     else:
-                        last_profile = EmployeeProfile.objects.filter(user__parent_company=company).order_by('-staff_id').first()
-                        last_id = last_profile.staff_id if last_profile else f"{prefix}000"
-                        final_staff_id = increment_staff_id(last_id)
-                    
-                    if not password:
-                        return Response({'success': False, 'message': 'Password is required for approval'}, status=400)
+                        input_numeric = extract_number_from_string(provided_staff_id)
+                        if input_numeric is None:
+                            return Response({"success": False,"message": "Custom Staff ID must contain a valid number.",},status=status.HTTP_400_BAD_REQUEST,)
 
-                    last_user = CustomUser.objects.filter(company=company).aggregate(Max('biometric_id'))
-                    last_biometric_id = last_user['biometric_id__max']
-                    
+                        if config:
+                            final_staff_id = generate_formatted_staff_id(config, input_numeric)
+                        else:
+                            prefix_match = re.match(r"^([a-zA-Z\-_]+)", provided_staff_id)
+                            new_prefix = prefix_match.group(1) if prefix_match else "EMP-"
+                            config = StaffIdConfig.objects.create(company=company, staff_id_prefix=new_prefix, start_id=input_numeric,)
+                            final_staff_id = generate_formatted_staff_id(config, input_numeric)
+
+                    if EmployeeProfile.objects.filter(staff_id=final_staff_id).exists():
+                        return Response({"success": False,"message": f"Staff ID '{final_staff_id}' is already assigned to an employee.",},status=status.HTTP_400_BAD_REQUEST,)
+
                     try:
-                        last_biometric_id = int(last_biometric_id) if last_biometric_id else 0
+                        last_user = (CustomUser.objects.filter(company=company, biometric_id__regex=r"^\d+$").annotate(bio_int=Cast("biometric_id", IntegerField())).order_by("-bio_int").first())
+                        last_biometric_id = last_user.bio_int if last_user else 0
                     except ValueError:
                         last_biometric_id = 0
+
                     new_biometric_id = last_biometric_id + 1
 
-                    user, created = CustomUser.objects.get_or_create(
-                        email=app.email,
-                        defaults={
-                            'mobile': app.phone,
-                            'first_name': app.first_name,
-                            'last_name': app.last_name})
+                    user, created = CustomUser.objects.get_or_create(email=app.email,defaults={"mobile": app.phone, "first_name": app.first_name,"last_name": app.last_name})
                     
                     user.set_password(password)
                     user.biometric_id = str(new_biometric_id)
@@ -910,41 +970,51 @@ def candidateApplication(request):
                     user.mobile = app.phone
                     user.role = app.role
                     user.group = app.group
-                    user.is_wfh= request.data.get('wfh')
+
+                    wfh_val = request.data.get("wfh", False)
+                    user.is_wfh = bool(wfh_val) if wfh_val is not None else False
                     user.is_active = True
-                    
                     user.company.add(company)
-                    
+
                     if not user.parent_company:
                         user.parent_company = company
-
                     user.save()
 
-                    EmployeeProfile.objects.create(user=user,staff_id=final_staff_id)
+                    profile, created = EmployeeProfile.objects.get_or_create(user=user)
+                    profile.staff_id = final_staff_id
                     
-                    if request.data.get('date_of_joining'):
-                        user.profile.date_of_joining = request.data.get('date_of_joining')
-                        
+                    if request.data.get("date_of_joining"):
+                        profile.date_of_joining = request.data.get("date_of_joining")
+                    
+                    profile.save()
+                    app.status = app_status
+                    app.save()
 
-            except Exception as e:
-                return Response({'success': False, 'message': 'Failed to update application status'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({'success': True, 'message': 'Application status updated successfully'}, status=status.HTTP_200_OK)
+                elif app_status == "rejected":
+                    app.status = "rejected"
+                    app.save()
+
+        except Exception:
+            traceback.print_exc()
+            return Response({"success": False, "message": "Failed to update application status"},status=status.HTTP_500_INTERNAL_SERVER_ERROR,)
+        return Response({"success": True, "message": "Application status updated successfully"},status=status.HTTP_200_OK,)
 
 
-    
 @extend_schema(request=GetUserSerializer, responses=UserSerializer(many=True))
 @api_view(['POST'])
 def getAllUsers(request, page):
     company_id = request.data.get('company_id')
     user = request.user
     
-    if not user.company.filter(id=company_id).exists():
-        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
-
     try:
         is_admin = c.CompanyUser.objects.get(user=user, company_id=company_id).is_admin
     except c.CompanyUser.DoesNotExist:
         is_admin = False
+        
+    belongs_to_company = user.company.filter(id=company_id).exists() or is_admin
+
+    if not belongs_to_company:
+        return Response({'status': status.HTTP_403_FORBIDDEN, 'success': False, 'message': 'You do not belong to this company.'})
     
     is_team_lead = user.team_lead
 
@@ -997,8 +1067,8 @@ def getAllUsers(request, page):
              'female_count': 0, 'others_count': 0, 'data': []
          })
 
-    paginator = Paginator(users, 10)
-    
+    limit = int(request.data.get("limit", 10))
+    paginator = Paginator(users, limit)
     try:
         page_data = paginator.page(page)
     except Exception:
@@ -1017,58 +1087,67 @@ def getAllUsers(request, page):
 
     user_data = []
 
-    for user in users_on_current_page:        
-        serializer = UserSerializer(user, context={'company_id': company_id})
-        serialized_user = serializer.data
-        
-        biometric_id = user.biometric_id
-        
-        # --- Heavy Operation: Runs only for users on this page ---
-        today_punches = PunchRecords.objects.using('secondary').filter(
-            user_id=biometric_id, device_id__in=device_ids, punch_time__date=today ).order_by('punch_time')
+    for user in users_on_current_page:
+        try:
+            serializer = UserSerializer(user, context={'company_id': company_id})
+            serialized_user = serializer.data
+            biometric_id = user.biometric_id
+            if str(biometric_id).isdigit():
+                today_punches = PunchRecords.objects.using('secondary').filter(
+                    user_id=int(biometric_id),
+                    device_id__in=device_ids,
+                    punch_time__date=today
+                ).order_by('punch_time')
+            else:
+                today_punches = PunchRecords.objects.none()
 
-        # --- DEDUPLICATION LOGIC ("Cluster & Sequence Match") ---
-        # valid_punches = deduplicate_punches(today_punches)
+            avg_hour = getattr(user, avg_hour_field)
+            serialized_user['avg_working_hour'] = round(avg_hour, 2)
+            role_working_hour = user.role.working_hour if user.role and user.role.working_hour is not None else None
+            threshold_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
+            serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
+            punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
+            punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
 
-        avg_hour = getattr(user, avg_hour_field)
-        serialized_user['avg_working_hour'] = round(avg_hour, 2)
-        
-        role_working_hour = user.role.working_hour if user.role and user.role.working_hour is not None else None
-        threshold_hour = role_working_hour if role_working_hour is not None else company.daily_working_hours
-        serialized_user['is_below_avg_hours'] = avg_hour < threshold_hour
-        
-        # --- Today's Punch Calculation (Using Validated Punches) ---
-        # punch_ins = [punch.punch_time for punch in valid_punches if punch.status == 'Check-In']
-        # punch_outs = [punch.punch_time for punch in valid_punches if punch.status == 'Check-Out']
-        punch_ins = [punch.punch_time for punch in today_punches if punch.status == 'Check-In']
-        punch_outs = [punch.punch_time for punch in today_punches if punch.status == 'Check-Out']
+            check_in = min(punch_ins) if punch_ins else None
+            check_out = max(punch_outs) if punch_outs else None
 
-        check_in = min(punch_ins) if punch_ins else None
-        check_out = max(punch_outs) if punch_outs else None
+            serialized_user['check_in'] = check_in.isoformat() if check_in else None
+            serialized_user['check_out'] = check_out.isoformat() if check_out else None
 
-        serialized_user['check_in'] = check_in.isoformat() if check_in else None
-        serialized_user['check_out'] = check_out.isoformat() if check_out else None
-        
-        punch_pairs = []
-        if company.punch_mode == 'M':
-            remaining_check_ins = punch_ins.copy()
-            remaining_check_outs = punch_outs.copy()
+            print("STEP 8")
+            punch_pairs = []
+            if company.punch_mode == 'M':
+                remaining_check_ins = punch_ins.copy()
+                remaining_check_outs = punch_outs.copy()
 
-            while remaining_check_ins and remaining_check_outs:
-                earliest_in = min(remaining_check_ins)
-                next_out = min((p for p in remaining_check_outs if p > earliest_in), default=None)
-                if next_out:
-                    punch_pairs.append({
-                        "check_in": earliest_in.isoformat(),
-                        "check_out": next_out.isoformat()
-                    })
-                    remaining_check_ins.remove(earliest_in)
-                    remaining_check_outs.remove(next_out)
-                else:
-                    remaining_check_ins.remove(earliest_in)
+                while remaining_check_ins and remaining_check_outs:
+                    earliest_in = min(remaining_check_ins)
+                    next_out = min(
+                        (p for p in remaining_check_outs if p > earliest_in),
+                        default=None
+                    )
 
-        serialized_user['punch_pairs'] = punch_pairs
-        user_data.append(serialized_user)
+                    if next_out:
+                        punch_pairs.append({
+                            "check_in": earliest_in.isoformat(),
+                            "check_out": next_out.isoformat()
+                        })
+                        remaining_check_ins.remove(earliest_in)
+                        remaining_check_outs.remove(next_out)
+                    else:
+                        remaining_check_ins.remove(earliest_in)
+
+            serialized_user["punch_pairs"] = punch_pairs
+
+            print("STEP 9")
+            user_data.append(serialized_user)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print("FAILED:", e)
+            raise
 
     return Response({ 'status': status.HTTP_200_OK, 'total': paginator.count,
         'page': page_data.number, 'total_page': paginator.num_pages,
@@ -1154,8 +1233,9 @@ def getAllEmployees(request, page):
             'success': True, 'message': 'No users found.', 'male_count': male_count,
             'female_count': female_count, 'others_count': others_count, 'data': []
         })
-
-    paginator = Paginator(users, 10)
+    print("Total users before pagination:", users.count())
+    limit = int(request.data.get("limit", 10))
+    paginator = Paginator(users, limit)
     try:
         page_data = paginator.page(page)
     except Exception:
@@ -1253,27 +1333,45 @@ def todaysActiveUsers(request, page):
         end_date = start_date + timedelta(days=6)
 
     users = CustomUser.objects.filter(company=company_id).exclude(id=request.user.id)
-    devices = Device.objects.filter(company=company_id)
-    device_ids = list(devices.values_list('device_id', flat=True))
-    biometric_ids = list(users.values_list('biometric_id', flat=True))
+    biometric_ids = [
+        int(b)
+        for b in users.values_list("biometric_id", flat=True)
+        if b and str(b).isdigit()
+    ]
 
-    if not device_ids or not biometric_ids:
+    if not biometric_ids:
         return Response({
-            'status': status.HTTP_200_OK,
-            'total': 0,
-            'page': page,
-            'total_page': 0,
-            'success': True,
-            'message': 'No devices or users found.',
-            'data': []
-        })
+            "success": True,
+            "data": [], 
+            "total": 0,
+            "page": page,
+            "total_page": 0,
+            "male_count": 0,
+            "female_count": 0,
+            "others_count": 0,
+        }, status=status.HTTP_200_OK)
 
-    punches = PunchRecords.objects.using('secondary').filter(
-        user_id__in=biometric_ids, device_id__in=device_ids, punch_time__date=today
-        ).order_by('punch_time')
+    punches = PunchRecords.objects.using("secondary").filter(
+        user_id__in=biometric_ids,
+        punch_time__date=today
+    ).order_by("punch_time")
+    print("Total Users:", users.count())
+    print("Biometric IDs:", list(users.values_list("biometric_id", flat=True)[:10]))
 
-    active_biometric_ids = list(punches.values_list('user_id', flat=True).distinct())
-    active_users = users.filter(biometric_id__in=active_biometric_ids).order_by('group__group', 'role__role')
+    print("Punch Count:", punches.count())
+    print("Punch User IDs:", list(punches.values_list("user_id", flat=True).distinct()[:10]))
+    active_biometric_ids = list(
+        punches.values_list("user_id", flat=True).distinct()
+    )
+
+    print("Active Biometric IDs:", active_biometric_ids[:10])
+
+    active_users = users.filter(
+        biometric_id__in=active_biometric_ids
+    ).order_by("group__group", "role__role")
+
+    print("Active Users Count:", active_users.count())
+    print("Matched Users:", list(active_users.values("id", "email", "biometric_id")))
     male_count = active_users.filter(gender='M').count()
     female_count = active_users.filter(gender='F').count()
     others_count = active_users.filter(gender='O').count()
@@ -1980,6 +2078,24 @@ def calculate_total_experience(queryset):
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def employee_with_profile(request):
+    import uuid
+    request_id = uuid.uuid4().hex[:8]
+    print("HEADERS:")
+    for key, value in request.headers.items():
+        print(f"{key}: {value}")
+    print("=" * 60)
+    print("=" * 60)
+    print(f"REQUEST ID: {request_id}")
+    print("METHOD:", request.method)
+    print("PATH:", request.path)
+    print("EMAIL:", request.data.get("email"))
+    print("MOBILE:", request.data.get("mobile"))
+    print("=" * 60)
+    print("REQUEST STACK")
+    print("REMOTE_ADDR:", request.META.get("REMOTE_ADDR"))
+    print("REMOTE_PORT:", request.META.get("REMOTE_PORT"))
+    traceback.print_stack(limit=5)
+
 
     def _parse_bool(value):
         if isinstance(value, bool):
@@ -2033,6 +2149,7 @@ def employee_with_profile(request):
         return user_data
 
     def build_employee_payload(user):
+        user.refresh_from_db()
         payload = {
             'user': serialize_user_for_response(user),
             'profile': None,
@@ -2041,8 +2158,13 @@ def employee_with_profile(request):
             'qualifications': [],
             'experiences': []
         }
+        print("=" * 50)
+        print("BUILD PAYLOAD PROFILE:")
+        profile = EmployeeProfile.objects.filter(user=user).first()
+        print(EmployeeProfileSerializer(profile).data if profile else None)
+        print("=" * 50)
+        profile = EmployeeProfile.objects.filter(user=user).first()
 
-        profile = getattr(user, 'profile', None)
         if profile:
             payload['profile'] = EmployeeProfileSerializer(profile).data
 
@@ -2062,6 +2184,10 @@ def employee_with_profile(request):
         user_id = _parse_int(request.query_params.get('user_id'))
         if not user_id:
             return Response({ 'success': False, 'message': 'user_id query parameter is required' }, status=status.HTTP_400_BAD_REQUEST)
+            user.refresh_from_db()
+
+            print("FINAL PROFILE BEFORE RESPONSE:")
+            print(EmployeeProfileSerializer(EmployeeProfile.objects.get(user=user)).data)
 
         user = CustomUser.objects.filter(id=user_id).first()
         if not user:
@@ -2075,6 +2201,7 @@ def employee_with_profile(request):
 
 
     if request.method == 'POST':
+        print(f"[{request_id}] >>> ENTERED POST <<<")
         email = request.data.get('email')
         mobile = request.data.get('mobile')
         company_id = _parse_int(request.data.get('company_id'))
@@ -2108,11 +2235,80 @@ def employee_with_profile(request):
         present_address_data = safe_parse_json('present_address', dict)
         permanent_address_data = safe_parse_json('permanent_address', dict)
         profile_payload = safe_parse_json('profile', dict)
+        print("PROFILE PAYLOAD:", profile_payload)
+        print("RAW PROFILE:", request.data.get("profile"))
+        print("=" * 50)
+        print("CONTENT TYPE:", request.content_type)
+        print("RAW PROFILE:", request.data.get("profile"))
+        print("PROFILE PAYLOAD:", profile_payload)
+        print("REQUEST DATA:", request.data)
+        print("=" * 50)
         guardians = safe_parse_json('guardians', list)
         bank_details = safe_parse_json('bank_details', list)
         qualifications = safe_parse_json('qualifications', list)
         experiences = safe_parse_json('experiences', list)
+        setting = c.CompanyFieldSetting.objects.filter(company=company_obj).first()
 
+        if setting:
+            config = setting.config or {}
+            errors = {}
+
+            # Merge request.data and profile payload
+            source = request.data.copy()
+            source.update(profile_payload)
+
+            for section, fields in config.items():
+                for field_name, field_config in fields.items():
+
+                    if not field_config.get("mandatory", False):
+                        continue
+
+                    # Handle list sections
+                    if field_name == "guardians":
+                        if not guardians:
+                            errors["guardians"] = "Guardian details are required."
+                        continue
+
+                    if field_name == "bank_details":
+                        if not bank_details:
+                            errors["bank_details"] = "Bank details are required."
+                        continue
+
+                    if field_name == "qualifications":
+                        if not qualifications:
+                            errors["qualifications"] = "Qualifications are required."
+                        continue
+
+                    if field_name == "experiences":
+                        if not experiences:
+                            errors["experiences"] = "Experience details are required."
+                        continue
+
+                    if field_name == "present_address":
+                        if not present_address_data:
+                            errors["present_address"] = "Present address is required."
+                        continue
+
+                    if field_name == "permanent_address":
+                        if not permanent_address_data:
+                            errors["permanent_address"] = "Permanent address is required."
+                        continue
+
+                    value = source.get(field_name)
+
+                    if value in [None, "", [], {}]:
+                        errors[field_name] = f"{field_name.replace('_', ' ').title()} is required."
+
+            if errors:
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Mandatory fields are missing.",
+                        "errors": errors,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            
         with transaction.atomic():
             try:
                 user_payload = {
@@ -2134,12 +2330,46 @@ def employee_with_profile(request):
                     user_payload['password'] = request.data.get('password')
                 if 'prof_img' in request.FILES:
                     user_payload['prof_img'] = request.FILES['prof_img']
+                elif 'prof_img_base64' in request.data and request.data.get('prof_img_base64'):
+                    from django.core.files.base import ContentFile
+                    import base64
+                    base64_str = request.data.get('prof_img_base64')
+                    try:
+                        if ';base64,' in base64_str:
+                            format, imgstr = base64_str.split(';base64,')
+                            ext = format.split('/')[-1]
+                            # Clean up ext if it has metadata like ;charset=utf-8
+                            if ';' in ext:
+                                ext = ext.split(';')[0]
+                            data = ContentFile(base64.b64decode(imgstr), name=f"draft_profile.{ext}")
+                            user_payload['prof_img'] = data
+                        else:
+                            data = ContentFile(base64.b64decode(base64_str), name="draft_profile.jpg")
+                            user_payload['prof_img'] = data
+                    except Exception as e:
+                        logger.error(f"Error decoding prof_img_base64: {e}")
 
                 user_serializer = UserSerializer(data=user_payload)
+
                 if not user_serializer.is_valid():
                     raise ValueError(f"User validation failed: {user_serializer.errors}")
 
-                user = user_serializer.save()
+                print(f"[{request_id}] About to create user...")
+
+                from django.db import IntegrityError
+
+                try:
+                    user = user_serializer.save()
+                except IntegrityError:
+                    return Response(
+                        {
+                            "success": False,
+                            "message": "Email or mobile already exists."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                print(f"[{request_id}] User created successfully. ID={user.id}")
+
                 if role_obj:
                     user.role = role_obj
                 if group_obj:
@@ -2193,390 +2423,160 @@ def employee_with_profile(request):
                     profile_serializer = EmployeeProfileSerializer(data=profile_data)
                 if not profile_serializer.is_valid():
                     raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
-                profile_serializer.save()
+                print("PROFILE DATA:", profile_data)
+
+                if not profile_serializer.is_valid():
+                    print("PROFILE ERRORS:", profile_serializer.errors)
+                else:
+                    print("VALIDATED DATA:", profile_serializer.validated_data)
+                profile = profile_serializer.save()
+
+                print("STEP 1 - Profile saved")
 
                 if guardians:
                     for g_data in guardians:
                         g_data['employee'] = user.id
                         if 'is_guardian' in g_data:
                             g_data['is_guardian'] = _parse_bool(g_data.get('is_guardian'))
+
                     g_serializer = EmployeeGuardianSerializer(data=guardians, many=True)
                     if not g_serializer.is_valid():
                         raise ValueError(f"Guardians validation failed: {g_serializer.errors}")
                     g_serializer.save()
 
+                print("STEP 2 - Guardians saved")
+
                 if bank_details:
                     for b_data in bank_details:
                         b_data['user'] = user.id
+
                     b_serializer = BankDetailSerializer(data=bank_details, many=True)
                     if not b_serializer.is_valid():
                         raise ValueError(f"Bank validation failed: {b_serializer.errors}")
                     b_serializer.save()
 
+                print("STEP 3 - Bank saved")
+
                 if qualifications:
                     for idx, q_data in enumerate(qualifications):
                         q_data['user'] = user.id
                         cert_key = f'qualifications[{idx}][certificate]'
+
                         if cert_key in request.FILES:
                             q_data['certificate'] = request.FILES[cert_key]
+
+                        elif 'certificate_base64' in q_data and q_data.get('certificate_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = q_data.get('certificate_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=cert_name)
+                                    q_data['certificate'] = data
+                                else:
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=cert_name)
+                                    q_data['certificate'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding qualifications[{idx}] certificate base64: {e}")
+
                     q_serializer = EmployeeQualificationSerializer(data=qualifications, many=True)
                     if not q_serializer.is_valid():
                         raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
                     q_serializer.save()
 
+                print("STEP 4 - Qualifications saved")
+
                 if experiences:
                     final_experiences_response = []
+
                     for idx, e_data in enumerate(experiences):
                         e_data['user'] = user.id
+
                         if 'is_internal' in e_data:
                             e_data['is_internal'] = _parse_bool(e_data.get('is_internal'))
+
                         exp_letter_key = f'experiences[{idx}][experience_letter]'
+
                         if exp_letter_key in request.FILES:
                             e_data['experience_letter'] = request.FILES[exp_letter_key]
+
+                        elif 'experience_letter_base64' in e_data and e_data.get('experience_letter_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64
+                            base64_str = e_data.get('experience_letter_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    format, imgstr = base64_str.split(';base64,')
+                                    ext = format.split('/')[-1]
+                                    if ';' in ext:
+                                        ext = ext.split(';')[0]
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.{ext}"
+                                    data = ContentFile(base64.b64decode(imgstr), name=letter_name)
+                                    e_data['experience_letter'] = data
+                                else:
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.pdf"
+                                    data = ContentFile(base64.b64decode(base64_str), name=letter_name)
+                                    e_data['experience_letter'] = data
+                            except Exception as e:
+                                logger.error(f"Error decoding experiences[{idx}] letter base64: {e}")
                         designations = e_data.pop('designations', [])
+
                         e_serializer = EmployeeExperienceSerializer(data=e_data)
+
                         if not e_serializer.is_valid():
-                            raise ValueError(f"Experience validation failed at item {idx}: {e_serializer.errors}")
+                            raise ValueError(
+                                f"Experience validation failed at item {idx}: {e_serializer.errors}"
+                            )
+
                         experience_obj = e_serializer.save()
+
                         created_designations = []
+
                         for des_data in designations:
                             des_data['experience'] = experience_obj.id
+
                             if 'company_role' in des_data:
                                 des_data['company_role'] = _parse_int(des_data.get('company_role'))
+
                             if 'company_group' in des_data:
                                 des_data['company_group'] = _parse_int(des_data.get('company_group'))
+
                             des_serializer = ExperienceDesignationSerializer(data=des_data)
+
                             if not des_serializer.is_valid():
-                                raise ValueError(f"Designation validation failed: {des_serializer.errors}")
+                                raise ValueError(
+                                    f"Designation validation failed: {des_serializer.errors}"
+                                )
+
                             des_serializer.save()
                             created_designations.append(des_serializer.data)
+
                         final_experiences_response.append({
                             **e_serializer.data,
-                            'designations': created_designations
+                            "designations": created_designations
                         })
 
-                return Response({
-                    'success': True,
-                    'message': 'Employee and complete profile created smoothly',
-                    'data': build_employee_payload(user)
-                }, status=status.HTTP_201_CREATED)
+                print("STEP 5 - Experiences saved")
 
-            except ValueError as err:
-                transaction.set_rollback(True)
-                return Response({ 'success': False, 'message': 'Validation Error inside Employee Creation sequence', 'errors': str(err) }, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as exc:
-                transaction.set_rollback(True)
-                return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                user.refresh_from_db()
+                print("STEP 6 - User refreshed")
 
+                fresh_profile = EmployeeProfile.objects.get(user=user)
+                print("STEP 7 - Fresh profile fetched")
 
-    if request.method == 'PUT':
-        user_id = _parse_int(request.data.get('user_id') or request.query_params.get('user_id'))
-        if not user_id:
-            return Response({ 'success': False, 'message': 'user_id is required for update' }, status=status.HTTP_400_BAD_REQUEST)
-
-        user = CustomUser.objects.filter(id=user_id).first()
-        if not user:
-            return Response({ 'success': False, 'message': 'User not found' }, status=status.HTTP_404_NOT_FOUND)
-
-        company_id = _parse_int(request.data.get('company_id'))
-        role_id = _parse_int(request.data.get('role_id'))
-        group_id = _parse_int(request.data.get('group_id'))
-        biometric_id = request.data.get('biometric_id')
-
-        company_obj = None
-        if company_id:
-            company_obj = c.Company.objects.filter(id=company_id).first()
-            if not company_obj:
-                return Response({'message': 'Invalid company_id provided', 'success': False}, status=status.HTTP_400_BAD_REQUEST)
-
-        role_obj = c.CompanyRole.objects.filter(id=role_id).first() if role_id else None
-        group_obj = c.CompanyGroup.objects.filter(id=group_id).first() if group_id else None
-
-        # Check explicit presence of fields within request data
-        has_present_address = 'present_address' in request.data
-        has_permanent_address = 'permanent_address' in request.data
-        has_guardians = 'guardians' in request.data
-        has_bank_details = 'bank_details' in request.data
-        has_qualifications = 'qualifications' in request.data
-        has_experiences = 'experiences' in request.data
-
-        present_address_data = safe_parse_json('present_address', dict) if has_present_address else None
-        permanent_address_data = safe_parse_json('permanent_address', dict) if has_permanent_address else None
-        profile_payload = safe_parse_json('profile', dict) if 'profile' in request.data else None
-        guardians = safe_parse_json('guardians', list) if has_guardians else None
-        bank_details = safe_parse_json('bank_details', list) if has_bank_details else None
-        qualifications = safe_parse_json('qualifications', list) if has_qualifications else None
-        experiences = safe_parse_json('experiences', list) if has_experiences else None
-
-        with transaction.atomic():
-            try:
-                user_payload = {}
-                user_fields = ['first_name', 'last_name', 'email', 'mobile', 'gender', 'biometric_id', 'is_whatsapp', 'is_sms', 'is_wfh', 'is_active', 'role_id']
-                for key in user_fields:
-                    if key in request.data:
-                        if key in ['is_whatsapp', 'is_sms', 'is_wfh', 'is_active']:
-                            user_payload[key] = _parse_bool(request.data.get(key))
-                        elif key == 'role_id':
-                            user_payload[key] = _parse_int(request.data.get(key))
-                        else:
-                            user_payload[key] = request.data.get(key)
-
-                password = None
-                if 'password' in request.data:
-                    password = request.data.get('password')
-
-                if 'prof_img' in request.FILES:
-                    user_payload['prof_img'] = request.FILES['prof_img']
-
-                user_serializer = UserSerializer(user, data=user_payload, partial=True)
-                if not user_serializer.is_valid():
-                    raise ValueError(f"User validation failed: {user_serializer.errors}")
-                user = user_serializer.save()
-
-                if password:
-                    user.set_password(password)
-
-                if role_obj:
-                    user.role = role_obj
-                if group_obj:
-                    user.group = group_obj
-                if company_obj:
-                    user.company.set([company_obj])
-                    if not user.parent_company:
-                        user.parent_company = company_obj
-
-                if 'team_lead' in request.data:
-                    user.team_lead = _parse_bool(request.data.get('team_lead'))
-
-                user.save()
-
-                profile = getattr(user, 'profile', None)
-                if profile is None and (has_present_address or has_permanent_address or profile_payload or any(k in request.data for k in ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion', 'religion_id', 'caste_id', 'staff_type_id', 'staff_category_id'])):
-                    profile = EmployeeProfile(user=user)
-
-                if profile:
-                    # Fix: Address objects are updated ONLY if explicitly passed
-                    if has_present_address and present_address_data:
-                        present_addr_obj = save_address(present_address_data, 'present address', profile.present_address)
-                    else:
-                        present_addr_obj = profile.present_address
-
-                    if has_permanent_address and permanent_address_data:
-                        permanent_addr_obj = save_address(permanent_address_data, 'permanent address', profile.permanent_address)
-                    else:
-                        permanent_addr_obj = profile.permanent_address
-
-                    profile_updates = {}
-                    if profile_payload:
-                        profile_updates.update(profile_payload)
-                    
-                    profile_fields = ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id', 'alternate_mobile', 'alternate_email', 'date_of_joining', 'staff_id', 'date_of_relieving', 'date_of_contract_completion']
-                    for key in profile_fields:
-                        if key in request.data:
-                            raw_value = request.data.get(key)
-                            profile_updates[key] = None if raw_value in ('', 'null', 'undefined') else raw_value
-
-                    for key, field in [('religion_id', 'religion'), ('caste_id', 'caste'), ('staff_type_id', 'staff_type'), ('staff_category_id', 'staff_category')]:
-                        if key in profile_updates:
-                            val = profile_updates.pop(key)
-                            profile_updates[field] = None if val in ('', 'null', 'undefined', None) else int(val)
-                        elif key in request.data:
-                            profile_updates[field] = clean_optional_id(key)
-
-                    if present_addr_obj:
-                        profile_updates['present_address'] = present_addr_obj.id
-                    if permanent_addr_obj:
-                        profile_updates['permanent_address'] = permanent_addr_obj.id
-
-                    if profile_updates:
-                        profile_serializer = EmployeeProfileSerializer(profile, data=profile_updates, partial=True)
-                        if not profile_serializer.is_valid():
-                            raise ValueError(f"Profile validation failed: {profile_serializer.errors}")
-                        profile = profile_serializer.save()
-
-                def upsert_guardians(guardian_items, user):
-                    incoming_ids = [ _parse_int(item.get('id'))  for item in guardian_items  if _parse_int(item.get('id')) is not None ]
-                    EmployeeGuardian.objects.filter(employee=user).exclude(id__in=incoming_ids).delete()
-
-                    saved = []
-                    for item in guardian_items:
-                        item['employee'] = user.id
-                        if 'is_guardian' in item:
-                            item['is_guardian'] = _parse_bool(item.get('is_guardian'))
-                        
-                        g_id = _parse_int(item.get('id'))
-                        if g_id:
-                            g_obj = EmployeeGuardian.objects.filter(id=g_id, employee=user).first()
-                            serializer = EmployeeGuardianSerializer(g_obj, data=item, partial=True) if g_obj else EmployeeGuardianSerializer(data=item)
-                        else:
-                            serializer = EmployeeGuardianSerializer(data=item)
-                            
-                        if not serializer.is_valid():
-                            raise ValueError(f"Guardian validation failed: {serializer.errors}")
-                        
-                        saved.append(serializer.save())
-
-                    if saved and not any(g.is_guardian for g in saved):
-                        first_guardian = saved[0]
-                        first_guardian.is_guardian = True
-                        first_guardian.save()
-                    return saved
-
-                def upsert_bank_details(bank_items, user):
-                    incoming_ids = [_parse_int(item.get('id')) for item in bank_items if _parse_int(item.get('id')) is not None]
-                    BankDetail.objects.filter(user=user).exclude(id__in=incoming_ids).delete()
-                    has_primary_in_input = any(_parse_bool(item.get('is_primary')) for item in bank_items)
-                    has_primary_in_db = BankDetail.objects.filter(user=user, is_primary=True).exclude(id__in=incoming_ids).exists()
-                    force_primary = not has_primary_in_input and not has_primary_in_db
-
-                    saved = []
-                    for idx, item in enumerate(bank_items):
-                        item['user'] = user.id
-                        item['is_primary'] = _parse_bool(item.get('is_primary'))
-                        
-                        if force_primary and idx == 0:
-                            item['is_primary'] = True
-                            
-                        bank_id = _parse_int(item.get('id'))
-                        bank = BankDetail.objects.filter(id=bank_id, user=user).first() if bank_id else None
-                        serializer = BankDetailSerializer(bank, data=item, partial=True) if bank else BankDetailSerializer(data=item)
-                        
-                        if not serializer.is_valid():
-                            raise ValueError(f"Bank validation failed: {serializer.errors}")
-                        
-                        saved.append(serializer.save())
-                    return saved
-
-                def upsert_qualifications(qual_list, user, request):
-                    incoming_ids = [
-                        _parse_int(item.get('id')) 
-                        for item in qual_list 
-                        if _parse_int(item.get('id')) is not None
-                    ]
-                    EmployeeQualification.objects.filter(user=user).exclude(id__in=incoming_ids).delete()
-
-                    saved = []
-                    for idx, item in enumerate(qual_list):
-                        qual_id = _parse_int(item.get('id'))
-                        certificate_file = request.FILES.get(f'certificate_{idx}')
-                        
-                        if item.get('qualification_level') == "B.Tech":
-                            item['qualification_level'] = "UG"
-
-                        if qual_id:
-                            instance = EmployeeQualification.objects.filter(id=qual_id, user=user).first()
-                            if instance:
-                                serializer = EmployeeQualificationSerializer(instance, data=item, partial=True)
-                            else:
-                                serializer = EmployeeQualificationSerializer(data=item)
-                        else:
-                            serializer = EmployeeQualificationSerializer(data=item)
-
-                        if serializer.is_valid():
-                            # user is already set in item['user'] before serialization; no kwarg needed
-                            saved_instance = serializer.save()
-                            
-                            if certificate_file:
-                                saved_instance.certificate = certificate_file
-                                saved_instance.save()
-                            
-                            saved.append(saved_instance)
-                        else:
-                            raise ValueError(f"Validation failed for qualification: {serializer.errors}")
-
-                    return saved
-                    
-                def upsert_experiences(experience_items, user, request):
-                    incoming_exp_ids = []
-                    incoming_des_ids = []
-
-                    for item in experience_items:
-                        exp_id = _parse_int(item.get('id'))
-                        if exp_id:
-                            incoming_exp_ids.append(exp_id)
-                            
-                        for des in item.get('designations', []):
-                            des_id = _parse_int(des.get('id'))
-                            if des_id:
-                                incoming_des_ids.append(des_id)
-
-                    ExperienceDesignation.objects.filter(experience__user=user).exclude(id__in=incoming_des_ids).delete()
-                    EmployeeExperience.objects.filter(user=user).exclude(id__in=incoming_exp_ids).delete()
-                    saved = []
-
-                    for idx, item in enumerate(experience_items):
-                        item['user'] = user.id
-
-                        item['category'] = item.get('category') or 'Other'
-                        item['is_internal'] = _parse_bool(item.get('is_internal', False))
-                            
-                        if item['is_internal']:
-                            is_approved = getattr(user.parent_company, 'aicte_approved', False) if user.parent_company else False
-                            item['is_aicte_approved'] = is_approved
-                        else:
-                            item['is_aicte_approved'] = _parse_bool(item.get('is_aicte_approved'))
-                            
-                        item['is_after_pg'] = _parse_bool(item.get('is_after_pg'))
-                            
-                        # Support both key formats: structured (matches POST) and legacy flat key
-                        exp_letter_key = f'experiences[{idx}][experience_letter]'
-                        exp_letter_key_legacy = f'experience_letter_{idx}'
-                        if exp_letter_key in request.FILES:
-                            item['experience_letter'] = request.FILES[exp_letter_key]
-                        elif exp_letter_key_legacy in request.FILES:
-                            item['experience_letter'] = request.FILES[exp_letter_key_legacy]
-                            
-                        designations = item.pop('designations', [])
-                        exp_id = _parse_int(item.get('id'))
-                            
-                        if exp_id:
-                            exp_obj = EmployeeExperience.objects.filter(id=exp_id, user=user).first()
-                            exp_serializer = EmployeeExperienceSerializer(exp_obj, data=item, partial=True) if exp_obj else EmployeeExperienceSerializer(data=item)
-                        else:
-                            exp_serializer = EmployeeExperienceSerializer(data=item)
-                                
-                        if not exp_serializer.is_valid():
-                            raise ValueError(f"Experience validation failed: {exp_serializer.errors}")
-                            
-                        exp_obj = exp_serializer.save()
-                        des_list = []
-
-                        for des in designations:
-                            des['experience'] = exp_obj.id
-                            if 'company_role' in des:
-                                des['company_role'] = _parse_int(des.get('company_role'))
-                            if 'company_group' in des:
-                                des['company_group'] = _parse_int(des.get('company_group'))
-                                
-                            des_id = _parse_int(des.get('id'))
-                            if des_id:
-                                des_obj = ExperienceDesignation.objects.filter(id=des_id, experience=exp_obj).first()
-                                des_serializer = ExperienceDesignationSerializer(des_obj, data=des, partial=True) if des_obj else ExperienceDesignationSerializer(data=des)
-                            else:
-                                des_serializer = ExperienceDesignationSerializer(data=des)
-                                    
-                            if not des_serializer.is_valid():
-                                raise ValueError(f"Designation validation failed: {des_serializer.errors}")
-                                
-                            des_obj = des_serializer.save()
-                            des_list.append(des_obj) 
-                        saved.append((exp_obj, des_list))
-                    return saved
-
-                # Safe Guard Processing: Execute sub-routines only if key was explicit in request payload
-                if has_guardians and guardians is not None:
-                    upsert_guardians(guardians, user)
-                if has_bank_details and bank_details is not None:
-                    upsert_bank_details(bank_details, user)
-                if has_qualifications and qualifications is not None:
-                    upsert_qualifications(qualifications, user, request)
-                if has_experiences and experiences is not None:
-                    upsert_experiences(experiences, user, request)
+                payload = build_employee_payload(user)
+                print("STEP 8 - Payload built")
 
                 return Response({
-                    'success': True,
-                    'message': 'Employee updated successfully',
-                    'data': build_employee_payload(user)
+                    "saved_profile": EmployeeProfileSerializer(profile).data,
+                    "fresh_profile": EmployeeProfileSerializer(fresh_profile).data,
+                    "payload_profile": payload["profile"],
                 }, status=status.HTTP_200_OK)
 
             except ValueError as err:
@@ -2588,6 +2588,149 @@ def employee_with_profile(request):
                 return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def calculate_data_entry_percentage(request):
+    company_id = request.data.get("company_id") or request.query_params.get("company_id")
+    user_id = request.data.get("user_id") or request.query_params.get("user_id")
+
+    if user_id and not company_id:
+        try:
+            target_user = CustomUser.objects.prefetch_related('company', 'company_links').get(id=user_id)
+            if target_user.parent_company_id:
+                company_id = target_user.parent_company_id
+            elif target_user.company.exists():
+                company_id = target_user.company.first().id
+            elif target_user.company_links.exists():
+                company_id = target_user.company_links.first().company_id
+        except CustomUser.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": f"User with ID {user_id} not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    if not company_id:
+        return Response({
+            "success": False,
+            "message": "company_id is required (or provide a valid user_id to infer company_id)"
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        setting = CompanyFieldSetting.objects.get(company_id=company_id)
+        config_dict = setting.config or {}
+    except CompanyFieldSetting.DoesNotExist:
+        config_dict = {}
+
+    user_queryset = CustomUser.objects.select_related(
+        'profile', 'profile__present_address', 'profile__permanent_address',
+        'profile__religion', 'profile__caste', 'profile__staff_type', 'profile__staff_category'
+        ).prefetch_related('qualifications', 'experiences', 'bank_details', 'guardians')
+
+    if user_id:
+        users = user_queryset.filter(id=user_id, company__id=company_id).distinct()
+        if not users.exists():
+            users = user_queryset.filter(
+                    Q(id=user_id) & (Q(parent_company__id=company_id) | Q(company_links__company__id=company_id))
+                ).distinct()
+
+        if not users.exists():
+            return Response({
+                "success": False,
+                "message": "User not found or does not belong to the specified company"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        user_data = evaluate_user_completion(users.first(), config_dict)
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "data": user_data
+        }, status=status.HTTP_200_OK)
+
+    else:
+        users = user_queryset.filter(
+            Q(company__id=company_id) | Q(parent_company__id=company_id) | Q(company_links__company__id=company_id),
+            is_active=True
+        ).distinct()
+
+        results = [evaluate_user_completion(user, config_dict) for user in users]
+
+        total_employees = len(results)
+        avg_percentage = round(sum(r["completion_percentage"] for r in results) / total_employees, 2) if total_employees > 0 else 100.0
+        fully_completed = sum(1 for r in results if r["completion_percentage"] == 100.0)
+
+        return Response({
+            "success": True,
+            "company_id": int(company_id),
+            "summary": {
+                "total_employees": total_employees,
+                "average_completion_percentage": avg_percentage,
+                "fully_completed_count": fully_completed,
+                "incomplete_count": total_employees - fully_completed
+            },
+            "count": total_employees,
+            "data": results
+          }, status=status.HTTP_200_OK)
+
+          
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_employee_draft(request):
+    if request.method == 'GET':
+        company_id = request.query_params.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id query parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        draft = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).first()
+        if not draft:
+            return Response({'success': True, 'data': None}, status=status.HTTP_200_OK)
+            
+        return Response({
+            'success': True,
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+                'draft_data': draft.draft_data
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        company_id = request.data.get('company_id')
+        last_step = request.data.get('last_step', 0)
+        draft_data = request.data.get('draft_data', {})
+        
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        draft, created = EmployeeOnboardingDraft.objects.update_or_create(
+            company_id=company_id,
+            created_by=request.user,
+            defaults={
+                'last_step': int(last_step),
+                'draft_data': draft_data
+            }
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Draft saved successfully',
+            'data': {
+                'id': draft.id,
+                'last_step': draft.last_step,
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'DELETE':
+        company_id = request.query_params.get('company_id') or request.data.get('company_id')
+        if not company_id:
+            return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        deleted_count, _ = EmployeeOnboardingDraft.objects.filter(company_id=company_id, created_by=request.user).delete()
+        return Response({
+            'success': True,
+            'message': 'Draft deleted successfully' if deleted_count > 0 else 'No draft found to delete'
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
@@ -2857,6 +3000,38 @@ def manageEmployeeProfile(request):
                 serializer = EmployeeProfileSerializer(data=profile_data)
 
                 if serializer.is_valid():
+                 company = request.user.company.first()
+
+                try:
+                    field_setting = CompanyFieldSetting.objects.get(company=company)
+                    personal_fields = field_setting.config.get("personal_information", {})
+                except CompanyFieldSetting.DoesNotExist:
+                     personal_fields = {}
+
+                mandatory_fields = {
+                    "alternate_email": "Alternate Email",
+                    "alternate_mobile": "Alternate Mobile",
+                    "dob": "Date of Birth",
+                    "religion": "Religion",
+                    "caste": "Caste",
+                    "blood_group": "Blood Group",
+                }
+
+                for field, label in mandatory_fields.items():
+                    field_config = personal_fields.get(field, {})
+
+                    if field_config.get("mandatory"):
+                        value = request.data.get(field)
+
+                        if value in [None, "", []]:
+                            return Response(
+                                {
+                                    "success": False,
+                                    "message": f"{label} is mandatory.",
+                                },
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
+
                     profile = serializer.save()
                     response_data = serializer.data
 
