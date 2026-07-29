@@ -6,7 +6,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useSearchParams } from "next/navigation";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { format, parseISO, differenceInMinutes } from "date-fns";
 import Link from "next/link";
 import {
