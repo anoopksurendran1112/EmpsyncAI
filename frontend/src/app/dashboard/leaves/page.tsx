@@ -141,40 +141,7 @@ type HierarchyEmployee = {
   initials: string;
 };
 
-const DUMMY_HIERARCHY_EMPLOYEES: HierarchyEmployee[] = [
-  {
-    id: "dummy-1",
-    name: "Arun Kumar",
-    email: "arun.kumar@example.com",
-    role: "HR Manager",
-    department: "Human Resources",
-    initials: "AK",
-  },
-  {
-    id: "dummy-2",
-    name: "Meera Nair",
-    email: "meera.nair@example.com",
-    role: "Team Lead",
-    department: "Engineering",
-    initials: "MN",
-  },
-  {
-    id: "dummy-3",
-    name: "Rahul Menon",
-    email: "rahul.menon@example.com",
-    role: "Project Manager",
-    department: "Operations",
-    initials: "RM",
-  },
-  {
-    id: "dummy-4",
-    name: "Anjali Joseph",
-    email: "anjali.joseph@example.com",
-    role: "Department Head",
-    department: "Administration",
-    initials: "AJ",
-  },
-];
+// No dummy data — employees are loaded from the backend
 export default function LeavesPage() {
   const { company, isAdmin } = useAuth();
   const companyId = company?.id;
@@ -251,7 +218,9 @@ export default function LeavesPage() {
   });
 
   // Leave Hierarchy States
-  const isHierarchyEmployeesLoading = false;
+  const [hierarchyEmployees, setHierarchyEmployees] = useState<HierarchyEmployee[]>([]);
+  const [isHierarchyEmployeesLoading, setIsHierarchyEmployeesLoading] = useState(false);
+  const [isHierarchyExists, setIsHierarchyExists] = useState(false);
 
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
@@ -261,8 +230,6 @@ export default function LeavesPage() {
   const [savedLeaveHierarchy, setSavedLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
   const [draggedHierarchyIndex, setDraggedHierarchyIndex] = useState<number | null>(null);
   const [isHierarchySaving, setIsHierarchySaving] = useState(false);
-  const hierarchyEmployees: HierarchyEmployee[] =
-    DUMMY_HIERARCHY_EMPLOYEES;
 
   const filteredHierarchyEmployees = hierarchyEmployees.filter((employee) => {
     const searchValue = hierarchySearch.trim().toLowerCase();
@@ -400,6 +367,136 @@ export default function LeavesPage() {
   });
   const [requestMessage, setRequestMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // ─── Fetch hierarchy employees (pool for the search / role dropdown) ────────
+  const fetchHierarchyEmployees = useCallback(async () => {
+    if (!companyId) return;
+    setIsHierarchyEmployeesLoading(true);
+    try {
+      const res = await fetch(`/api/leave/add-leave`);
+      const result = await res.json();
+      if (res.ok && result.success) {
+        const users: HierarchyEmployee[] = (result.data || []).map(
+          (u: { id: number; first_name: string; last_name?: string; email?: string }) => ({
+            id: String(u.id),
+            name: `${u.first_name}${u.last_name ? " " + u.last_name : ""}`.trim(),
+            email: u.email || "",
+            role: "Employee",
+            department: "",
+            initials: `${u.first_name?.[0] ?? ""}${u.last_name?.[0] ?? ""}`.toUpperCase(),
+          })
+        );
+        setHierarchyEmployees(users);
+      }
+    } catch (err) {
+      console.error("Failed to load hierarchy employees", err);
+    } finally {
+      setIsHierarchyEmployeesLoading(false);
+    }
+  }, [companyId]);
+
+  // ─── Fetch saved leave hierarchy from backend ─────────────────────────────
+  const fetchLeaveHierarchy = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const res = await fetch(`/api/leave/hierarchy`);
+      if (res.status === 404) {
+        // No hierarchy saved yet — start empty
+        setIsHierarchyExists(false);
+        setLeaveHierarchy([]);
+        setSavedLeaveHierarchy([]);
+        return;
+      }
+      const result = await res.json();
+      if (res.ok && result.success && result.data) {
+        setIsHierarchyExists(true);
+        const flowConfig: Array<{ level: number; criteria: string; managed_by: string }> =
+          result.data.flow_config || [];
+
+        // Convert backend flow_config into HierarchyEmployee UI format
+        const mapped: HierarchyEmployee[] = flowConfig.map((item) => {
+          const isRole = item.criteria === "role";
+          const roleLabel = isRole ? item.managed_by : "";
+          return {
+            id: isRole
+              ? `role-${item.managed_by.toLowerCase().replace(/\s+/g, "-")}`
+              : String(item.managed_by),
+            name: isRole ? item.managed_by : item.managed_by,
+            email: isRole ? "All employees assigned to this role" : "",
+            role: isRole ? "Role" : "Employee",
+            department: isRole ? "All departments" : "",
+            initials: item.managed_by
+              .split(" ")
+              .map((w: string) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase(),
+          };
+        });
+
+        // Enrich user entries with real names from the loaded employees
+        const enriched = mapped.map((item) => {
+          if (item.id.startsWith("role-")) return item;
+          const found = hierarchyEmployees.find((e) => e.id === item.id);
+          return found ? { ...found, id: item.id } : item;
+        });
+
+        setLeaveHierarchy(enriched);
+        setSavedLeaveHierarchy(enriched);
+      } else {
+        setIsHierarchyExists(false);
+        setLeaveHierarchy([]);
+        setSavedLeaveHierarchy([]);
+      }
+    } catch (err) {
+      console.error("Failed to load leave hierarchy", err);
+      toast.error("Failed to load leave hierarchy");
+    }
+  }, [companyId, hierarchyEmployees]);
+
+  // ─── Build payload for POST/PUT ───────────────────────────────────────────
+  const buildHierarchyPayload = () => ({
+    company_id: companyId,
+    flow_config: leaveHierarchy.map((item, index) => ({
+      level: index + 1,
+      criteria: item.id.startsWith("role-") ? "role" : "user",
+      managed_by: item.id.startsWith("role-") ? item.name : item.id,
+    })),
+  });
+
+  // ─── Save hierarchy to backend (POST if new, PUT if exists) ──────────────
+  const handleSaveHierarchy = async () => {
+    if (!companyId) {
+      toast.error("No company selected");
+      return;
+    }
+    setIsHierarchySaving(true);
+    try {
+      const payload = buildHierarchyPayload();
+      const method = isHierarchyExists ? "PUT" : "POST";
+
+      const res = await fetch(`/api/leave/hierarchy`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        toast.success("Leave hierarchy saved successfully");
+        setIsHierarchyExists(true);
+        // Refresh from backend so UI reflects what was actually stored
+        await fetchLeaveHierarchy();
+      } else {
+        toast.error(result.message || "Failed to save leave hierarchy");
+      }
+    } catch (err) {
+      console.error("Failed to save hierarchy", err);
+      toast.error("Network error while saving hierarchy");
+    } finally {
+      setIsHierarchySaving(false);
+    }
+  };
 
   // Fetch functions
   const fetchLeaveTypes = useCallback(async () => {
@@ -561,6 +658,8 @@ export default function LeavesPage() {
           fetchLeaveRequests();
           fetchHolidays();
           fetchRoles();
+          // Load employee pool and saved hierarchy when entering admin view
+          fetchHierarchyEmployees();
         }
       }
 
@@ -568,7 +667,14 @@ export default function LeavesPage() {
         fetchMyLeaves();
       }
     }
-  }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, cookieSynced]);
+  }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, fetchHierarchyEmployees, cookieSynced]);
+
+  // Once employees are loaded, fetch the saved hierarchy so names can be resolved
+  useEffect(() => {
+    if (companyId && cookieSynced && hierarchyEmployees.length > 0) {
+      fetchLeaveHierarchy();
+    }
+  }, [companyId, cookieSynced, hierarchyEmployees, fetchLeaveHierarchy]);
 
   // Trigger employee fetch when Past Leave Dialog opens
   useEffect(() => {
@@ -1586,7 +1692,7 @@ export default function LeavesPage() {
 
                       <SelectContent>
                         {Array.from(
-                          new Set(DUMMY_HIERARCHY_EMPLOYEES.map((employee) => employee.role))
+                          new Set(hierarchyEmployees.map((employee) => employee.role))
                         ).map((role) => (
                           <SelectItem key={role} value={role}>
                             {role}
@@ -1705,8 +1811,9 @@ export default function LeavesPage() {
               <div className="flex justify-end gap-3 mt-6">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setLeaveHierarchy(savedLeaveHierarchy);
+                  disabled={isHierarchySaving}
+                  onClick={async () => {
+                    await fetchLeaveHierarchy();
                     toast.success("Changes discarded");
                   }}
                 >
@@ -1715,12 +1822,10 @@ export default function LeavesPage() {
 
                 <Button
                   className="bg-blue-600 text-white"
-                  onClick={() => {
-                    setSavedLeaveHierarchy([...leaveHierarchy]);
-                    toast.success("Leave hierarchy saved");
-                  }}
+                  disabled={isHierarchySaving}
+                  onClick={handleSaveHierarchy}
                 >
-                  Save Hierarchy
+                  {isHierarchySaving ? "Saving..." : "Save Hierarchy"}
                 </Button>
               </div>
 
