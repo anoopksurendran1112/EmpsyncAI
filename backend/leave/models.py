@@ -75,11 +75,17 @@ class Leave(models.Model):
     leave_choice = models.CharField(choices=LEAVE_CHOICES,max_length=70)
     status = models.CharField(choices=LEAVE_STATUS_CHOICES,max_length=50)
     custom_reason = models.TextField(null=True, blank=True)  # 🔥 For custom leave reason
+    approval_trail = models.JSONField(default=dict,blank=True,null=True)
 
     def __str__(self):
         return f"{self.user} - {self.leave_type or 'Custom'} ({self.from_date})"
 
-    
+class LeaveFlowHierarchy(models.Model):
+    company = models.OneToOneField('company.Company',on_delete=models.CASCADE,related_name='leave_hierarchy')
+    flow_config = models.JSONField(default=list,blank=True,help_text='Stores ordered user IDs or steps between team lead and company head')
+
+    def __str__(self):
+        return f"Leave Flow for {self.company}"
 
 class LeaveCredit(models.Model):
     user = models.ForeignKey('user.CustomUser', on_delete=models.CASCADE)

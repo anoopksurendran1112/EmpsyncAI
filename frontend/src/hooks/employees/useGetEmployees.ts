@@ -35,15 +35,17 @@ async function fetchEmployees(companyId: number, page: number, limit: number, gr
 
   console.log('🔍 API Response:', responseData);
 
-  return {
-    employees: responseData.employees || [],
-    currentPage: responseData.currentPage || page,
-    totalPages: responseData.totalPages || 1,
-    // Map totalEmployees to totalCount
-    totalCount: responseData.totalEmployees || 0,
-    hasNextPage: responseData.hasNextPage || false,
-    hasPrevPage: responseData.hasPrevPage || false,
-  };
+ return {
+  employees: responseData.employees || [],
+  currentPage: responseData.currentPage || page,
+  totalPages: responseData.totalPages || 1,
+  totalCount: responseData.totalEmployees || 0,
+  hasNextPage:
+    (responseData.currentPage || page) <
+    (responseData.totalPages || 1),
+  hasPrevPage:
+    (responseData.currentPage || page) > 1,
+};
 }
 
 export function useEmployees(companyId: number, page: number, limit: number = 50, group?: string) {

@@ -71,7 +71,7 @@ async function handleResponse(response: Response) {
     );
   }
 
-  return NextResponse.json(result, { status: 200 });
+  return NextResponse.json(result, { status: response.status });
 }
 
 function handleError(err: any) {
