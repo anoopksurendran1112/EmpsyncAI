@@ -226,13 +226,14 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // ✅ Ensure required fields are passed
-    const leaveTypePayload = {
+   const leaveTypePayload = {
       leave_type: body.leave_type,
       short_name: body.short_name,
       monthly_limit: body.monthly_limit || 0,
       yearly_limit: body.yearly_limit || 0,
       initial_credit: body.initial_credit || 0,
       use_credit: body.use_credit || false,
+      policies: body.policies || [],
     };
 
     const res = await fetch(`${process.env.API_URL}/leave-types`, {
