@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
+import { useRoles } from "@/hooks/settings/useRoles";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -251,8 +252,8 @@ export default function LeavesPage() {
   });
 
   // Leave Hierarchy States
+  const { data: companyRoles = [] } = useRoles();
   const isHierarchyEmployeesLoading = false;
-
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
   const [leaveHierarchy, setLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
@@ -578,7 +579,7 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
-  
+
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -609,7 +610,7 @@ export default function LeavesPage() {
         short_name: data.short_name.trim(),
       };
 
-      console.log("Payload:", payload); 
+      console.log("Payload:", payload);
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -630,14 +631,14 @@ export default function LeavesPage() {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
-          leave_type: "",
-          short_name: "",
-          monthly_limit: 0,
-          yearly_limit: 0,
-          initial_credit: 0,
-          use_credit: false,
-          policies: [],
-        });
+            leave_type: "",
+            short_name: "",
+            monthly_limit: 0,
+            yearly_limit: 0,
+            initial_credit: 0,
+            use_credit: false,
+            policies: [],
+          });
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -1331,14 +1332,14 @@ export default function LeavesPage() {
                       })),
                     });
 
-                  setIsAddTypeOpen(true);
-                    }}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Leave Type
-                  </Button>
+                    setIsAddTypeOpen(true);
+                  }}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Leave Type
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1575,7 +1576,7 @@ export default function LeavesPage() {
                 )}
 
                 {hierarchySelectionType === "role" && (
-                   <div className="relative flex-1 -ml-20">
+                  <div className="relative flex-1 -ml-20">
                     <Select
                       value={selectedHierarchyRole}
                       onValueChange={setSelectedHierarchyRole}
@@ -1585,11 +1586,19 @@ export default function LeavesPage() {
                       </SelectTrigger>
 
                       <SelectContent>
-                        {Array.from(
-                          new Set(DUMMY_HIERARCHY_EMPLOYEES.map((employee) => employee.role))
-                        ).map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role}
+                        <SelectItem value="Company Head">
+                          Company Head
+                        </SelectItem>
+
+                        <SelectItem value="Team Lead">
+                          Team Lead
+                        </SelectItem>
+
+                        <div className="my-1 h-0.5 bg-gray-300" />
+
+                        {companyRoles.map((role: any) => (
+                          <SelectItem key={role.id} value={role.role}>
+                            {role.role}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1921,121 +1930,121 @@ export default function LeavesPage() {
             </div>
             <hr className="my-2" />
 
-          <div className="space-y-5">
-          <h3 className="font-semibold text-sm border-b pb-2">
-            Staff Category Policies
-          </h3>
+            <div className="space-y-5">
+              <h3 className="font-semibold text-sm border-b pb-2">
+                Staff Category Policies
+              </h3>
 
-          {(() => {
-            const policies = editingLeaveType
-              ? editingLeaveType.policies || []
-              : leaveTypeForm.policies || [];
+              {(() => {
+                const policies = editingLeaveType
+                  ? editingLeaveType.policies || []
+                  : leaveTypeForm.policies || [];
 
-            const policy = policies[activePolicyTab];
+                const policy = policies[activePolicyTab];
 
-            if (!policy) return null;
+                if (!policy) return null;
 
-            return (
-              <>
-                {/* Tabs */}
-                <div className="flex flex-wrap gap-2">
-                  {policies.map((p, index) => (
-                    <Button
-                      key={p.staff_category_id}
-                      type="button"
-                      size="sm"
-                      variant={activePolicyTab === index ? "default" : "outline"}
-                      onClick={() => setActivePolicyTab(index)}
-                    >
-                      {p.staff_category_name}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* Active Policy */}
-                <div className="rounded-lg border p-4 mt-3 space-y-4">
-
-                  <div className="grid grid-cols-3 gap-4">
-
-                    <div>
-                      <Label>Monthly</Label>
-                      <Input
-                        type="number"
-                        value={policy.monthly_limit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].monthly_limit = Number(e.target.value);
-
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
+                return (
+                  <>
+                    {/* Tabs */}
+                    <div className="flex flex-wrap gap-2">
+                      {policies.map((p, index) => (
+                        <Button
+                          key={p.staff_category_id}
+                          type="button"
+                          size="sm"
+                          variant={activePolicyTab === index ? "default" : "outline"}
+                          onClick={() => setActivePolicyTab(index)}
+                        >
+                          {p.staff_category_name}
+                        </Button>
+                      ))}
                     </div>
 
-                    <div>
-                      <Label>Yearly</Label>
-                      <Input
-                        type="number"
-                        value={policy.yearly_limit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].yearly_limit = Number(e.target.value);
+                    {/* Active Policy */}
+                    <div className="rounded-lg border p-4 mt-3 space-y-4">
 
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
+                      <div className="grid grid-cols-3 gap-4">
+
+                        <div>
+                          <Label>Monthly</Label>
+                          <Input
+                            type="number"
+                            value={policy.monthly_limit}
+                            onChange={(e) => {
+                              const updated = [...policies];
+                              updated[activePolicyTab].monthly_limit = Number(e.target.value);
+
+                              if (editingLeaveType) {
+                                setEditingLeaveType({
+                                  ...editingLeaveType,
+                                  policies: updated,
+                                });
+                              } else {
+                                setLeaveTypeForm({
+                                  ...leaveTypeForm,
+                                  policies: updated,
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Yearly</Label>
+                          <Input
+                            type="number"
+                            value={policy.yearly_limit}
+                            onChange={(e) => {
+                              const updated = [...policies];
+                              updated[activePolicyTab].yearly_limit = Number(e.target.value);
+
+                              if (editingLeaveType) {
+                                setEditingLeaveType({
+                                  ...editingLeaveType,
+                                  policies: updated,
+                                });
+                              } else {
+                                setLeaveTypeForm({
+                                  ...leaveTypeForm,
+                                  policies: updated,
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <Label>Initial Credit</Label>
+                          <Input
+                            type="number"
+                            value={policy.initial_credit}
+                            onChange={(e) => {
+                              const updated = [...policies];
+                              updated[activePolicyTab].initial_credit = Number(e.target.value);
+
+                              if (editingLeaveType) {
+                                setEditingLeaveType({
+                                  ...editingLeaveType,
+                                  policies: updated,
+                                });
+                              } else {
+                                setLeaveTypeForm({
+                                  ...leaveTypeForm,
+                                  policies: updated,
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+
+                      </div>
+
                     </div>
-
-                    <div>
-                      <Label>Initial Credit</Label>
-                      <Input
-                        type="number"
-                        value={policy.initial_credit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].initial_credit = Number(e.target.value);
-
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
-                    </div>
-
-                  </div>
-
-                </div>
-              </>
-            );
-          })()}
-        </div>
+                  </>
+                );
+              })()}
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsAddTypeOpen(false)}>Cancel</Button>
               <Button type="submit" className="bg-blue-600 text-white" disabled={isLeaveTypeSubmitting}>
