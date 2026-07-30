@@ -596,7 +596,8 @@ def get_leave_types(request):
                 'initial_credit': lt.initial_credit,
                 'use_credit': lt.use_credit,
                 'is_global': lt.is_global,
-                'policies': policies_by_type[lt.id]  # Read in O(1) time
+                'policy_mode': lt.policy_mode,
+                'policies': policies_by_type[lt.id]
             })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
 
@@ -650,6 +651,10 @@ def get_leave_types(request):
             leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
             leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
             leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.policy_mode = request.data.get(
+                "policy_mode",
+                leave_type.policy_mode
+            )
             leave_type.save()
 
             # 2. Fetch existing credits to verify and update in memory
@@ -764,6 +769,7 @@ def get_leave_types(request):
                 "yearly_limit": float(request.data.get("yearly_limit") or 0),
                 "initial_credit": float(request.data.get("initial_credit") or 0),
                 "use_credit": request.data.get("use_credit", False),
+                "policy_mode": request.data.get("policy_mode", "normal"),
                 "company": company
             }
             

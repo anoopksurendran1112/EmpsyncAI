@@ -5,7 +5,15 @@ from .models import LeaveType,Holiday,Leave,LeaveCredit
 # Register your models here.
 
 class CustomLeaveType(admin.ModelAdmin):
-    list_display = ('leave_type','company','monthly_limit','yearly_limit','is_active','is_global',)
+    list_display = (
+    "id",
+    "leave_type",
+    "short_name",
+    "monthly_limit",
+    "yearly_limit",
+    "use_credit",
+    "policy_mode",
+)
     
    
     ordering = ['company','leave_type']
