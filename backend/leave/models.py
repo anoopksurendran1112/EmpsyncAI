@@ -35,22 +35,32 @@ class Holiday(models.Model):
 
 class LeaveType(models.Model):
     leave_type = models.CharField(max_length=100)
-    short_name = models.CharField(max_length=10,null=True,blank=True)
+    short_name = models.CharField(max_length=10, null=True, blank=True)
     monthly_limit = models.FloatField(null=True, blank=True)
     yearly_limit = models.FloatField(null=True, blank=True)
-    allow_carry_forward = models.BooleanField(default=True) 
+    allow_carry_forward = models.BooleanField(default=True)
     initial_credit = models.FloatField(default=0)
     is_active = models.BooleanField(default=True)
     is_global = models.BooleanField(default=False)
-    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, null=True, blank=True)
-    is_global = models.BooleanField(default=False)
+    company = models.ForeignKey(
+        'company.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
     use_credit = models.BooleanField(default=False)
+
+    policy_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("normal", "Normal"),
+            ("staff_category", "Staff Category"),
+        ],
+        default="normal",
+    )
 
     def __str__(self):
         return self.leave_type
-
-   
-
 
 
 class Leave(models.Model):
