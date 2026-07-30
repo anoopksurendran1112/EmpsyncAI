@@ -7,7 +7,8 @@ from user.models import CustomUser
 
 class PunchRecords(models.Model):
 
-    user_id = models.IntegerField()
+    # user_id = models.IntegerField()
+    user_id = models.CharField(max_length=20)
     punch_time = models.DateTimeField()
     device_id = models.CharField(max_length=255, null=True, blank=True)
     status = models.CharField(max_length=10, choices=[('Check-In', 'Check-In'), ('Check-Out', 'Check-Out')],blank=True,null=True)

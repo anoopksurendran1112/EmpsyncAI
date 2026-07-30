@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
+import { useRoles } from "@/hooks/settings/useRoles";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -254,8 +255,8 @@ export default function LeavesPage() {
   });
 
   // Leave Hierarchy States
+  const { data: companyRoles = [] } = useRoles();
   const isHierarchyEmployeesLoading = false;
-
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
   const [leaveHierarchy, setLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
@@ -581,7 +582,7 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
-  
+
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -612,7 +613,7 @@ export default function LeavesPage() {
         short_name: data.short_name.trim(),
       };
 
-      console.log("Payload:", payload); 
+      console.log("Payload:", payload);
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -642,6 +643,7 @@ export default function LeavesPage() {
           use_credit: false,
           policies: [],
         });
+
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -1336,14 +1338,14 @@ export default function LeavesPage() {
                       })),
                     });
 
-                  setIsAddTypeOpen(true);
-                    }}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Leave Type
-                  </Button>
+                    setIsAddTypeOpen(true);
+                  }}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Leave Type
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1662,7 +1664,7 @@ export default function LeavesPage() {
                 )}
 
                 {hierarchySelectionType === "role" && (
-                   <div className="relative flex-1 -ml-20">
+                  <div className="relative flex-1 -ml-20">
                     <Select
                       value={selectedHierarchyRole}
                       onValueChange={setSelectedHierarchyRole}
@@ -1672,11 +1674,19 @@ export default function LeavesPage() {
                       </SelectTrigger>
 
                       <SelectContent>
-                        {Array.from(
-                          new Set(DUMMY_HIERARCHY_EMPLOYEES.map((employee) => employee.role))
-                        ).map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role}
+                        <SelectItem value="Company Head">
+                          Company Head
+                        </SelectItem>
+
+                        <SelectItem value="Team Lead">
+                          Team Lead
+                        </SelectItem>
+
+                        <div className="my-1 h-0.5 bg-gray-300" />
+
+                        {companyRoles.map((role: any) => (
+                          <SelectItem key={role.id} value={role.role}>
+                            {role.role}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1912,7 +1922,7 @@ export default function LeavesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. Add Leave Type Dialog */}
+     {/* 2. Add Leave Type Dialog */}
       <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
         <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -2014,9 +2024,9 @@ export default function LeavesPage() {
                 </label>
               </div>
             </div>
-            {(editingLeaveType
-              ? editingLeaveType.policy_mode
-              : leaveTypeForm.policy_mode) === "normal" && (
+
+            {/* NORMAL POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "normal" && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -2121,9 +2131,8 @@ export default function LeavesPage() {
               </>
             )}
 
-            {(editingLeaveType
-              ? editingLeaveType.policy_mode
-              : leaveTypeForm.policy_mode) === "staff_category" && (
+            {/* STAFF CATEGORY POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "staff_category" && (
               <>
                 <hr className="my-2" />
 
@@ -2143,6 +2152,7 @@ export default function LeavesPage() {
 
                     return (
                       <>
+                        {/* Tabs */}
                         <div className="flex flex-wrap gap-2">
                           {policies.map((p, index) => (
                             <Button
@@ -2157,6 +2167,7 @@ export default function LeavesPage() {
                           ))}
                         </div>
 
+                        {/* Active Policy */}
                         <div className="rounded-lg border p-4 mt-3 space-y-4">
                           <div className="grid grid-cols-3 gap-4">
                             <div>
@@ -2166,9 +2177,7 @@ export default function LeavesPage() {
                                 value={policy.monthly_limit}
                                 onChange={(e) => {
                                   const updated = [...policies];
-                                  updated[activePolicyTab].monthly_limit = Number(
-                                    e.target.value
-                                  );
+                                  updated[activePolicyTab].monthly_limit = Number(e.target.value);
 
                                   if (editingLeaveType) {
                                     setEditingLeaveType({
@@ -2192,9 +2201,7 @@ export default function LeavesPage() {
                                 value={policy.yearly_limit}
                                 onChange={(e) => {
                                   const updated = [...policies];
-                                  updated[activePolicyTab].yearly_limit = Number(
-                                    e.target.value
-                                  );
+                                  updated[activePolicyTab].yearly_limit = Number(e.target.value);
 
                                   if (editingLeaveType) {
                                     setEditingLeaveType({
@@ -2218,9 +2225,7 @@ export default function LeavesPage() {
                                 value={policy.initial_credit}
                                 onChange={(e) => {
                                   const updated = [...policies];
-                                  updated[activePolicyTab].initial_credit = Number(
-                                    e.target.value
-                                  );
+                                  updated[activePolicyTab].initial_credit = Number(e.target.value);
 
                                   if (editingLeaveType) {
                                     setEditingLeaveType({

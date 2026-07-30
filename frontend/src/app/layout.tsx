@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import "./globals.css"
+import "react-datepicker/dist/react-datepicker.css"
 import { Toaster } from "sonner";
 import Providers from "@/providers/query-client"
 import { AuthProvider } from "@/context/AuthContext"
