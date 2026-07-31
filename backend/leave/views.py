@@ -30,49 +30,83 @@ from django.db import transaction
         'application/json': {
             'type': 'object',
             'properties': {
-                'date': {'type': 'string', 'format': 'date'}
-
+                'date': {'type': 'string', 'example': '2025-05'},
+                'company_id': {'type': 'integer', 'example': 1}
             },
-            'required': ['date']
+            'required': ['date', 'company_id']
         }
     },
     responses={
-        200: {'type': 'object', 'properties': {'message': {'type': 'string'}}},
-        404: {'type': 'object', 'properties': {'error': {'type': 'string'}}},
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'status': {'type': 'integer'},
+                'data': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'date': {'type': 'string', 'format': 'date'},
+                            'type': {'type': 'string'},
+                            'reason': {'type': 'string'},
+                            'id': {'type': 'integer'},
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            }
+        },
+        400: {'type': 'object', 'properties': {'success': {'type': 'boolean'}, 'Message': {'type': 'string'}}},
+        404: {'type': 'object', 'properties': {'success': {'type': 'boolean'}, 'Message': {'type': 'string'}}}
     }
 )
 @api_view(['POST'])
-def get_calendar(request,id):
-
-    date_str = request.data.get('date')  # expected format: '2025-05'
-
-    user = CustomUser.objects.get(id=id)
+def get_calendar(request, id):
+    date_str = request.data.get('date')  # Expected 'YYYY-MM'
     company_id = request.data.get('company_id')
 
+    if not date_str or not company_id:
+        return Response({
+            'success': False,
+            'status': status.HTTP_400_BAD_REQUEST,
+            'Message': 'Missing date or company_id parameters.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Prevent 500 Crashes if objects are missing
     try:
-        # Parse the month input (e.g., '2025-05')
+        user = CustomUser.objects.get(id=id)
+        company = Company.objects.get(id=company_id)
+    except CustomUser.DoesNotExist:
+        return Response({'success': False, 'status': status.HTTP_404_NOT_FOUND, 'Message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Company.DoesNotExist:
+        return Response({'success': False, 'status': status.HTTP_404_NOT_FOUND, 'Message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Date Range Calculation
+    try:
         base_date = datetime.strptime(date_str, "%Y-%m")
         start_date = base_date.replace(day=1).date()
         
-        # Calculate end_date correctly handling year rollover
         if base_date.month == 12:
             next_month = base_date.replace(year=base_date.year + 1, month=1, day=1)
         else:
             next_month = base_date.replace(month=base_date.month + 1, day=1)
             
         end_date = (next_month - timedelta(days=1)).date()
-
     except ValueError:
-        return Response({'success':False,'status': status.HTTP_400_BAD_REQUEST,"Message": "Invalid date format. Use YYYY-MM"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'success': False,
+            'status': status.HTTP_400_BAD_REQUEST,
+            "Message": "Invalid date format. Use YYYY-MM"
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-    result = []
+    # Track final consolidated items by date key to prevent duplication entries
+    calendar_map = {}
 
-    devices = Device.objects.filter(company__id=company_id)
+    # 1. Fetch & Map Punches
+    devices = Device.objects.filter(company=company)
     device_ids = list(devices.values_list('device_id', flat=True))
 
-    punches_by_date = defaultdict(list)
-
-    # Get all punches between start and end date
     worked_days = PunchRecords.objects.using('secondary').filter(
         user_id=user.biometric_id,
         device_id__in=device_ids,
@@ -80,108 +114,75 @@ def get_calendar(request,id):
         punch_time__date__lte=end_date
     ).annotate(punch_date=TruncDate('punch_time'))
 
+    punches_by_date = defaultdict(list)
     serializer = PunchSerializer(worked_days, many=True)
-
-    # Group them by punch_date
+    
     for punch in serializer.data:
         punch_time_str = punch['punch_time']
-        punch_date = datetime.fromisoformat(punch_time_str).date()
-        punches_by_date[punch_date].append(punch)
+        p_date = datetime.fromisoformat(punch_time_str).date()
+        punches_by_date[p_date].append(punch)
 
-
-    for date, punches in punches_by_date.items():
+    for p_date, punches in punches_by_date.items():
+        iso_str = p_date.strftime("%Y-%m-%d")
         if len(punches) >= 2:
-            result.append({
-                'date': date,
-                'type': 'punch',
-                
-                'reason': 'Present'
-            })
-        else:  
-            result.append({
-                'date': date,
-                'type': 'partial',
-                'reason': 'Partial'
-            })
+            calendar_map[iso_str] = {'date': iso_str, 'type': 'punch', 'reason': 'Present'}
+        else:
+            calendar_map[iso_str] = {'date': iso_str, 'type': 'partial', 'reason': 'Partial'}
 
-    company = Company.objects.get(id=company_id)
-
-    # 1. Leaves
+    # 2. Fetch & Map Leaves (Overwrites punches if leave applies)
     leaves = Leave.objects.filter(
         user=user,
-        company = company,
-
+        company=company,
         from_date__lte=end_date,
         to_date__gte=start_date
     )
-
     for leave in leaves:
         current = leave.from_date
         while current <= leave.to_date:
             if start_date <= current <= end_date:
-                result.append({
-                    "date": current,
+                iso_str = current.strftime("%Y-%m-%d")
+                calendar_map[iso_str] = {
+                    "date": iso_str,
                     "id": leave.id,
                     "type": "leave",
                     "reason": leave.leave_type.leave_type,
                     "status": dict(Leave.LEAVE_STATUS_CHOICES).get(leave.status, leave.status)
-                })
+                }
             current += timedelta(days=1)
 
-    # Step 1: Fixed (non-recurring) holidays within the selected range
+    # 3. Fetch & Map Holidays (Overwrites leaves/punches unless priority dictates otherwise)
     non_recurring_holidays = Holiday.objects.filter(
         is_recurring=False,
         date__range=(start_date, end_date)
     ).filter(
-        Q(role__isnull=False, role=user.role) |  # Role-specific holidays
-        Q(role__isnull=True) & (                # Only if role is not set
-            Q(is_global=True) | 
-            Q(company__id=company_id)
-        )
+        Q(role__isnull=False, role=user.role) |
+        Q(role__isnull=True) & (Q(is_global=True) | Q(company=company))
     )
 
-    # Step 2: Recurring holidays (e.g., Independence Day, Christmas)
     recurring_holidays = Holiday.objects.filter(
         is_recurring=True
     ).filter(
-        Q(role__isnull=False, role=user.role) |  # Role-specific
-        Q(role__isnull=True) & (
-            Q(is_global=True) | 
-            Q(company__id=company_id)
-        )
+        Q(role__isnull=False, role=user.role) |
+        Q(role__isnull=True) & (Q(is_global=True) | Q(company=company))
     )
 
-
-
-
-        # Add non-recurring holidays
     for h in non_recurring_holidays:
-        result.append({
-            "date": h.date,
-            "type": "holiday",
-            "reason": h.holiday
-        })
+        iso_str = h.date.strftime("%Y-%m-%d")
+        calendar_map[iso_str] = {"date": iso_str, "type": "holiday", "reason": h.holiday}
 
-    # Add recurring holidays for the selected year
     for h in recurring_holidays:
         recurring_date = h.date.replace(year=start_date.year)
         if start_date <= recurring_date <= end_date:
-            result.append({
-                "date": recurring_date,
-                "type": "holiday",
-                "reason": h.holiday
-            })
+            iso_str = recurring_date.strftime("%Y-%m-%d")
+            calendar_map[iso_str] = {"date": iso_str, "type": "holiday", "reason": h.holiday}
 
-
-
-
-    # Optional: sort result by date
-    result = sorted(result, key=lambda x: x["date"])
+    # Sort final items flawlessly by date string
+    result = sorted(calendar_map.values(), key=lambda x: x["date"])
 
     return Response({
-        'success':True,
-        'data':result,
-        'status':status.HTTP_200_OK,
+        'success': True,
+        'data': result,
+        'status': status.HTTP_200_OK,
     }, status=status.HTTP_200_OK)
 
 
@@ -1069,12 +1070,22 @@ def get_requested_leaves(request,page):
     # 5. Filter Leaves
     filtered_leaves = []
     for leave in leave_list:
+        # # Keep pending leaves always visible (admin needs to see them for approval)
+        # if leave.status == 'P':
+        #     filtered_leaves.append(leave)
+        #     continue
+
+        # Keep half-day leaves — punch records are expected since the employee works the other half
+        if leave.leave_choice == 'H':
+            filtered_leaves.append(leave)
+            continue
+
         biometric_id = leave.user.biometric_id
         if not biometric_id:
             filtered_leaves.append(leave) # Keep if no biometric ID (can't verify work)
             continue
             
-        # Check every day of the leave
+        # Check every day of the leave (only for full-day, non-pending leaves)
         is_worked = False
         current_date = leave.from_date
         while current_date <= leave.to_date:
