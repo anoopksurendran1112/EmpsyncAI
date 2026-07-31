@@ -404,6 +404,61 @@ def apply_leave(request):
             return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
 
         # ------------------------------------------------------------------
+        # 3.5: Replacement + TA/DA Validation
+        # ------------------------------------------------------------------
+        my_category = getattr(getattr(user, 'profile', None), 'staff_category', None)
+        replacement_user = None
+
+        policy = LeavePolicy.objects.filter(
+            company=company,
+            leave_type=leave_type,
+            staff_category=my_category
+        ).first()
+
+        if policy and policy.requires_replacement:
+            replacement_id = request.data.get('replacement_user_id')
+
+            if not replacement_id:
+                return Response({
+                    'success': False,
+                    'message': 'A replacement employee is required for this leave type'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                replacement_user = CustomUser.objects.get(id=replacement_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': 'Replacement user not found'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Must be same staff category
+            r_category = getattr(getattr(replacement_user, 'profile', None), 'staff_category', None)
+            if r_category != my_category:
+                return Response({
+                    'success': False,
+                    'message': 'Replacement must be from the same staff category'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Must be active and in same company
+            if not replacement_user.is_active or not replacement_user.company.filter(id=company.id).exists():
+                return Response({
+                    'success': False,
+                    'message': 'Selected replacement is not a valid active employee of this company'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # TA/DA — only required when the policy has has_ta_da = True
+        ta_da_payable = None
+        if policy and policy.has_ta_da:
+            raw_ta_da = request.data.get('ta_da_payable')
+            if raw_ta_da is None:
+                return Response({
+                    'success': False,
+                    'message': 'Please indicate if TA/DA is payable for this leave'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            ta_da_payable = str(raw_ta_da).lower() in ('true', '1', 'yes')
+
+        # ------------------------------------------------------------------
         # 4. Atomic Transaction: Credit Deduction + Creation
         # ------------------------------------------------------------------
         with transaction.atomic():
@@ -411,10 +466,10 @@ def apply_leave(request):
             if leave_type.use_credit:
                 # Lock the credit row to prevent race conditions
                 credit_obj, _ = LeaveCredit.objects.select_for_update().get_or_create(user=user, leave_type=leave_type)
-                
+
                 if leave_days > credit_obj.credits:
                     return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 credit_obj.credits -= leave_days
                 credit_obj.save()
 
@@ -423,12 +478,14 @@ def apply_leave(request):
                 user=user,
                 leave_type=leave_type,
                 from_date=from_date_obj,
-                company = company,
+                company=company,
                 to_date=to_date_obj,
                 leave_choice=leave_choice,
-                custom_reason = custom_reason,       
+                custom_reason=custom_reason,
                 status='P',
-                days_taken=leave_days
+                days_taken=leave_days,
+                replacement_user=replacement_user,  # None if not required
+                ta_da_payable=ta_da_payable,         # None if not a TA/DA leave
             )
 
         # Notify company admins (Moved outside atomic block to keep transaction short)
@@ -582,7 +639,9 @@ def get_leave_types(request):
                 'initial_credit': p.initial_credit,
                 'allow_carry_forward': p.allow_carry_forward,
                 'use_credit': p.use_credit,
-                'custom_settings': p.custom_settings
+                'custom_settings': p.custom_settings,
+                'requires_replacement': p.requires_replacement,  # ← NEW
+                'has_ta_da': p.has_ta_da, 
             })
             
         # 3. Build response payload
@@ -1448,3 +1507,42 @@ def add_past_leave(request):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_eligible_replacements(request):
+    """
+    Returns active employees in the same staff category as the requesting user,
+    within the same company. Used to populate the replacement dropdown on the leave form.
+
+    Query params:
+        company_id (int): Required
+    """
+    user = request.user
+    company_id = request.query_params.get('company_id')
+
+    if not company_id:
+        return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    profile = getattr(user, 'profile', None)
+    if not profile or not profile.staff_category:
+        return Response({'success': False, 'message': 'Your staff category is not configured'}, status=status.HTTP_400_BAD_REQUEST)
+
+    my_category = profile.staff_category
+
+    eligible = CustomUser.objects.filter(
+        company__id=company_id,
+        profile__staff_category=my_category,
+        is_active=True
+    ).exclude(id=user.id).select_related('profile')
+
+    data = [
+        {
+            'id': u.id,
+            'name': f'{u.first_name} {u.last_name}'.strip() or u.email,
+            'email': u.email,
+        }
+        for u in eligible
+    ]
+
+    return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
