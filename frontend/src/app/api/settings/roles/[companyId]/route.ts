@@ -56,15 +56,14 @@ export async function GET(
     const cookieStore = await cookies();
     const token = cookieStore.get("access_token")?.value;
 
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
     }
 
     const res = await fetch(`${BASE_URL}/role/${companyId}`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       cache: "no-store",
     });
 
