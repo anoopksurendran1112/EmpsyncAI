@@ -7,23 +7,23 @@ export async function GET(
 ) {
   const { id } =await  params;
 
-  // 🔐 grab token from cookies
+  // 🔐 grab token from cookies (optional for GET since backend allows public access)
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
 
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const res = await fetch(
       `https://empsyncai.kochi.digital/api/group/${id}`, // hit backend
       {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // use cookie token
-        },
+        headers,
       }
     );
 

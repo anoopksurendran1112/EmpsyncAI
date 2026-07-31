@@ -30,49 +30,83 @@ from django.db import transaction
         'application/json': {
             'type': 'object',
             'properties': {
-                'date': {'type': 'string', 'format': 'date'}
-
+                'date': {'type': 'string', 'example': '2025-05'},
+                'company_id': {'type': 'integer', 'example': 1}
             },
-            'required': ['date']
+            'required': ['date', 'company_id']
         }
     },
     responses={
-        200: {'type': 'object', 'properties': {'message': {'type': 'string'}}},
-        404: {'type': 'object', 'properties': {'error': {'type': 'string'}}},
+        200: {
+            'type': 'object',
+            'properties': {
+                'success': {'type': 'boolean'},
+                'status': {'type': 'integer'},
+                'data': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'object',
+                        'properties': {
+                            'date': {'type': 'string', 'format': 'date'},
+                            'type': {'type': 'string'},
+                            'reason': {'type': 'string'},
+                            'id': {'type': 'integer'},
+                            'status': {'type': 'string'}
+                        }
+                    }
+                }
+            }
+        },
+        400: {'type': 'object', 'properties': {'success': {'type': 'boolean'}, 'Message': {'type': 'string'}}},
+        404: {'type': 'object', 'properties': {'success': {'type': 'boolean'}, 'Message': {'type': 'string'}}}
     }
 )
 @api_view(['POST'])
-def get_calendar(request,id):
-
-    date_str = request.data.get('date')  # expected format: '2025-05'
-
-    user = CustomUser.objects.get(id=id)
+def get_calendar(request, id):
+    date_str = request.data.get('date')  # Expected 'YYYY-MM'
     company_id = request.data.get('company_id')
 
+    if not date_str or not company_id:
+        return Response({
+            'success': False,
+            'status': status.HTTP_400_BAD_REQUEST,
+            'Message': 'Missing date or company_id parameters.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Prevent 500 Crashes if objects are missing
     try:
-        # Parse the month input (e.g., '2025-05')
+        user = CustomUser.objects.get(id=id)
+        company = Company.objects.get(id=company_id)
+    except CustomUser.DoesNotExist:
+        return Response({'success': False, 'status': status.HTTP_404_NOT_FOUND, 'Message': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Company.DoesNotExist:
+        return Response({'success': False, 'status': status.HTTP_404_NOT_FOUND, 'Message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Date Range Calculation
+    try:
         base_date = datetime.strptime(date_str, "%Y-%m")
         start_date = base_date.replace(day=1).date()
         
-        # Calculate end_date correctly handling year rollover
         if base_date.month == 12:
             next_month = base_date.replace(year=base_date.year + 1, month=1, day=1)
         else:
             next_month = base_date.replace(month=base_date.month + 1, day=1)
             
         end_date = (next_month - timedelta(days=1)).date()
-
     except ValueError:
-        return Response({'success':False,'status': status.HTTP_400_BAD_REQUEST,"Message": "Invalid date format. Use YYYY-MM"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'success': False,
+            'status': status.HTTP_400_BAD_REQUEST,
+            "Message": "Invalid date format. Use YYYY-MM"
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-    result = []
+    # Track final consolidated items by date key to prevent duplication entries
+    calendar_map = {}
 
-    devices = Device.objects.filter(company__id=company_id)
+    # 1. Fetch & Map Punches
+    devices = Device.objects.filter(company=company)
     device_ids = list(devices.values_list('device_id', flat=True))
 
-    punches_by_date = defaultdict(list)
-
-    # Get all punches between start and end date
     worked_days = PunchRecords.objects.using('secondary').filter(
         user_id=user.biometric_id,
         device_id__in=device_ids,
@@ -80,108 +114,75 @@ def get_calendar(request,id):
         punch_time__date__lte=end_date
     ).annotate(punch_date=TruncDate('punch_time'))
 
+    punches_by_date = defaultdict(list)
     serializer = PunchSerializer(worked_days, many=True)
-
-    # Group them by punch_date
+    
     for punch in serializer.data:
         punch_time_str = punch['punch_time']
-        punch_date = datetime.fromisoformat(punch_time_str).date()
-        punches_by_date[punch_date].append(punch)
+        p_date = datetime.fromisoformat(punch_time_str).date()
+        punches_by_date[p_date].append(punch)
 
-
-    for date, punches in punches_by_date.items():
+    for p_date, punches in punches_by_date.items():
+        iso_str = p_date.strftime("%Y-%m-%d")
         if len(punches) >= 2:
-            result.append({
-                'date': date,
-                'type': 'punch',
-                
-                'reason': 'Present'
-            })
-        else:  
-            result.append({
-                'date': date,
-                'type': 'partial',
-                'reason': 'Partial'
-            })
+            calendar_map[iso_str] = {'date': iso_str, 'type': 'punch', 'reason': 'Present'}
+        else:
+            calendar_map[iso_str] = {'date': iso_str, 'type': 'partial', 'reason': 'Partial'}
 
-    company = Company.objects.get(id=company_id)
-
-    # 1. Leaves
+    # 2. Fetch & Map Leaves (Overwrites punches if leave applies)
     leaves = Leave.objects.filter(
         user=user,
-        company = company,
-
+        company=company,
         from_date__lte=end_date,
         to_date__gte=start_date
     )
-
     for leave in leaves:
         current = leave.from_date
         while current <= leave.to_date:
             if start_date <= current <= end_date:
-                result.append({
-                    "date": current,
+                iso_str = current.strftime("%Y-%m-%d")
+                calendar_map[iso_str] = {
+                    "date": iso_str,
                     "id": leave.id,
                     "type": "leave",
                     "reason": leave.leave_type.leave_type,
                     "status": dict(Leave.LEAVE_STATUS_CHOICES).get(leave.status, leave.status)
-                })
+                }
             current += timedelta(days=1)
 
-    # Step 1: Fixed (non-recurring) holidays within the selected range
+    # 3. Fetch & Map Holidays (Overwrites leaves/punches unless priority dictates otherwise)
     non_recurring_holidays = Holiday.objects.filter(
         is_recurring=False,
         date__range=(start_date, end_date)
     ).filter(
-        Q(role__isnull=False, role=user.role) |  # Role-specific holidays
-        Q(role__isnull=True) & (                # Only if role is not set
-            Q(is_global=True) | 
-            Q(company__id=company_id)
-        )
+        Q(role__isnull=False, role=user.role) |
+        Q(role__isnull=True) & (Q(is_global=True) | Q(company=company))
     )
 
-    # Step 2: Recurring holidays (e.g., Independence Day, Christmas)
     recurring_holidays = Holiday.objects.filter(
         is_recurring=True
     ).filter(
-        Q(role__isnull=False, role=user.role) |  # Role-specific
-        Q(role__isnull=True) & (
-            Q(is_global=True) | 
-            Q(company__id=company_id)
-        )
+        Q(role__isnull=False, role=user.role) |
+        Q(role__isnull=True) & (Q(is_global=True) | Q(company=company))
     )
 
-
-
-
-        # Add non-recurring holidays
     for h in non_recurring_holidays:
-        result.append({
-            "date": h.date,
-            "type": "holiday",
-            "reason": h.holiday
-        })
+        iso_str = h.date.strftime("%Y-%m-%d")
+        calendar_map[iso_str] = {"date": iso_str, "type": "holiday", "reason": h.holiday}
 
-    # Add recurring holidays for the selected year
     for h in recurring_holidays:
         recurring_date = h.date.replace(year=start_date.year)
         if start_date <= recurring_date <= end_date:
-            result.append({
-                "date": recurring_date,
-                "type": "holiday",
-                "reason": h.holiday
-            })
+            iso_str = recurring_date.strftime("%Y-%m-%d")
+            calendar_map[iso_str] = {"date": iso_str, "type": "holiday", "reason": h.holiday}
 
-
-
-
-    # Optional: sort result by date
-    result = sorted(result, key=lambda x: x["date"])
+    # Sort final items flawlessly by date string
+    result = sorted(calendar_map.values(), key=lambda x: x["date"])
 
     return Response({
-        'success':True,
-        'data':result,
-        'status':status.HTTP_200_OK,
+        'success': True,
+        'data': result,
+        'status': status.HTTP_200_OK,
     }, status=status.HTTP_200_OK)
 
 
@@ -403,6 +404,61 @@ def apply_leave(request):
             return Response({'success': False, 'message': 'Monthly leave limit reached'}, status=status.HTTP_400_BAD_REQUEST)
 
         # ------------------------------------------------------------------
+        # 3.5: Replacement + TA/DA Validation
+        # ------------------------------------------------------------------
+        my_category = getattr(getattr(user, 'profile', None), 'staff_category', None)
+        replacement_user = None
+
+        policy = LeavePolicy.objects.filter(
+            company=company,
+            leave_type=leave_type,
+            staff_category=my_category
+        ).first()
+
+        if policy and policy.requires_replacement:
+            replacement_id = request.data.get('replacement_user_id')
+
+            if not replacement_id:
+                return Response({
+                    'success': False,
+                    'message': 'A replacement employee is required for this leave type'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                replacement_user = CustomUser.objects.get(id=replacement_id)
+            except CustomUser.DoesNotExist:
+                return Response({
+                    'success': False,
+                    'message': 'Replacement user not found'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Must be same staff category
+            r_category = getattr(getattr(replacement_user, 'profile', None), 'staff_category', None)
+            if r_category != my_category:
+                return Response({
+                    'success': False,
+                    'message': 'Replacement must be from the same staff category'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Must be active and in same company
+            if not replacement_user.is_active or not replacement_user.company.filter(id=company.id).exists():
+                return Response({
+                    'success': False,
+                    'message': 'Selected replacement is not a valid active employee of this company'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # TA/DA — only required when the policy has has_ta_da = True
+        ta_da_payable = None
+        if policy and policy.has_ta_da:
+            raw_ta_da = request.data.get('ta_da_payable')
+            if raw_ta_da is None:
+                return Response({
+                    'success': False,
+                    'message': 'Please indicate if TA/DA is payable for this leave'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            ta_da_payable = str(raw_ta_da).lower() in ('true', '1', 'yes')
+
+        # ------------------------------------------------------------------
         # 4. Atomic Transaction: Credit Deduction + Creation
         # ------------------------------------------------------------------
         with transaction.atomic():
@@ -410,10 +466,10 @@ def apply_leave(request):
             if leave_type.use_credit:
                 # Lock the credit row to prevent race conditions
                 credit_obj, _ = LeaveCredit.objects.select_for_update().get_or_create(user=user, leave_type=leave_type)
-                
+
                 if leave_days > credit_obj.credits:
                     return Response({'success': False, 'message': 'Insufficient leave credits'}, status=status.HTTP_400_BAD_REQUEST)
-                
+
                 credit_obj.credits -= leave_days
                 credit_obj.save()
 
@@ -422,12 +478,14 @@ def apply_leave(request):
                 user=user,
                 leave_type=leave_type,
                 from_date=from_date_obj,
-                company = company,
+                company=company,
                 to_date=to_date_obj,
                 leave_choice=leave_choice,
-                custom_reason = custom_reason,       
+                custom_reason=custom_reason,
                 status='P',
-                days_taken=leave_days
+                days_taken=leave_days,
+                replacement_user=replacement_user,  # None if not required
+                ta_da_payable=ta_da_payable,         # None if not a TA/DA leave
             )
 
         # Notify company admins (Moved outside atomic block to keep transaction short)
@@ -581,7 +639,9 @@ def get_leave_types(request):
                 'initial_credit': p.initial_credit,
                 'allow_carry_forward': p.allow_carry_forward,
                 'use_credit': p.use_credit,
-                'custom_settings': p.custom_settings
+                'custom_settings': p.custom_settings,
+                'requires_replacement': p.requires_replacement,  # ← NEW
+                'has_ta_da': p.has_ta_da, 
             })
             
         # 3. Build response payload
@@ -596,7 +656,8 @@ def get_leave_types(request):
                 'initial_credit': lt.initial_credit,
                 'use_credit': lt.use_credit,
                 'is_global': lt.is_global,
-                'policies': policies_by_type[lt.id]  # Read in O(1) time
+                'policy_mode': lt.policy_mode,
+                'policies': policies_by_type[lt.id]
             })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
 
@@ -650,6 +711,10 @@ def get_leave_types(request):
             leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
             leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
             leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.policy_mode = request.data.get(
+                "policy_mode",
+                leave_type.policy_mode
+            )
             leave_type.save()
 
             # 2. Fetch existing credits to verify and update in memory
@@ -764,6 +829,7 @@ def get_leave_types(request):
                 "yearly_limit": float(request.data.get("yearly_limit") or 0),
                 "initial_credit": float(request.data.get("initial_credit") or 0),
                 "use_credit": request.data.get("use_credit", False),
+                "policy_mode": request.data.get("policy_mode", "normal"),
                 "company": company
             }
             
@@ -1063,12 +1129,22 @@ def get_requested_leaves(request,page):
     # 5. Filter Leaves
     filtered_leaves = []
     for leave in leave_list:
+        # # Keep pending leaves always visible (admin needs to see them for approval)
+        # if leave.status == 'P':
+        #     filtered_leaves.append(leave)
+        #     continue
+
+        # Keep half-day leaves — punch records are expected since the employee works the other half
+        if leave.leave_choice == 'H':
+            filtered_leaves.append(leave)
+            continue
+
         biometric_id = leave.user.biometric_id
         if not biometric_id:
             filtered_leaves.append(leave) # Keep if no biometric ID (can't verify work)
             continue
             
-        # Check every day of the leave
+        # Check every day of the leave (only for full-day, non-pending leaves)
         is_worked = False
         current_date = leave.from_date
         while current_date <= leave.to_date:
@@ -1431,3 +1507,42 @@ def add_past_leave(request):
         import traceback
         traceback.print_exc()
         return Response({'success': False, 'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_eligible_replacements(request):
+    """
+    Returns active employees in the same staff category as the requesting user,
+    within the same company. Used to populate the replacement dropdown on the leave form.
+
+    Query params:
+        company_id (int): Required
+    """
+    user = request.user
+    company_id = request.query_params.get('company_id')
+
+    if not company_id:
+        return Response({'success': False, 'message': 'company_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    profile = getattr(user, 'profile', None)
+    if not profile or not profile.staff_category:
+        return Response({'success': False, 'message': 'Your staff category is not configured'}, status=status.HTTP_400_BAD_REQUEST)
+
+    my_category = profile.staff_category
+
+    eligible = CustomUser.objects.filter(
+        company__id=company_id,
+        profile__staff_category=my_category,
+        is_active=True
+    ).exclude(id=user.id).select_related('profile')
+
+    data = [
+        {
+            'id': u.id,
+            'name': f'{u.first_name} {u.last_name}'.strip() or u.email,
+            'email': u.email,
+        }
+        for u in eligible
+    ]
+
+    return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
+import { useRoles } from "@/hooks/settings/useRoles";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -91,6 +92,8 @@ interface LeaveType {
   initial_credit?: number;
 
   use_credit?: boolean;
+
+  policy_mode?: "normal" | "staff_category";
 
   policies?: LeavePolicy[];
 }
@@ -182,6 +185,7 @@ export default function LeavesPage() {
     yearly_limit: 0,
     initial_credit: 0,
     use_credit: false,
+    policy_mode: "normal",
     policies: [],
   });
   const [activePolicyTab, setActivePolicyTab] = useState(0);
@@ -218,10 +222,10 @@ export default function LeavesPage() {
   });
 
   // Leave Hierarchy States
+  const { data: companyRoles = [] } = useRoles();
   const [hierarchyEmployees, setHierarchyEmployees] = useState<HierarchyEmployee[]>([]);
-  const [isHierarchyEmployeesLoading, setIsHierarchyEmployeesLoading] = useState(false);
+  const isHierarchyEmployeesLoading = false;
   const [isHierarchyExists, setIsHierarchyExists] = useState(false);
-
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
   const [leaveHierarchy, setLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
@@ -684,7 +688,7 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
-  
+
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -715,7 +719,7 @@ export default function LeavesPage() {
         short_name: data.short_name.trim(),
       };
 
-      console.log("Payload:", payload); 
+      console.log("Payload:", payload);
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -736,6 +740,7 @@ export default function LeavesPage() {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
+          policy_mode: "normal",
           leave_type: "",
           short_name: "",
           monthly_limit: 0,
@@ -744,6 +749,7 @@ export default function LeavesPage() {
           use_credit: false,
           policies: [],
         });
+
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -1415,6 +1421,7 @@ export default function LeavesPage() {
                     setEditingLeaveType(null);
 
                     setLeaveTypeForm({
+                      policy_mode: "normal",
                       leave_type: "",
                       short_name: "",
                       monthly_limit: 0,
@@ -1437,14 +1444,14 @@ export default function LeavesPage() {
                       })),
                     });
 
-                  setIsAddTypeOpen(true);
-                    }}
-                    size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Leave Type
-                  </Button>
+                    setIsAddTypeOpen(true);
+                  }}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Leave Type
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1486,17 +1493,99 @@ export default function LeavesPage() {
                           </Button>
                         </div>
                       </div>
-                      <h4 className="font-bold text-gray-900 mb-1">{type.leave_type}</h4>
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Monthly</p>
-                          <p className="text-sm font-bold text-gray-700">{type.monthly_limit} Day</p>
+                      <h4 className="font-bold text-gray-900">{type.leave_type}</h4>
+
+                        <div className="mt-2 mb-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              type.policy_mode === "normal"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {type.policy_mode === "normal"
+                              ? "Normal Policy"
+                              : "Staff Category Policy"}
+                          </span>
                         </div>
-                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Yearly</p>
-                          <p className="text-sm font-bold text-gray-700">{type.yearly_limit} Days</p>
-                        </div>
-                      </div>
+
+                        {type.policy_mode === "normal" ? (
+                          <div className="space-y-2 mt-4">
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Monthly</span>
+                              <span className="font-semibold">
+                                {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Yearly</span>
+                              <span className="font-semibold">
+                                {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Initial Credit</span>
+                              <span className="font-semibold">
+                                {type.initial_credit}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Leave Credit</span>
+                              <span
+                                className={`font-semibold ${
+                                  type.use_credit
+                                    ? "text-green-600"
+                                    : "text-red-500"
+                                }`}
+                              >
+                                {type.use_credit ? "Enabled" : "Disabled"}
+                              </span>
+                            </div>
+
+                          </div>
+                        ) : (
+                          <div className="space-y-2 mt-4">
+
+                            {(type.policies || []).slice(0, 3).map((policy) => (
+                              <div
+                                key={policy.staff_category_id}
+                                className="flex justify-between items-center rounded-md border px-3 py-2"
+                              >
+                                <span className="font-medium text-gray-700">
+                                  {policy.staff_category_name}
+                                </span>
+
+                                <span className="text-sm text-gray-600">
+                                  <span className="font-semibold">
+                                    {policy.monthly_limit}
+                                  </span>
+                                  {" / "}
+                                  <span className="font-semibold">
+                                    {policy.yearly_limit}
+                                  </span>
+                                  {" Days"}
+                                </span>
+                              </div>
+                            ))}
+
+                            {(type.policies?.length || 0) > 3 && (
+                              <div className="text-center text-xs font-medium text-blue-600">
+                                +{type.policies!.length - 3} More Categories
+                              </div>
+                            )}
+
+                            {(type.policies?.length || 0) === 0 && (
+                              <div className="rounded-md border border-dashed p-4 text-center text-sm text-gray-500">
+                                No Staff Category Policies
+                              </div>
+                            )}
+
+                          </div>
+                        )}
                     </div>
                   ))
                 )}
@@ -1681,7 +1770,7 @@ export default function LeavesPage() {
                 )}
 
                 {hierarchySelectionType === "role" && (
-                   <div className="relative flex-1 -ml-20">
+                  <div className="relative flex-1 -ml-20">
                     <Select
                       value={selectedHierarchyRole}
                       onValueChange={setSelectedHierarchyRole}
@@ -1691,13 +1780,32 @@ export default function LeavesPage() {
                       </SelectTrigger>
 
                       <SelectContent>
-                        {Array.from(
-                          new Set(hierarchyEmployees.map((employee) => employee.role))
-                        ).map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role}
+                        <SelectItem value="Company Head">
+                          Company Head
+                        </SelectItem>
+
+                        <SelectItem value="Team Lead">
+                          Team Lead
+                        </SelectItem>
+
+                        <div className="my-1 h-0.5 bg-gray-300" />
+
+                        {/* Combined dynamic roles from both companyRoles and hierarchyEmployees */}
+                        {companyRoles.map((role: any) => (
+                          <SelectItem key={role.id} value={role.role}>
+                            {role.role}
                           </SelectItem>
                         ))}
+
+                        {Array.from(
+                          new Set(hierarchyEmployees.map((employee) => employee.role))
+                        )
+                          .filter((role) => !companyRoles.some((cr: any) => cr.role === role)) // Avoids duplicates
+                          .map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {role}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1930,9 +2038,9 @@ export default function LeavesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2. Add Leave Type Dialog */}
+     {/* 2. Add Leave Type Dialog */}
       <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
               {editingLeaveType ? "Edit Leave Type" : "Add Leave Type"}
@@ -1975,176 +2083,308 @@ export default function LeavesPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monthly Limit</Label>
-                <Input
-                  type="number"
-                  value={editingLeaveType ? editingLeaveType.monthly_limit : leaveTypeForm.monthly_limit}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, monthly_limit: val });
-                    else setLeaveTypeForm({ ...leaveTypeForm, monthly_limit: val });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Yearly Limit</Label>
-                <Input
-                  type="number"
-                  value={editingLeaveType ? editingLeaveType.yearly_limit : leaveTypeForm.yearly_limit}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, yearly_limit: val });
-                    else setLeaveTypeForm({ ...leaveTypeForm, yearly_limit: val });
-                  }}
-                />
-              </div>
-            </div>
             <div className="space-y-2">
-              <Label>Initial Credit</Label>
-              <Input
-                type="number"
-                value={editingLeaveType ? editingLeaveType.initial_credit : leaveTypeForm.initial_credit}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value) || 0;
-                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, initial_credit: val });
-                  else setLeaveTypeForm({ ...leaveTypeForm, initial_credit: val });
-                }}
-              />
+              <Label>Policy Type</Label>
+
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    value="normal"
+                    checked={
+                      (editingLeaveType
+                        ? editingLeaveType.policy_mode
+                        : leaveTypeForm.policy_mode) === "normal"
+                    }
+                    onChange={() => {
+                      if (editingLeaveType) {
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          policy_mode: "normal",
+                        });
+                      } else {
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          policy_mode: "normal",
+                        });
+                      }
+                    }}
+                  />
+                  Normal
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    value="staff_category"
+                    checked={
+                      (editingLeaveType
+                        ? editingLeaveType.policy_mode
+                        : leaveTypeForm.policy_mode) === "staff_category"
+                    }
+                    onChange={() => {
+                      if (editingLeaveType) {
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          policy_mode: "staff_category",
+                        });
+                      } else {
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          policy_mode: "staff_category",
+                        });
+                      }
+                    }}
+                  />
+                  Staff Category Policy
+                </label>
+              </div>
             </div>
-            <div className="flex items-center gap-2 pt-2">
-              <Switch
-                id="use_credit"
-                checked={editingLeaveType ? editingLeaveType.use_credit : leaveTypeForm.use_credit}
-                onCheckedChange={(checked) => {
-                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, use_credit: checked });
-                  else setLeaveTypeForm({ ...leaveTypeForm, use_credit: checked });
-                }}
-              />
-              <Label htmlFor="use_credit">Enable Leave Credit</Label>
-            </div>
-            <hr className="my-2" />
 
-          <div className="space-y-5">
-          <h3 className="font-semibold text-sm border-b pb-2">
-            Staff Category Policies
-          </h3>
-
-          {(() => {
-            const policies = editingLeaveType
-              ? editingLeaveType.policies || []
-              : leaveTypeForm.policies || [];
-
-            const policy = policies[activePolicyTab];
-
-            if (!policy) return null;
-
-            return (
+            {/* NORMAL POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "normal" && (
               <>
-                {/* Tabs */}
-                <div className="flex flex-wrap gap-2">
-                  {policies.map((p, index) => (
-                    <Button
-                      key={p.staff_category_id}
-                      type="button"
-                      size="sm"
-                      variant={activePolicyTab === index ? "default" : "outline"}
-                      onClick={() => setActivePolicyTab(index)}
-                    >
-                      {p.staff_category_name}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* Active Policy */}
-                <div className="rounded-lg border p-4 mt-3 space-y-4">
-
-                  <div className="grid grid-cols-3 gap-4">
-
-                    <div>
-                      <Label>Monthly</Label>
-                      <Input
-                        type="number"
-                        value={policy.monthly_limit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].monthly_limit = Number(e.target.value);
-
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Yearly</Label>
-                      <Input
-                        type="number"
-                        value={policy.yearly_limit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].yearly_limit = Number(e.target.value);
-
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Initial Credit</Label>
-                      <Input
-                        type="number"
-                        value={policy.initial_credit}
-                        onChange={(e) => {
-                          const updated = [...policies];
-                          updated[activePolicyTab].initial_credit = Number(e.target.value);
-
-                          if (editingLeaveType) {
-                            setEditingLeaveType({
-                              ...editingLeaveType,
-                              policies: updated,
-                            });
-                          } else {
-                            setLeaveTypeForm({
-                              ...leaveTypeForm,
-                              policies: updated,
-                            });
-                          }
-                        }}
-                      />
-                    </div>
-
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Monthly Limit</Label>
+                    <Input
+                      type="number"
+                      value={
+                        editingLeaveType
+                          ? editingLeaveType.monthly_limit
+                          : leaveTypeForm.monthly_limit
+                      }
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (editingLeaveType)
+                          setEditingLeaveType({
+                            ...editingLeaveType,
+                            monthly_limit: val,
+                          });
+                        else
+                          setLeaveTypeForm({
+                            ...leaveTypeForm,
+                            monthly_limit: val,
+                          });
+                      }}
+                    />
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>Yearly Limit</Label>
+                    <Input
+                      type="number"
+                      value={
+                        editingLeaveType
+                          ? editingLeaveType.yearly_limit
+                          : leaveTypeForm.yearly_limit
+                      }
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (editingLeaveType)
+                          setEditingLeaveType({
+                            ...editingLeaveType,
+                            yearly_limit: val,
+                          });
+                        else
+                          setLeaveTypeForm({
+                            ...leaveTypeForm,
+                            yearly_limit: val,
+                          });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Initial Credit</Label>
+                  <Input
+                    type="number"
+                    value={
+                      editingLeaveType
+                        ? editingLeaveType.initial_credit
+                        : leaveTypeForm.initial_credit
+                    }
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      if (editingLeaveType)
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          initial_credit: val,
+                        });
+                      else
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          initial_credit: val,
+                        });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Switch
+                    id="use_credit"
+                    checked={
+                      editingLeaveType
+                        ? editingLeaveType.use_credit
+                        : leaveTypeForm.use_credit
+                    }
+                    onCheckedChange={(checked) => {
+                      if (editingLeaveType)
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          use_credit: checked,
+                        });
+                      else
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          use_credit: checked,
+                        });
+                    }}
+                  />
+                  <Label htmlFor="use_credit">Enable Leave Credit</Label>
                 </div>
               </>
-            );
-          })()}
-        </div>
+            )}
+
+            {/* STAFF CATEGORY POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "staff_category" && (
+              <>
+                <hr className="my-2" />
+
+                <div className="space-y-5">
+                  <h3 className="font-semibold text-sm border-b pb-2">
+                    Staff Category Policies
+                  </h3>
+
+                  {(() => {
+                    const policies = editingLeaveType
+                      ? editingLeaveType.policies || []
+                      : leaveTypeForm.policies || [];
+
+                    const policy = policies[activePolicyTab];
+
+                    if (!policy) return null;
+
+                    return (
+                      <>
+                        {/* Tabs */}
+                        <div className="flex flex-wrap gap-2">
+                          {policies.map((p, index) => (
+                            <Button
+                              key={p.staff_category_id}
+                              type="button"
+                              size="sm"
+                              variant={activePolicyTab === index ? "default" : "outline"}
+                              onClick={() => setActivePolicyTab(index)}
+                            >
+                              {p.staff_category_name}
+                            </Button>
+                          ))}
+                        </div>
+
+                        {/* Active Policy */}
+                        <div className="rounded-lg border p-4 mt-3 space-y-4">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <Label>Monthly</Label>
+                              <Input
+                                type="number"
+                                value={policy.monthly_limit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].monthly_limit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Yearly</Label>
+                              <Input
+                                type="number"
+                                value={policy.yearly_limit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].yearly_limit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Initial Credit</Label>
+                              <Input
+                                type="number"
+                                value={policy.initial_credit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].initial_credit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddTypeOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-600 text-white" disabled={isLeaveTypeSubmitting}>
-                {isLeaveTypeSubmitting ? "Saving..." : (editingLeaveType ? "Update Type" : "Save Type")}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddTypeOpen(false)}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="submit"
+                className="bg-blue-600 text-white"
+                disabled={isLeaveTypeSubmitting}
+              >
+                {isLeaveTypeSubmitting
+                  ? "Saving..."
+                  : editingLeaveType
+                  ? "Update Type"
+                  : "Save Type"}
               </Button>
             </DialogFooter>
           </form>
