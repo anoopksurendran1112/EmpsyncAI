@@ -29,6 +29,7 @@ from django.db.models.functions import Coalesce, Cast
 from django.core.validators import validate_email
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+DjangoValidationError = ValidationError  # alias used in employee_with_profile handlers
 from django.contrib.auth import get_user_model, logout as django_logout
 
 # 3. Third-Party Framework Imports (REST Framework & JWT)
@@ -2200,7 +2201,7 @@ def employee_with_profile(request):
         }, status=status.HTTP_200_OK)
 
 
-    if request.method == 'POST':
+    elif request.method == 'POST':
         print(f"[{request_id}] >>> ENTERED POST <<<")
         email = request.data.get('email')
         mobile = request.data.get('mobile')
@@ -2587,6 +2588,302 @@ def employee_with_profile(request):
                 transaction.set_rollback(True)
                 return Response({ 'success': False, 'message': 'Internal Server Error occurred during transaction workflow', 'debug_error': str(exc) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    elif request.method == 'PUT':
+        # -------------------------------------------------------
+        # PUT: Update existing employee + all related data
+        # -------------------------------------------------------
+        user_id = _parse_int(request.data.get('user_id'))
+        if not user_id:
+            return Response({'success': False, 'message': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({'success': False, 'message': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        present_address_data = safe_parse_json('present_address', dict)
+        permanent_address_data = safe_parse_json('permanent_address', dict)
+        profile_payload = safe_parse_json('profile', dict)
+        guardians = safe_parse_json('guardians', list)
+        bank_details = safe_parse_json('bank_details', list)
+        qualifications = safe_parse_json('qualifications', list)
+        experiences = safe_parse_json('experiences', list)
+
+        role_id = _parse_int(request.data.get('role_id'))
+        group_id = _parse_int(request.data.get('group_id'))
+        company_id = _parse_int(request.data.get('company_id'))
+
+        with transaction.atomic():
+            try:
+                # ---- 1. Update core user fields ----
+                user_fields_to_update = ['first_name', 'last_name', 'gender', 'biometric_id',
+                                          'is_sms', 'is_whatsapp', 'is_wfh', 'is_active']
+                for field in user_fields_to_update:
+                    if field in request.data:
+                        raw = request.data.get(field)
+                        if field in ('is_sms', 'is_whatsapp', 'is_wfh', 'is_active'):
+                            setattr(user, field, _parse_bool(raw))
+                        else:
+                            setattr(user, field, raw)
+
+                # Email — only update if changed and not taken
+                new_email = request.data.get('email')
+                if new_email and new_email != user.email:
+                    try:
+                        validate_email(new_email)
+                    except DjangoValidationError:
+                        return Response({'success': False, 'message': 'Enter a valid email'}, status=status.HTTP_400_BAD_REQUEST)
+                    if CustomUser.objects.filter(email=new_email).exclude(id=user_id).exists():
+                        return Response({'success': False, 'message': 'Email already taken'}, status=status.HTTP_400_BAD_REQUEST)
+                    user.email = new_email
+
+                # Mobile — only update if changed and not taken
+                new_mobile = request.data.get('mobile')
+                if new_mobile and new_mobile != user.mobile:
+                    if CustomUser.objects.filter(mobile=new_mobile).exclude(id=user_id).exists():
+                        return Response({'success': False, 'message': 'Mobile number already taken'}, status=status.HTTP_400_BAD_REQUEST)
+                    user.mobile = new_mobile
+
+                # Profile image
+                if 'prof_img' in request.FILES:
+                    user.prof_img = request.FILES['prof_img']
+                elif 'prof_img_base64' in request.data and request.data.get('prof_img_base64'):
+                    from django.core.files.base import ContentFile
+                    import base64 as b64
+                    base64_str = request.data.get('prof_img_base64')
+                    try:
+                        if ';base64,' in base64_str:
+                            fmt, imgstr = base64_str.split(';base64,')
+                            ext = fmt.split('/')[-1].split(';')[0]
+                            user.prof_img = ContentFile(b64.b64decode(imgstr), name=f"profile_{user_id}.{ext}")
+                        else:
+                            user.prof_img = ContentFile(b64.b64decode(base64_str), name=f"profile_{user_id}.jpg")
+                    except Exception as e:
+                        logger.error(f"Error decoding prof_img_base64: {e}")
+
+                # ---- 2. Update role / group / team_lead ----
+                if role_id:
+                    role_obj = c.CompanyRole.objects.filter(id=role_id).first()
+                    if role_obj:
+                        user.role = role_obj
+
+                if group_id:
+                    group_obj = c.CompanyGroup.objects.filter(id=group_id).first()
+                    if group_obj:
+                        user.group = group_obj
+
+                if 'team_lead' in request.data:
+                    user.team_lead = _parse_bool(request.data.get('team_lead'))
+
+                user.save()
+
+                # Update CompanyUser admin status
+                if 'is_admin' in request.data and company_id:
+                    company_obj = c.Company.objects.filter(id=company_id).first()
+                    if company_obj:
+                        CompanyUser.objects.filter(user=user, company=company_obj).update(
+                            is_admin=_parse_bool(request.data.get('is_admin'))
+                        )
+
+                # ---- 3. Upsert addresses ----
+                profile_instance = EmployeeProfile.objects.filter(user=user).first()
+
+                present_addr_obj = save_address(
+                    present_address_data, 'present address',
+                    existing_address=profile_instance.present_address if profile_instance else None
+                )
+                permanent_addr_obj = save_address(
+                    permanent_address_data, 'permanent address',
+                    existing_address=profile_instance.permanent_address if profile_instance else None
+                )
+
+                # ---- 4. Upsert EmployeeProfile ----
+                def extract_profile_val(key, is_id=False):
+                    val = profile_payload.get(key) if profile_payload and key in profile_payload else request.data.get(key)
+                    if is_id:
+                        return _parse_int(val)
+                    return None if val in ('', 'null', 'undefined') else val
+
+                profile_data = {}
+                if present_address_data:
+                    profile_data['present_address'] = present_addr_obj.id if present_addr_obj else None
+                if permanent_address_data:
+                    profile_data['permanent_address'] = permanent_addr_obj.id if permanent_addr_obj else None
+
+                for id_key, model_key in [('religion_id', 'religion'), ('caste_id', 'caste'),
+                                           ('staff_type_id', 'staff_type'), ('staff_category_id', 'staff_category')]:
+                    val = extract_profile_val(id_key, is_id=True)
+                    if val is not None:
+                        profile_data[model_key] = val
+
+                profile_fields = ['dob', 'blood_group', 'aadhar_no', 'pan_no', 'ktu_id', 'aicte_id',
+                                   'alternate_mobile', 'alternate_email', 'date_of_joining',
+                                   'staff_id', 'date_of_relieving', 'date_of_contract_completion']
+                source_dict = profile_payload if profile_payload else {}
+                for field in profile_fields:
+                    if field in source_dict:
+                        raw = source_dict.get(field)
+                        profile_data[field] = None if raw in ('', 'null', 'undefined') else raw
+                    elif field in request.data:
+                        raw = request.data.get(field)
+                        profile_data[field] = None if raw in ('', 'null', 'undefined') else raw
+
+                if profile_data:
+                    profile_data['user'] = user.id
+                    if profile_instance:
+                        p_serializer = EmployeeProfileSerializer(profile_instance, data=profile_data, partial=True)
+                    else:
+                        p_serializer = EmployeeProfileSerializer(data=profile_data)
+                    if not p_serializer.is_valid():
+                        raise ValueError(f"Profile validation failed: {p_serializer.errors}")
+                    p_serializer.save()
+
+                # ---- 5. Upsert Guardians ----
+                if guardians:
+                    for g_data in guardians:
+                        g_data['employee'] = user.id
+                        if 'is_guardian' in g_data:
+                            g_data['is_guardian'] = _parse_bool(g_data.get('is_guardian'))
+                        g_id = _parse_int(g_data.pop('id', None))
+                        if g_id:
+                            try:
+                                g_inst = EmployeeGuardian.objects.get(id=g_id, employee=user)
+                                g_s = EmployeeGuardianSerializer(g_inst, data=g_data, partial=True)
+                            except EmployeeGuardian.DoesNotExist:
+                                raise ValueError(f"Guardian id={g_id} not found for this employee")
+                        else:
+                            g_s = EmployeeGuardianSerializer(data=g_data)
+                        if not g_s.is_valid():
+                            raise ValueError(f"Guardian validation failed: {g_s.errors}")
+                        g_s.save()
+
+                # ---- 6. Upsert Bank Details ----
+                if bank_details:
+                    for b_data in bank_details:
+                        b_data['user'] = user.id
+                        b_id = _parse_int(b_data.pop('id', None))
+                        if b_id:
+                            try:
+                                b_inst = BankDetail.objects.get(id=b_id, user=user)
+                                b_s = BankDetailSerializer(b_inst, data=b_data, partial=True)
+                            except BankDetail.DoesNotExist:
+                                raise ValueError(f"Bank detail id={b_id} not found for this employee")
+                        else:
+                            b_s = BankDetailSerializer(data=b_data)
+                        if not b_s.is_valid():
+                            raise ValueError(f"Bank detail validation failed: {b_s.errors}")
+                        b_s.save()
+
+                # ---- 7. Upsert Qualifications ----
+                if qualifications:
+                    for idx, q_data in enumerate(qualifications):
+                        q_data['user'] = user.id
+                        cert_key = f'qualifications[{idx}][certificate]'
+                        if cert_key in request.FILES:
+                            q_data['certificate'] = request.FILES[cert_key]
+                        elif 'certificate_base64' in q_data and q_data.get('certificate_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64 as b64
+                            base64_str = q_data.get('certificate_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    fmt, imgstr = base64_str.split(';base64,')
+                                    ext = fmt.split('/')[-1].split(';')[0]
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.{ext}"
+                                    q_data['certificate'] = ContentFile(b64.b64decode(imgstr), name=cert_name)
+                                else:
+                                    cert_name = q_data.get('certificate_name') or f"cert_{idx}.pdf"
+                                    q_data['certificate'] = ContentFile(b64.b64decode(base64_str), name=cert_name)
+                            except Exception as e:
+                                logger.error(f"Error decoding qualification certificate: {e}")
+
+                        q_id = _parse_int(q_data.pop('id', None))
+                        if q_id:
+                            try:
+                                q_inst = EmployeeQualification.objects.get(id=q_id, user=user)
+                                q_s = EmployeeQualificationSerializer(q_inst, data=q_data, partial=True)
+                            except EmployeeQualification.DoesNotExist:
+                                raise ValueError(f"Qualification id={q_id} not found for this employee")
+                        else:
+                            q_s = EmployeeQualificationSerializer(data=q_data)
+                        if not q_s.is_valid():
+                            raise ValueError(f"Qualification validation failed: {q_s.errors}")
+                        q_s.save()
+
+                # ---- 8. Upsert Experiences + Designations ----
+                if experiences:
+                    for idx, e_data in enumerate(experiences):
+                        e_data['user'] = user.id
+                        if 'is_internal' in e_data:
+                            e_data['is_internal'] = _parse_bool(e_data.get('is_internal'))
+
+                        exp_letter_key = f'experiences[{idx}][experience_letter]'
+                        if exp_letter_key in request.FILES:
+                            e_data['experience_letter'] = request.FILES[exp_letter_key]
+                        elif 'experience_letter_base64' in e_data and e_data.get('experience_letter_base64'):
+                            from django.core.files.base import ContentFile
+                            import base64 as b64
+                            base64_str = e_data.get('experience_letter_base64')
+                            try:
+                                if ';base64,' in base64_str:
+                                    fmt, imgstr = base64_str.split(';base64,')
+                                    ext = fmt.split('/')[-1].split(';')[0]
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.{ext}"
+                                    e_data['experience_letter'] = ContentFile(b64.b64decode(imgstr), name=letter_name)
+                                else:
+                                    letter_name = e_data.get('experience_letter_name') or f"letter_{idx}.pdf"
+                                    e_data['experience_letter'] = ContentFile(b64.b64decode(base64_str), name=letter_name)
+                            except Exception as e:
+                                logger.error(f"Error decoding experience letter: {e}")
+
+                        designations = e_data.pop('designations', [])
+                        e_id = _parse_int(e_data.pop('id', None))
+
+                        if e_id:
+                            try:
+                                e_inst = EmployeeExperience.objects.get(id=e_id, user=user)
+                                e_s = EmployeeExperienceSerializer(e_inst, data=e_data, partial=True)
+                            except EmployeeExperience.DoesNotExist:
+                                raise ValueError(f"Experience id={e_id} not found for this employee")
+                        else:
+                            e_s = EmployeeExperienceSerializer(data=e_data)
+
+                        if not e_s.is_valid():
+                            raise ValueError(f"Experience validation failed at item {idx}: {e_s.errors}")
+                        experience_obj = e_s.save()
+
+                        for des_data in designations:
+                            des_data['experience'] = experience_obj.id
+                            if 'company_role' in des_data:
+                                des_data['company_role'] = _parse_int(des_data.get('company_role'))
+                            if 'company_group' in des_data:
+                                des_data['company_group'] = _parse_int(des_data.get('company_group'))
+                            des_id = _parse_int(des_data.pop('id', None))
+                            if des_id:
+                                try:
+                                    des_inst = ExperienceDesignation.objects.get(id=des_id, experience=experience_obj)
+                                    des_s = ExperienceDesignationSerializer(des_inst, data=des_data, partial=True)
+                                except ExperienceDesignation.DoesNotExist:
+                                    raise ValueError(f"Designation id={des_id} not found")
+                            else:
+                                des_s = ExperienceDesignationSerializer(data=des_data)
+                            if not des_s.is_valid():
+                                raise ValueError(f"Designation validation failed: {des_s.errors}")
+                            des_s.save()
+
+                return Response({
+                    'success': True,
+                    'message': 'Employee updated successfully',
+                    'data': build_employee_payload(user)
+                }, status=status.HTTP_200_OK)
+
+            except ValueError as err:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'message': 'Validation Error', 'errors': str(err)}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as exc:
+                transaction.set_rollback(True)
+                return Response({'success': False, 'message': 'Internal Server Error', 'debug_error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     return Response({ 'success': False, 'message': 'Method not allowed' }, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
