@@ -14,13 +14,60 @@ class LeaveSerializer(serializers.ModelSerializer):
     leave_type = LeaveTypeSerializer()
     status_display = serializers.SerializerMethodField()
     leave_type_display = serializers.CharField(source='leave_type.leave_type', read_only=True)
+    current_approver_detail = serializers.SerializerMethodField()
+    hierarchy_total_levels = serializers.SerializerMethodField()
+    approval_progress = serializers.SerializerMethodField()          # NEW
+
     class Meta:
         model = Leave
+        fields = '__all__'
 
-        fields = '__all__'  # or list only the required fields like ['id', 'start_date', 'end_date', ...]
     def get_status_display(self, obj):
         return obj.get_status_display()
 
+    def get_current_approver_detail(self, obj):
+        if obj.current_approver:
+            return {
+                'id': obj.current_approver.id,
+                'name': f"{obj.current_approver.first_name} {obj.current_approver.last_name}".strip(),
+            }
+        return None
+
+    def get_hierarchy_total_levels(self, obj):
+        try:
+            return len(obj.company.leave_hierarchy.flow_config or [])
+        except Exception:
+            return 0
+
+    def get_approval_progress(self, obj):                            # NEW
+        try:
+            flow_config = obj.company.leave_hierarchy.flow_config or []
+        except Exception:
+            flow_config = []
+
+        if not flow_config:
+            return []
+
+        progress = []
+        for idx, step in enumerate(flow_config):
+            if idx < obj.current_level:
+                level_status = 'Approved'
+            elif idx == obj.current_level:
+                level_status = {
+                    'A': 'Approved',
+                    'R': 'Rejected',
+                    'C': 'Cancelled',
+                }.get(obj.status, 'Under consideration')
+            else:
+                level_status = 'Pending'
+
+            progress.append({
+                'level': step.get('level', idx + 1),
+                'criteria': step.get('criteria'),
+                'status': level_status,
+            })
+
+        return progress      
 class LeaveFlowHierarchySerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveFlowHierarchy

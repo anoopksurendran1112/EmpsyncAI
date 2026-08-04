@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, } from "lucide-react";
+import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
 import { useEmployees } from "@/hooks/employees/useGetEmployees";
@@ -23,6 +23,8 @@ interface Request {
   status: "pending" | "approved" | "rejected";
   created_at: string;
 }
+const DEFAULT_CANDIDATE_PASSWORD = "empsyncai123@";
+
 export default function CandidateRequestPage() {
   const { company } = useAuth();
 
@@ -42,7 +44,7 @@ export default function CandidateRequestPage() {
   const [selectedApplication, setSelectedApplication] =
     useState<Request | null>(null);
 
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(DEFAULT_CANDIDATE_PASSWORD);
   const [wfhEnabled, setWfhEnabled] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [autoGenerateStaffId, setAutoGenerateStaffId] = useState(false);
@@ -90,6 +92,20 @@ export default function CandidateRequestPage() {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(shareableUrl);
     alert("Link copied!");
+  };
+
+  const copyCredentials = async () => {
+    if (!selectedApplication) return;
+
+    const credentialText = `Email: ${selectedApplication.email}\nPassword: ${password || DEFAULT_CANDIDATE_PASSWORD}`;
+
+    try {
+      await navigator.clipboard.writeText(credentialText);
+      alert("Credentials copied to clipboard.");
+    } catch (error) {
+      console.error("Failed to copy credentials:", error);
+      alert("Unable to copy credentials.");
+    }
   };
 
   //Accept handler 
@@ -142,7 +158,7 @@ export default function CandidateRequestPage() {
 
       setDetailDialogOpen(false);
       setSelectedApplication(null);
-      setPassword("");
+      setPassword(DEFAULT_CANDIDATE_PASSWORD);
       setStaffId("");
       setAutoGenerateStaffId(false);
       setWfhEnabled(false);
@@ -345,7 +361,7 @@ const handleReject = async () => {
                               console.log(JSON.stringify(req, null, 2));
                               console.log("req.is_wfh =", req.is_wfh);
                               setSelectedApplication(req);
-                              setPassword("");
+                              setPassword(DEFAULT_CANDIDATE_PASSWORD);
                               console.log("req.is_wfh =", req.is_wfh);
                               setWfhEnabled(false);
                               setDetailDialogOpen(true);
@@ -538,19 +554,31 @@ const handleReject = async () => {
 
                   {/* Password Section */}
                   <div className="space-y-2">
-                    <label htmlFor="password" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Set Password
-                    </label>
+                    <div className="flex items-center justify-between gap-3">
+                      <label htmlFor="password" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Set Password
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={copyCredentials}
+                        className="h-8 px-3 text-xs font-medium border-slate-200 text-slate-700"
+                      >
+                        <Copy className="h-3.5 w-3.5 mr-1.5" />
+                        Copy Credentials
+                      </Button>
+                    </div>
                     <Input 
                       id="password" 
-                      type="password" 
-                      placeholder="••••••••" 
+                      type="text" 
+                      placeholder={DEFAULT_CANDIDATE_PASSWORD} 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 text-sm" 
                     />
                     <p className="text-[11px] text-slate-400">
-                      Required for approved candidates to log in.
+                      Default password is prefilled for quick approval. Required for approved candidates to log in.
                     </p>
                   </div>
 

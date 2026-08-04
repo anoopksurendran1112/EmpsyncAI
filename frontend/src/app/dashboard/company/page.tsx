@@ -312,7 +312,7 @@ export default function CompanyProfilePage() {
     const responseText = await response.text()
     console.log("Raw response:", responseText)
 
-    let responseData = {}
+    let responseData: any = {}
     try {
       if (responseText && responseText.trim()) {
         responseData = JSON.parse(responseText)
@@ -321,17 +321,18 @@ export default function CompanyProfilePage() {
       console.error("Failed to parse response:", parseErr)
     }
 
+    if (!response.ok || responseData?.success === false) {
+      const errorMsg = responseData?.message || "Failed to update field settings."
+      throw new Error(errorMsg)
+    }
+
     toast.success("Field settings updated successfully!")
-    
     await fetchFieldSettings()
-    
     setShowFieldSettingsDialog(false)
     
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error saving field settings:', err)
-    toast.success("Field settings updated successfully!")
-    await fetchFieldSettings()
-    setShowFieldSettingsDialog(false)
+    toast.error(err.message || "Failed to save field settings")
   } finally {
     setIsSavingFieldSettings(false)
   }
