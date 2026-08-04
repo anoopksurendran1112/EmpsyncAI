@@ -1650,6 +1650,7 @@ def get_pending_approvals(request):
         qs = qs.filter(company_id=company_id)
     serializer = LeaveSerializer(qs, many=True)
     return Response({'success': True, 'data': serializer.data})
+    
 @api_view(['GET'])
 def get_eligible_replacements(request):
     """

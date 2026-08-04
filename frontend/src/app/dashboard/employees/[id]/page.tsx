@@ -2723,386 +2723,22 @@ export default function EmployeeDetailsPage() {
                           Edit
                         </button>
                         <button 
-<<<<<<< HEAD
-                          onClick={() => {
-                            setEditQualifications(prev => prev.filter((_, i) => i !== idx));
-                            setTimeout(() => {
-                              document.getElementById("save-education-btn")?.click();
-                            }, 100);
-                          }} 
-=======
                           type="button"
                           onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
->>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
                         </button>
                       </div>
                     </div>
-<<<<<<< HEAD
-                  );
-                })}
-                {editQualifications.length === 0 && !qualFormOpen && (
-                  <p className="text-sm text-[#7a8ba0] text-center py-6">
-                    No qualifications added yet. Click below to add one.
-                  </p>
-                )}
-              </div>
-
-              {/* Qualification Mutation Node */}
-              {qualFormOpen && (
-                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-                    {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
-                  </h4>
-                  
-                  {/* Level & Specialty Block */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Qualification Level<span className="text-red-500 -ml-1">*</span></Label>
-                      <Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))} required>
-                        <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white">
-                          <SelectValue placeholder="Select level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[
-                            ['UG','Undergraduate (UG)'],
-                            ['PG','Postgraduate (PG)'],
-                            ['MPHIL','M.Phil.'],
-                            ['PHD','Ph.D.'],
-                            ['POSTDOC','Post Doctoral'],
-                            ['RESEARCH_OTHERS','Research (Others)'],
-                            ['OTHERS','Others']
-                          ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
-                      required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Institutional Identification Block */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Institution / College<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="College or school name" required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Affiliated University<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="University name" required />
-                    </div>
-                  </div>
-
-                  {/* Geographic Metadata */}
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="City, State" required />
-                    </div>
-                  </div>
-
-                  {/* Chronology & Metrics Matrix */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Date<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Completion Date<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Score / %<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. 85.5" required />
-                    </div>
-                  </div>
-
-                  {/* Verification Attestations */}
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Certificate Document (.pdf, image)<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" required />
-                    </div>
-                  </div>
-
-                  {/* Mutation Action Sub-block */}
-                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
-                      type="button" 
-                      onClick={() => { 
-                        if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
-                        if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
-                        const { _idx, ...qualData } = currentQual; 
-                        if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
-                        else { setEditQualifications(prev => [...prev, qualData]); } 
-                        setCurrentQual({}); 
-                        setQualFormOpen(false); 
-                        setTimeout(() => {
-                          document.getElementById("save-education-btn")?.click();
-                        }, 100);
-                      }} 
-                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
-                    >
-                      {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      type="button" 
-                      onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
-                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Trigger Node to Reveal Form */}
-              {!qualFormOpen && (
-                <button 
-                  type="button" 
-                  onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
-                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus className="h-4 w-4" /> Add Qualification Record
-                </button>
-              )}
-            </div>
-
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                type="button" 
-                onClick={handleCancel} 
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
-              >
-                Close
-              </Button>
-              <Button 
-                id="save-education-btn"
-                type="button" 
-                onClick={handleSave} 
-                disabled={isSaving} 
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50 hidden"
-              >
-                {isSaving ? "Saving Education Details..." : "Save Education Details"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* EXPERIENCE EDIT DIALOG */}
-        <Dialog open={editingSection === "experience"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Edit Work Experience
-              </DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
-                Manage professional employment history. Toggle "Internal Role" &ndash; company & location auto‑fill from organisation profile.
-              </DialogDescription>
-              <BriefcaseBusiness className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
-            </DialogHeader>
-
-            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
-              {/* Existing Experiences Stack */}
-              <div className="space-y-3">
-                {editExperiences.map((exp: ExperienceItem, idx: number) => (
-                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
-                          {exp.company_name || 'Company'}
-                        </span>
-                        {!exp.is_internal && exp.category && (
-                          <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
-                            {exp.category}
-                          </span>
-                        )}
-                        {!exp.is_internal && exp.is_aicte_approved && (
-                          <span className="text-[10px] font-bold uppercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            AICTE Approved
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[12px] text-[#7a8ba0]">
-                        {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
-                        {exp.end_year ? ` &ndash; ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' &ndash; Present'}
-                        {exp.location ? ` &middot; ${exp.location}` : ''}
-                      </p>
-                      <p className="text-[12px] text-[#434655] font-medium mt-1">
-                        {exp.designations?.length || 0} role(s) defined
-                      </p>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button 
-                        type="button"
-                        onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
-                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
-                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {editExperiences.length === 0 && !expFormOpen && (
-                  <p className="text-sm text-[#7a8ba0] text-center py-6">
-                    No experience records added yet. Click below to add one.
-                  </p>
-                )}
-              </div>
-
-              {/* Experience Mutation Node */}
-              {expFormOpen && currentExp && (
-                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-                    {currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}
-                  </h4>
-
-                  {/* Internal Role Configuration Node */}
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]">
-                    <Checkbox
-                      id="internal-role-checkbox"
-                      checked={currentExp.is_internal || false}
-                      onCheckedChange={(checked) => {
-                        const isInternal = !!checked;
-                        let newCompanyName = currentExp.company_name;
-                        let newLocation = currentExp.location;
-                        if (isInternal && company) {
-                          newCompanyName = company.company_name || company.name || "Internal Organization";
-                          if (companyProfile) {
-                            const addressParts = [
-                              companyProfile.city,
-                              companyProfile.district,
-                              companyProfile.state
-                            ].filter(Boolean);
-                            newLocation = addressParts.join(", ");
-                            if (!newLocation) newLocation = companyProfile.city || "";
-                          } else {
-                            newLocation = "";
-                          }
-                        } else if (!isInternal && !currentExp.company_name) {
-                          const defaultCompany = company?.company_name || company?.name || "Internal Organization";
-                          if (newCompanyName === defaultCompany) newCompanyName = "";
-                          if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
-                        }
-                        setCurrentExp({ 
-                          ...currentExp, 
-                          is_internal: isInternal,
-                          company_name: newCompanyName,
-                          location: newLocation,
-                          // When internal, reset category
-                          category: isInternal ? 'Other' : currentExp.category || 'Other',
-                        });
-                      }}
-                      className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
-                    />
-                    <Label htmlFor="internal-role-checkbox" className="text-[13px] font-semibold text-[#434655] cursor-pointer select-none">
-                      This is an internal role (organisation uses predefined Roles & Groups)
-                    </Label>
-                  </div>
-
-                  {/* Company & Location Details */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
-                      <Input
-                        value={currentExp.company_name || ''}
-                        onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })}
-                        disabled={currentExp.is_internal}
-                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
-                        placeholder={currentExp.is_internal ? "Auto-filled from company" : "Company name"}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label>
-                      <Input
-                        value={currentExp.location || ''}
-                        onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })}
-                        disabled={currentExp.is_internal}
-                        className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
-                        placeholder={currentExp.is_internal ? "Auto-filled from company address" : "e.g. Bangalore, India"}
-                      />
-                    </div>
-                  </div>
-
-                  {/* NEW FIELDS: Category & AICTE Approved (only for external) */}
-                  {!currentExp.is_internal && (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
-                            Category <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-                            value={currentExp.category || 'Other'}
-                            onValueChange={(val) => setCurrentExp({ ...currentExp, category: val })}
-                          >
-                            <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] bg-white">
-                              <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Institution">Institutional</SelectItem>
-                              <SelectItem value="Industry">Industrial</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5 flex items-end">
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id="aicte-approved"
-                              checked={currentExp.is_aicte_approved || false}
-                              onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_aicte_approved: !!checked })}
-                              disabled={currentExp.category !== 'Institution'}
-                              className={`h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 ${currentExp.category !== 'Institution' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            />
-                            <Label htmlFor="aicte-approved" className={`text-[13px] font-semibold ${currentExp.category !== 'Institution' ? 'text-gray-400' : 'text-[#434655]'} cursor-pointer`}>
-                              AICTE Approved
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Optional: After PG checkbox */}
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="after-pg"
-                          checked={currentExp.is_after_pg || false}
-                          onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_after_pg: !!checked })}
-                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
-                        />
-                        <Label htmlFor="after-pg" className="text-[13px] font-semibold text-[#434655] cursor-pointer">
-                          Experience acquired after PG degree
-                        </Label>
-                      </div>
-                    </>
-=======
                   ))}
                   {editExperiences.length === 0 && !expFormOpen && (
                     <p className="text-sm text-[#7a8ba0] text-center py-6">
                       No experience records added yet. Click below to add one.
                     </p>
->>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
                   )}
                 </div>
 
-                {/* Experience Mutation Node */}
                 {expFormOpen && currentExp && (
                   <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
                     <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
@@ -3110,7 +2746,6 @@ export default function EmployeeDetailsPage() {
                       {currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}
                     </h4>
 
-                    {/* Internal Role Configuration Node */}
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]">
                       <Checkbox
                         id="internal-role-checkbox"
@@ -3142,7 +2777,6 @@ export default function EmployeeDetailsPage() {
                             is_internal: isInternal,
                             company_name: newCompanyName,
                             location: newLocation,
-                           
                             category: isInternal ? 'Other' : currentExp.category || 'Other',
                           });
                         }}
@@ -3153,7 +2787,6 @@ export default function EmployeeDetailsPage() {
                       </Label>
                     </div>
 
-                    {/* Company & Location Details */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
@@ -3177,7 +2810,6 @@ export default function EmployeeDetailsPage() {
                       </div>
                     </div>
 
-                    {/* Category & AICTE Approved (only for external) */}
                     {!currentExp.is_internal && (
                       <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3215,7 +2847,6 @@ export default function EmployeeDetailsPage() {
                           </div>
                         </div>
 
-                        {/*After PG checkbox */}
                         <div className="flex items-center gap-2">
                           <Checkbox
                             id="after-pg"
@@ -3230,7 +2861,6 @@ export default function EmployeeDetailsPage() {
                       </>
                     )}
 
-                    {/* Tenure Lifespan */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label>
@@ -3242,7 +2872,6 @@ export default function EmployeeDetailsPage() {
                       </div>
                     </div>
 
-                    {/* Verification Attestation */}
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
                       <Input 
@@ -3256,7 +2885,6 @@ export default function EmployeeDetailsPage() {
                       )}
                     </div>
 
-                    {/* Multiple Designations Vector Segment */}
                     <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
                       <div className="flex items-center justify-between mb-2.5">
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
@@ -3354,7 +2982,6 @@ export default function EmployeeDetailsPage() {
                       </div>
                     </div>
 
-                    {/* Form Node Actions */}
                     <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
                       <Button 
                         type="button"
@@ -3379,7 +3006,7 @@ export default function EmployeeDetailsPage() {
                                 toast.error(`Role #${i+1}: Designation title is required.`); 
                                 return; 
                               } 
-                             
+                              
                               if (!currentExp.category || currentExp.category === '') {
                                 toast.error("Please select a Category for this experience.");
                                 return;
@@ -3415,7 +3042,6 @@ export default function EmployeeDetailsPage() {
                   </div>
                 )}
 
-                {/* Trigger Node to Reveal Form */}
                 {!expFormOpen && (
                   <button 
                     type="button"
