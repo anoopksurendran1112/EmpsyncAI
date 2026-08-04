@@ -762,29 +762,31 @@ export default function ProfilePage() {
           return;
         }
 
-        if (!editProfileData?.dob) {
-          toast.error("Date of Birth is required");
-          return;
+        if (isFieldVisible('personal_information', 'dob')) {
+          if (!editProfileData?.dob) {
+            toast.error("Date of Birth is required");
+            return;
+          }
+
+          if (isFutureDate(editProfileData.dob)) {
+            toast.error("Date of Birth cannot be in the future");
+            return;
+          }
+
+          const age = calculateAge(editProfileData.dob);
+
+          if (age !== null && age < 18) {
+            toast.error("Employee must be at least 18 years old");
+            return;
+          }
+
+          if (age !== null && age > 80) {
+            toast.error("Please enter a valid Date of Birth");
+            return;
+          }
         }
 
-        if (isFutureDate(editProfileData.dob)) {
-          toast.error("Date of Birth cannot be in the future");
-          return;
-        }
-
-        const age = calculateAge(editProfileData.dob);
-
-        if (age !== null && age < 18) {
-          toast.error("Employee must be at least 18 years old");
-          return;
-        }
-
-        if (age !== null && age > 80) {
-          toast.error("Please enter a valid Date of Birth");
-          return;
-        }
-
-        if (!editedUser?.gender) {
+        if (isFieldVisible('personal_information', 'gender') && !editedUser?.gender) {
           toast.error("Gender selection is required");
           return;
         }
@@ -1621,18 +1623,24 @@ export default function ProfilePage() {
                     <div className="p-6 space-y-6">
                       <div className="grid grid-cols-3 gap-6">
                         {/* DOB */}
-                        <div>
-                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
-                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p>
-                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                          <p className="text-base font-semibold text-gray-800 gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
-                        </div>
+                        {isFieldVisible('personal_information', 'dob') && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
+                            <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                          </div>
+                        )}
+                        {isFieldVisible('personal_information', 'dob') && (
+                          <div className="text-center">
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p>
+                            <p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)}</p>
+                          </div>
+                        )}
+                        {isFieldVisible('personal_information', 'gender') && (
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                            <p className="text-base font-semibold text-gray-800 gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
+                          </div>
+                        )}
                         {/* Blood Group */}
                         {isFieldVisible('personal_information', 'blood_group') && (
                           <div>
@@ -2160,34 +2168,44 @@ export default function ProfilePage() {
 
               {/* DOB & Gender */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={editProfileData?.dob || ""}
-                    onChange={(e) => handleProfileChange("dob", e.target.value)}
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
-                    required
-                  />
-                  {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
-                      <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Gender<span className="text-red-500 -ml-1">*</span></Label>
-                  <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
-                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-[#dde3ec]">
-                      <SelectItem value="M">Male</SelectItem>
-                      <SelectItem value="F">Female</SelectItem>
-                      <SelectItem value="O">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isFieldVisible('personal_information', 'dob') && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                      Date of Birth
+                      {isFieldMandatory('personal_information', 'dob') && <span className="text-red-500 -ml-1">*</span>}
+                    </Label>
+                    <Input
+                      type="date"
+                      value={editProfileData?.dob || ""}
+                      onChange={(e) => handleProfileChange("dob", e.target.value)}
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
+                      required
+                    />
+                    {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
+                        <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
+                      </div>
+                    )}
+                  </div>
+                )}
+                {isFieldVisible('personal_information', 'gender') && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                      Gender
+                      {isFieldMandatory('personal_information', 'gender') && <span className="text-red-500 -ml-1">*</span>}
+                    </Label>
+                    <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
+                      <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-[#dde3ec]">
+                        <SelectItem value="M">Male</SelectItem>
+                        <SelectItem value="F">Female</SelectItem>
+                        <SelectItem value="O">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Blood Group, Religion, Caste */}
