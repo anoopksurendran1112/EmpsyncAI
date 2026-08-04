@@ -1,7 +1,7 @@
 # serializers.py
 from rest_framework import serializers
 from user.serializer import UserSerializer
-from .models import Leave, LeaveType
+from .models import Leave,LeaveType,LeaveFlowHierarchy # Replace with the actual path
 
 
 class LeaveTypeSerializer(serializers.ModelSerializer):
@@ -16,6 +16,7 @@ class LeaveSerializer(serializers.ModelSerializer):
     leave_type_display = serializers.CharField(source='leave_type.leave_type', read_only=True)
     current_approver_detail = serializers.SerializerMethodField()
     hierarchy_total_levels = serializers.SerializerMethodField()
+    approval_progress = serializers.SerializerMethodField()          # NEW
 
     class Meta:
         model = Leave
@@ -37,3 +38,37 @@ class LeaveSerializer(serializers.ModelSerializer):
             return len(obj.company.leave_hierarchy.flow_config or [])
         except Exception:
             return 0
+
+    def get_approval_progress(self, obj):                            # NEW
+        try:
+            flow_config = obj.company.leave_hierarchy.flow_config or []
+        except Exception:
+            flow_config = []
+
+        if not flow_config:
+            return []
+
+        progress = []
+        for idx, step in enumerate(flow_config):
+            if idx < obj.current_level:
+                level_status = 'Approved'
+            elif idx == obj.current_level:
+                level_status = {
+                    'A': 'Approved',
+                    'R': 'Rejected',
+                    'C': 'Cancelled',
+                }.get(obj.status, 'Under consideration')
+            else:
+                level_status = 'Pending'
+
+            progress.append({
+                'level': step.get('level', idx + 1),
+                'criteria': step.get('criteria'),
+                'status': level_status,
+            })
+
+        return progress      
+class LeaveFlowHierarchySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LeaveFlowHierarchy
+        fields = '__all__'

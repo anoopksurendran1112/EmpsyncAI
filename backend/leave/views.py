@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from .models import Leave, LeaveType, Holiday,LeaveCredit
+from .models import Leave, LeaveType, Holiday,LeaveCredit,LeavePolicy,LeaveFlowHierarchy
 from company.models import CompanyRole,Company, CompanyUser
 from punch.models import PunchRecords
 from user.models import CustomUser
@@ -13,14 +13,14 @@ from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import api_view
 from collections import defaultdict
 from django.db.models.functions import TruncDate
-from .serializer import LeaveSerializer
+from .serializer import LeaveSerializer,LeaveFlowHierarchySerializer
 from django.core.paginator import Paginator
 from notification.views import send_push_notification
 from notification.models import FcmToken
 from datetime import date
 from django.utils import timezone as tz
 from django.db import transaction
-from .services import get_flow_config, resolve_first_approver
+from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level
 
 
 
@@ -591,14 +591,83 @@ def get_leave_types(request):
             return Response({'success': False, 'message': 'Unauthorized access'}, status=status.HTTP_403_FORBIDDEN)
 
     # -------------------------- GET --------------------------
+    # if request.method == 'GET':
+    #     leave_types = LeaveType.objects.filter(Q(company=company) | Q(is_global=True))
+    #     data = list(leave_types.values())
+    #     return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
     if request.method == 'GET':
         leave_types = LeaveType.objects.filter(Q(company=company) | Q(is_global=True))
-        data = list(leave_types.values())
+        
+        # 1. Fetch active policies for all leave types in one query
+        policies = LeavePolicy.objects.filter(company=company, is_active=True).select_related('staff_category')
+        
+        # 2. Group policies by their leave_type_id in memory
+        from collections import defaultdict
+        policies_by_type = defaultdict(list)
+        for p in policies:
+            policies_by_type[p.leave_type_id].append({
+                'id': p.id,
+                'staff_category_id': p.staff_category_id,
+                'staff_category_name': p.staff_category.category_name,
+                'monthly_limit': p.monthly_limit,
+                'yearly_limit': p.yearly_limit,
+                'initial_credit': p.initial_credit,
+                'allow_carry_forward': p.allow_carry_forward,
+                'use_credit': p.use_credit,
+                'custom_settings': p.custom_settings
+            })
+            
+        # 3. Build response payload
+        data = []
+        for lt in leave_types:
+            data.append({
+                'id': lt.id,
+                'leave_type': lt.leave_type,
+                'short_name': lt.short_name,
+                'monthly_limit': lt.monthly_limit,
+                'yearly_limit': lt.yearly_limit,
+                'initial_credit': lt.initial_credit,
+                'use_credit': lt.use_credit,
+                'is_global': lt.is_global,
+                'policies': policies_by_type[lt.id]  # Read in O(1) time
+            })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
 
+
     # -------------------------- PUT --------------------------
+    # elif request.method == 'PUT':
+    #     id = request.data.get('id')
+    #     if not id:
+    #         return Response({'success': False, 'message': 'ID is required'}, status=400)
+
+    #     try:
+    #         leave_type = LeaveType.objects.get(id=id)
+    #     except LeaveType.DoesNotExist:
+    #         return Response({'success': False, 'message': 'Leave type not found'}, status=404)
+
+    #     leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
+    #     leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
+    #     leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
+    #     leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
+    #     leave_type.use_credit = request.data.get("use_credit", False)
+    #     leave_type.save()
+
+    #     # Update credits for all users in this company
+    #     users = CustomUser.objects.filter(company=company)
+    #     for user in users:
+    #         credit_obj, _ = LeaveCredit.objects.get_or_create(
+    #             user=user,
+    #             leave_type=leave_type,
+    #             defaults={'credits': leave_type.initial_credit}
+    #         )
+    #         credit_obj.credits = leave_type.initial_credit
+    #         credit_obj.save()
+
+    #     return Response({'success': True, 'message': 'Updated successfully'}, status=200)
     elif request.method == 'PUT':
         id = request.data.get('id')
+        policies_data = request.data.get('policies', [])
+        
         if not id:
             return Response({'success': False, 'message': 'ID is required'}, status=400)
 
@@ -607,25 +676,103 @@ def get_leave_types(request):
         except LeaveType.DoesNotExist:
             return Response({'success': False, 'message': 'Leave type not found'}, status=404)
 
-        leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
-        leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
-        leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
-        leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
-        leave_type.use_credit = request.data.get("use_credit", False)
-        leave_type.save()
+        with transaction.atomic():
+            # 1. Update the base LeaveType attributes
+            leave_type.leave_type = request.data.get('leave_type', leave_type.leave_type)
+            leave_type.monthly_limit = float(request.data.get("monthly_limit") or 0)
+            leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
+            leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
+            leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.save()
 
-        # Update credits for all users in this company
-        users = CustomUser.objects.filter(company=company)
-        for user in users:
-            credit_obj, _ = LeaveCredit.objects.get_or_create(
-                user=user,
-                leave_type=leave_type,
-                defaults={'credits': leave_type.initial_credit}
-            )
-            credit_obj.credits = leave_type.initial_credit
-            credit_obj.save()
+            # 2. Fetch existing credits to verify and update in memory
+            existing_credits = LeaveCredit.objects.filter(leave_type=leave_type, user__company=company)
+            credit_by_user = {c.user_id: c for c in existing_credits}
+            
+            credits_to_create = []
+            credits_to_update = []
 
-        return Response({'success': True, 'message': 'Updated successfully'}, status=200)
+            # 3. IF policies exist in payload, save overrides and allocate credits
+            if policies_data:
+                visited_categories = []
+                for p_item in policies_data:
+                    category_id = p_item.get('staff_category_id')
+                    visited_categories.append(category_id)
+
+                    # Get existing settings to merge rather than override everything
+                    existing_policy = LeavePolicy.objects.filter(company=company, leave_type=leave_type, staff_category_id=category_id).first()
+                    existing_settings = existing_policy.custom_settings if existing_policy else {}
+                    
+                    new_settings = p_item.get("custom_settings", {})
+                    merged_settings = {**existing_settings, **new_settings}
+
+                    # Create or update policy
+                    policy, _ = LeavePolicy.objects.update_or_create(
+                        company=company,
+                        leave_type=leave_type,
+                        staff_category_id=category_id,
+                        defaults={
+                            'monthly_limit': float(p_item.get("monthly_limit") or 0),
+                            'yearly_limit': float(p_item.get("yearly_limit") or 0),
+                            'initial_credit': float(p_item.get("initial_credit") or 0),
+                            'allow_carry_forward': p_item.get("allow_carry_forward", True),
+                            'use_credit': p_item.get("use_credit", False),
+                            'custom_settings': merged_settings,
+                            'is_active': True
+                        }
+                    )
+
+                    # Stage credit assignments
+                    cat_users = CustomUser.objects.filter(company=company, profile__staff_category_id=category_id)
+                    for user in cat_users:
+                        if user.id in credit_by_user:
+                            credit_obj = credit_by_user[user.id]
+                            credit_obj.credits = policy.initial_credit
+                            credits_to_update.append(credit_obj)
+                        else:
+                            credits_to_create.append(
+                                LeaveCredit(user=user, leave_type=leave_type, credits=policy.initial_credit)
+                            )
+                
+                # Deactivate unused policies
+                LeavePolicy.objects.filter(company=company, leave_type=leave_type).exclude(staff_category_id__in=visited_categories).update(is_active=False)
+
+                # Fallback staging for uncategorized employees
+                categorized_users = CustomUser.objects.filter(company=company, profile__staff_category_id__in=visited_categories)
+                fallback_users = CustomUser.objects.filter(company=company).exclude(id__in=categorized_users)
+                for user in fallback_users:
+                    if user.id in credit_by_user:
+                        credit_obj = credit_by_user[user.id]
+                        credit_obj.credits = leave_type.initial_credit
+                        credits_to_update.append(credit_obj)
+                    else:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=leave_type, credits=leave_type.initial_credit)
+                        )
+
+            # 4. IF no policies exist (Legacy path), allocate credit globally
+            else:
+                all_users = CustomUser.objects.filter(company=company)
+                for user in all_users:
+                    if user.id in credit_by_user:
+                        credit_obj = credit_by_user[user.id]
+                        credit_obj.credits = leave_type.initial_credit
+                        credits_to_update.append(credit_obj)
+                    else:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=leave_type, credits=leave_type.initial_credit)
+                        )
+                
+                # Deactivate all active policies for this company/type if no policies passed
+                LeavePolicy.objects.filter(company=company, leave_type=leave_type).update(is_active=False)
+
+            # 5. Database Batch processing in single queries
+            if credits_to_create:
+                LeaveCredit.objects.bulk_create(credits_to_create)
+            if credits_to_update:
+                LeaveCredit.objects.bulk_update(credits_to_update, ['credits'])
+
+        return Response({'success': True, 'message': 'Updated successfully'}, status=status.HTTP_200_OK)
 
     # -------------------------- DELETE --------------------------
     elif request.method == 'DELETE':
@@ -652,17 +799,58 @@ def get_leave_types(request):
                 "use_credit": request.data.get("use_credit", False),
                 "company": company
             }
+            
+            policies_data = request.data.get("policies", [])
 
-            new_leave_type = LeaveType.objects.create(**leave_type_data)
+            with transaction.atomic():
+                new_leave_type = LeaveType.objects.create(**leave_type_data)
+                
+                credits_to_create = []
 
-            # Credit all users
-            users = CustomUser.objects.filter(company=company)
-            for user in users:
-                LeaveCredit.objects.get_or_create(
-                    user=user,
-                    leave_type=new_leave_type,
-                    defaults={'credits': new_leave_type.initial_credit}
-                )
+                if policies_data:
+                    visited_categories = []
+                    for p_item in policies_data:
+                        category_id = p_item.get('staff_category_id')
+                        visited_categories.append(category_id)
+
+                        policy = LeavePolicy.objects.create(
+                            company=company,
+                            leave_type=new_leave_type,
+                            staff_category_id=category_id,
+                            monthly_limit=float(p_item.get("monthly_limit") or 0),
+                            yearly_limit=float(p_item.get("yearly_limit") or 0),
+                            initial_credit=float(p_item.get("initial_credit") or 0),
+                            allow_carry_forward=p_item.get("allow_carry_forward", True),
+                            use_credit=p_item.get("use_credit", False),
+                            custom_settings=p_item.get("custom_settings", {})
+                        )
+
+                        # Build credits in memory for this category
+                        cat_users = CustomUser.objects.filter(company=company, profile__staff_category_id=category_id)
+                        for user in cat_users:
+                            credits_to_create.append(
+                                LeaveCredit(user=user, leave_type=new_leave_type, credits=policy.initial_credit)
+                            )
+
+                    # Build credits in memory for remaining fallback users
+                    categorized_users = CustomUser.objects.filter(company=company, profile__staff_category_id__in=visited_categories)
+                    fallback_users = CustomUser.objects.filter(company=company).exclude(id__in=categorized_users)
+                    for user in fallback_users:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=new_leave_type, credits=new_leave_type.initial_credit)
+                        )
+
+                else:
+                    # Build credits in memory for all users (legacy route)
+                    all_users = CustomUser.objects.filter(company=company)
+                    for user in all_users:
+                        credits_to_create.append(
+                            LeaveCredit(user=user, leave_type=new_leave_type, credits=new_leave_type.initial_credit)
+                        )
+
+                # Batch insert all records in ONE fast query!
+                if credits_to_create:
+                    LeaveCredit.objects.bulk_create(credits_to_create)
 
             return Response({
                 'success': True,
@@ -673,6 +861,98 @@ def get_leave_types(request):
         except Exception as e:
             return Response({'success': False, 'message': str(e)}, status=400)
 
+@api_view(['GET', 'POST','PUT','DELETE'])
+def get_leave_flow_hierarchy(request):
+
+    if request.method == 'GET':
+        company_id = request.headers.get('X-Company-ID')
+
+        if not company_id:
+            return Response({
+                'success': False,
+                'message': 'Missing X-Company-ID header.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        company_id = request.data.get('company_id')
+        flow_config = request.data.get('flow_config', [])
+
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Company not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy = LeaveFlowHierarchy.objects.create(
+            company=company,
+            flow_config=flow_config
+        )
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy created successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    
+    elif request.method == 'PUT':
+        company_id = request.data.get('company_id')
+        flow_config = request.data.get('flow_config')
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy.flow_config = flow_config
+        hierarchy.save()
+
+        serializer = LeaveFlowHierarchySerializer(hierarchy)
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy updated successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    elif request.method == 'DELETE':
+        company_id = request.data.get('company_id')
+
+        try:
+            hierarchy = LeaveFlowHierarchy.objects.get(company_id=company_id)
+        except LeaveFlowHierarchy.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Leave flow hierarchy not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        hierarchy.delete()
+
+        return Response({
+            'success': True,
+            'message': 'Leave flow hierarchy deleted successfully.'
+        }, status=status.HTTP_200_OK)
 
 
 def carry_forward_unused_leaves():
@@ -1221,14 +1501,14 @@ def approve_leave(request, id):
         leave.approval_trail = trail
 
         next_level = leave.current_level + 1
-        if next_level >= len(flow_config):
+        approver_id, resolved_level = resolve_approver_from_level(leave, flow_config, next_level)
+        if approver_id is None:
             leave.status = 'A'
             leave.current_approver = None
-            leave.current_level = next_level
+            leave.current_level = resolved_level
         else:
-            leave.current_level = next_level
-            leave.current_approver_id = flow_config[next_level]
-
+            leave.current_level = resolved_level
+            leave.current_approver_id = approver_id
         leave.save()
 
     # notify next approver or applicant, outside the transaction

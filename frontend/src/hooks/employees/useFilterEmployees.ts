@@ -83,6 +83,7 @@ async function fetchFilterEmployees({
   });
 
   return {
+<<<<<<< HEAD
     employees: responseData.data || [],
     totalEmployees: responseData.totalEmployees || 0,
     currentPage: responseData.page || page,
@@ -91,6 +92,17 @@ async function fetchFilterEmployees({
     femaleCount: responseData.femaleCount || 0,
     othersCount: responseData.othersCount || 0,
   };
+=======
+  employees: responseData.employees || [],
+  currentPage: responseData.currentPage || page,
+  totalPages: responseData.totalPages || 1,
+  totalCount: responseData.totalEmployees || 0,
+  hasNextPage:
+    (responseData.currentPage || page) <
+    (responseData.totalPages || 1),
+  hasPrevPage: (responseData.currentPage || page) > 1,
+};
+>>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
 }
 
 export function useFilterEmployees({

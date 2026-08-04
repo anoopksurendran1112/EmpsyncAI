@@ -33,7 +33,48 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
-// --- Interfaces (extended) ---
+
+function useFieldSettings(companyId: number | null) {
+  const [settings, setSettings] = useState<Record<string, Record<string, { visible: boolean; mandatory: boolean }>>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch(`/api/company-field-setting/?company_id=${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            setSettings(data.data.config || {});
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching field settings:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, [companyId]);
+
+  const isFieldVisible = useCallback((section: string, field: string): boolean => {
+    return settings[section]?.[field]?.visible ?? false;
+  }, [settings]);
+
+  const isFieldMandatory = useCallback((section: string, field: string): boolean => {
+    return settings[section]?.[field]?.mandatory ?? false;
+  }, [settings]);
+
+  return { settings, loading, isFieldVisible, isFieldMandatory };
+}
+
+
 interface AddressDetails {
   address_line_1?: string | null;
   address_line_2?: string | null;
@@ -68,7 +109,6 @@ interface DesignationItem {
   change_type_display?: string;
 }
 
-// --- UPDATED ExperienceItem to include new fields ---
 interface ExperienceItem {
   id?: number;
   company_name: string;
@@ -78,7 +118,7 @@ interface ExperienceItem {
   is_internal: boolean;
   designations: DesignationItem[];
   experience_letter?: string | File;
-  category?: string;            // "Institution", "Industry", "Other"
+  category?: string;
   is_aicte_approved?: boolean;
   is_after_pg?: boolean;
 }
@@ -141,7 +181,7 @@ interface LookupItem {
   name: string;
 }
 
-// Helper validation functions
+
 const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const isValidMobile = (mobile: string) => /^\d{10}$/.test(mobile.trim());
 
@@ -152,7 +192,9 @@ export default function EmployeeDetailsPage() {
   const { company, loading: authLoading } = useAuth();
   const companyId = company?.id;
 
-  // --- States ---
+  const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(companyId || null);
+
+
   const { data: employee, isLoading, isError, refetch } = useEmployee(companyId, employeeId);
   const [formData, setFormData] = useState<User | null>(null);
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
@@ -165,12 +207,12 @@ export default function EmployeeDetailsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   
-  // Image upload states
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imgError, setImgError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Lookups
+
   const [staffTypes, setStaffTypes] = useState<LookupItem[]>([]);
   const [staffCategories, setStaffCategories] = useState<LookupItem[]>([]);
   const [religions, setReligions] = useState<LookupItem[]>([]);
@@ -178,13 +220,13 @@ export default function EmployeeDetailsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
 
-  // --- New state for extended sections ---
+
   const [qualifications, setQualifications] = useState<any[]>([]);
   const [experiences, setExperiences] = useState<ExperienceItem[]>([]);
   const [bankDetails, setBankDetails] = useState<any[]>([]);
   const [guardians, setGuardians] = useState<GuardianItem[]>([]);
 
-  // Editing states
+
   const [editQualifications, setEditQualifications] = useState<any[]>([]);
   const [qualFormOpen, setQualFormOpen] = useState(false);
   const [currentQual, setCurrentQual] = useState<any>({});
@@ -199,10 +241,10 @@ export default function EmployeeDetailsPage() {
 
   const [familyIsMarried, setFamilyIsMarried] = useState(false);
 
-  // Company profile for address auto-fill in experience
+
   const [companyProfile, setCompanyProfile] = useState<any>(null);
 
-  // Tabs
+
   const [activeTab, setActiveTab] = useState('general');
   const tabs = [
     { id: 'general', label: 'General', icon: <UserIcon className="h-4 w-4" /> },
@@ -212,7 +254,6 @@ export default function EmployeeDetailsPage() {
     { id: 'notifications', label: 'Notification Preferences', icon: <MessageSquareDot className="h-4 w-4" /> },
   ];
 
-  // --- Effects ---
   useEffect(() => {
     if (employee) {
       setFormData(employee);
@@ -234,7 +275,6 @@ export default function EmployeeDetailsPage() {
     }
   }, [companyId]);
 
-  // Handle auto-retry
   useEffect(() => {
     if (isError && retryCount < 2) {
       const timer = setTimeout(() => { refetch(); setRetryCount(p => p + 1); }, 1000);
@@ -242,7 +282,7 @@ export default function EmployeeDetailsPage() {
     }
   }, [isError, retryCount, refetch]);
 
-  // Fetch castes when religion changes in edit mode
+
   useEffect(() => {
     if (!editingSection || !editProfileData?.religion_id) {
       setCastes([]);
@@ -251,7 +291,7 @@ export default function EmployeeDetailsPage() {
     fetchCastes(editProfileData.religion_id);
   }, [editProfileData?.religion_id, editingSection]);
 
-  // --- Data Fetching ---
+ 
   const fetchProfile = async () => {
     setProfileLoading(true);
     try {
@@ -347,7 +387,7 @@ export default function EmployeeDetailsPage() {
     } catch (err) { console.error("Failed to fetch company profile", err); }
   };
 
-  // --- Helpers ---
+ 
   const getProfileImageUrl = () => {
     if (!formData?.prof_img) return null;
     if (formData.prof_img.startsWith('http') || formData.prof_img.startsWith('data:')) return formData.prof_img;
@@ -419,7 +459,7 @@ export default function EmployeeDetailsPage() {
     return value;
   };
 
-  // --- Edit Handlers ---
+  
   const handleEdit = (section: string) => {
     if (!formData) return;
     
@@ -958,7 +998,7 @@ export default function EmployeeDetailsPage() {
     router.push(url);
   };
 
-  // --- Render ---
+ 
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
@@ -1157,7 +1197,7 @@ export default function EmployeeDetailsPage() {
           ))}
         </div>
 
-        {/* ========== TABS NAVIGATION ========== */}
+        {/* TABS NAVIGATION */}
         <div className="border-b border-gray-200 bg-white px-4 rounded-xl shadow-sm mb-8">
           <nav className="-mb-px flex space-x-8 overflow-x-auto scrollbar-none" aria-label="Tabs">
             {tabs.map((tab) => {
@@ -1182,9 +1222,9 @@ export default function EmployeeDetailsPage() {
           </nav>
         </div>
 
-        {/* ========== TAB CONTENT ========== */}
+        {/*  TAB CONTENT */}
         <div className="transition-all duration-300 ease-in-out">
-          {/* --- GENERAL TAB --- */}
+          {/* GENERAL TAB */}
           {activeTab === 'general' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Personal Details */}
@@ -1213,22 +1253,31 @@ export default function EmployeeDetailsPage() {
                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
                         <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
-                      <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
-                    </div>
+                    {/* Blood Group */}
+                    {isFieldVisible('personal_information', 'blood_group') && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Blood Group</p>
+                        <p className="text-base font-semibold text-red-600 flex items-center gap-1.5"><Heart className="h-4 w-4 fill-red-50" /> {fullProfile?.blood_group || "Not provided"}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-3 gap-6 mt-4">
-                    <div>
-                      <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
-                      <p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
+                    {/* Religion */}
+                    {isFieldVisible('personal_information', 'religion') && (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Religion</p>
+                        <p className="text-base font-semibold text-gray-800">{fullProfile?.religion_name || "Not provided"}</p>
                       </div>
+                    )}
+                    {/* Caste */}
+                    {isFieldVisible('personal_information', 'caste') && (
                       <div>
                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Caste</p>
                         <p className="text-base font-semibold text-gray-800">{fullProfile?.caste_name || "Not provided"}</p>
-                        </div>
-                        <div></div>
-                        </div>
+                      </div>
+                    )}
+                    <div></div>
+                  </div>
                 </div>
               </div>
               
@@ -1294,55 +1343,63 @@ export default function EmployeeDetailsPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
+                    {/* Alternate Email */}
+                    {isFieldVisible('personal_information', 'alternate_email') && (
+                      <div>
                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Email</p>
                         <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_email || "Not provided"}</p>
-                    </div>
-                    <div>
+                      </div>
+                    )}
+                    {/* Alternate Mobile */}
+                    {isFieldVisible('personal_information', 'alternate_mobile') && (
+                      <div>
                         <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Alternate Mobile</p>
                         <p className="text-base font-semibold text-gray-800">{fullProfile?.alternate_mobile || "Not provided"}</p>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Family & Emergency */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600 shadow-sm border border-pink-50">
-                      <Users className="h-5 w-5" />
+              {isFieldVisible('family', 'guardians') && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600 shadow-sm border border-pink-50">
+                        <Users className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">Family & Emergency Contacts</h3>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900">Family & Emergency Contacts</h3>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit("family")} className="text-pink-600 border-pink-100 bg-pink-50 hover:bg-pink-100 font-bold rounded-lg px-4">
+                      <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit("family")} className="text-pink-600 border-pink-100 bg-pink-50 hover:bg-pink-100 font-bold rounded-lg px-4">
-                    <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-                  </Button>
-                </div>
-                <div className="p-6 space-y-4">
-                  {guardians && guardians.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-4">
-                      {guardians.map((guardian: GuardianItem) => (
-                        <div key={guardian.id} className="flex flex-row items-center justify-between relative group">
-                          <div className="flex flex-col">
-                            <h4 className="text-base font-semibold text-gray-800">{guardian.name}</h4>
-                            <div className="flex items-center gap-2">
-                              <p className="text-[10px] uppercase font-bold text-gray-400">{guardian.relationship_type_display || guardian.relationship_type}</p>
-                              {guardian.is_guardian && <span className="text-[9px] font-extrabold uppercase tracking-wide bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded shadow-3xs">Primary Guardian</span>}
+                  <div className="p-6 space-y-4">
+                    {guardians && guardians.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-4">
+                        {guardians.map((guardian: GuardianItem) => (
+                          <div key={guardian.id} className="flex flex-row items-center justify-between relative group">
+                            <div className="flex flex-col">
+                              <h4 className="text-base font-semibold text-gray-800">{guardian.name}</h4>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] uppercase font-bold text-gray-400">{guardian.relationship_type_display || guardian.relationship_type}</p>
+                                {guardian.is_guardian && <span className="text-[9px] font-extrabold uppercase tracking-wide bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded shadow-3xs">Primary Guardian</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                              <Smartphone className="h-4 w-4 text-gray-400" />
+                              <span className="font-mono tracking-wide">{guardian.phone}</span>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                            <Smartphone className="h-4 w-4 text-gray-400" />
-                            <span className="font-mono tracking-wide">{guardian.phone}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 text-center py-6">No immediate family or emergency contact profiles attached to this account.</p>
-                  )}
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-6">No immediate family or emergency contact profiles attached to this account.</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Address Matrix */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden lg:col-span-2">
@@ -1358,22 +1415,27 @@ export default function EmployeeDetailsPage() {
                   </Button>
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Present Residence</p>
-                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
-                      {fullProfile?.present_address_details ? (
-                        <div className="text-sm font-semibold text-gray-800 space-y-1">
-                          <p>{fullProfile.present_address_details.address_line_1}</p>
-                          <p>{fullProfile.present_address_details.city}, {fullProfile.present_address_details.district}</p>
-                          <p>{fullProfile.present_address_details.state}, {fullProfile.present_address_details.country}</p>
-                          <p className="text-blue-600 mt-2 font-bold">{fullProfile.present_address_details.pincode}</p>
-                        </div>
-                      ) : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}
+                  {/* Present Address */}
+                  {isFieldVisible('address_settings', 'present_address_line') && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Present Residence</p>
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
+                        {fullProfile?.present_address_details ? (
+                          <div className="text-sm font-semibold text-gray-800 space-y-1">
+                            <p>{fullProfile.present_address_details.address_line_1}</p>
+                            <p>{fullProfile.present_address_details.city}, {fullProfile.present_address_details.district}</p>
+                            <p>{fullProfile.present_address_details.state}, {fullProfile.present_address_details.country}</p>
+                            <p className="text-blue-600 mt-2 font-bold">{fullProfile.present_address_details.pincode}</p>
+                          </div>
+                        ) : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Permanent Landmark</p>
-                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
+                  )}
+                  {/* Permanent Address */}
+                  {isFieldVisible('address_settings', 'permanent_address_line') && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Permanent Landmark</p>
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
                         {fullProfile?.permanent_address_details ? (
                           <div className="text-sm font-semibold text-gray-800 space-y-1">
                             <p>{fullProfile.permanent_address_details.address_line_1}</p>
@@ -1382,14 +1444,15 @@ export default function EmployeeDetailsPage() {
                             <p className="text-blue-600 mt-2 font-bold">{fullProfile.permanent_address_details.pincode}</p>
                           </div>
                         ) : <p className="text-sm font-semibold text-gray-400">Address record incomplete.</p>}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* --- QUALIFICATIONS TAB --- */}
+          {/*  QUALIFICATIONS TAB */}
           {activeTab === 'qualifications' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
@@ -1404,31 +1467,35 @@ export default function EmployeeDetailsPage() {
                 </Button>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 p-6">
-                {qualifications && qualifications.length > 0 ? (
-                  qualifications.map((qual: any) => (
-                    <div key={qual.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-base font-bold text-gray-800 capitalize">{qual.specialization || "__ __"}</h4>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{qual.qualification_level || "__ __"}</span>
+                {isFieldVisible('qualifications', 'qualification') ? (
+                  qualifications && qualifications.length > 0 ? (
+                    qualifications.map((qual: any) => (
+                      <div key={qual.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-base font-bold text-gray-800 capitalize">{qual.specialization || "__ __"}</h4>
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{qual.qualification_level || "__ __"}</span>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-semibold text-gray-700">{qual.institution_name || "__ __"}, {qual.location || "__ __"}</p>
+                          {qual.university && <p className="text-xs font-medium text-gray-500">{qual.university}</p>}
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
+                          <span className="text-xs font-semibold text-gray-400">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} - {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}</span>
+                          {qual.percentage && <span className="bg-gray-200 px-2.5 py-0.5 rounded text-xs font-bold text-gray-700">{qual.percentage}%</span>}
+                        </div>
                       </div>
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-semibold text-gray-700">{qual.institution_name || "__ __"}, {qual.location || "__ __"}</p>
-                        {qual.university && <p className="text-xs font-medium text-gray-500">{qual.university}</p>}
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-200/60">
-                        <span className="text-xs font-semibold text-gray-400">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} - {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}</span>
-                        {qual.percentage && <span className="bg-gray-200 px-2.5 py-0.5 rounded text-xs font-bold text-gray-700">{qual.percentage}%</span>}
-                      </div>
-                    </div>
-                  ))
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4 col-span-3">No educational records provided.</p>
+                  )
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-4 col-span-3">No educational records provided.</p>
+                  <p className="text-sm text-gray-500 text-center py-4 col-span-3">Qualifications section is currently disabled by administrator.</p>
                 )}
               </div>
             </div>
           )}
 
-          {/* --- EXPERIENCES TAB --- */}
+          {/*  EXPERIENCES TAB  */}
           {activeTab === 'experiences' && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
@@ -1443,107 +1510,110 @@ export default function EmployeeDetailsPage() {
                 </Button>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
-                {experiences && experiences.length > 0 ? (
-                  experiences.map((exp: ExperienceItem) => {
-                    const sortedDesignations = exp.designations 
-                      ? [...exp.designations].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
-                      : [];
-                    const latestTitle = sortedDesignations[0] 
-                      ? (exp.is_internal 
-                          ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
-                          : sortedDesignations[0].designation || "Unknown")
-                      : "No designation";
-                    return (
-                      <div key={exp.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 shadow-3xs transition-all space-y-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gray-50 rounded-lg text-gray-500">
-                              <Briefcase className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <h4 className="text-base font-bold text-gray-800">
-                                {exp.company_name || "Unnamed Company"}
-                              </h4>
-                              <p className="text-sm font-semibold text-gray-600">{latestTitle}</p>
+                {isFieldVisible('experience', 'experience') ? (
+                  experiences && experiences.length > 0 ? (
+                    experiences.map((exp: ExperienceItem) => {
+                      const sortedDesignations = exp.designations 
+                        ? [...exp.designations].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+                        : [];
+                      const latestTitle = sortedDesignations[0] 
+                        ? (exp.is_internal 
+                            ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
+                            : sortedDesignations[0].designation || "Unknown")
+                        : "No designation";
+                      return (
+                        <div key={exp.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 shadow-3xs transition-all space-y-3">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-gray-50 rounded-lg text-gray-500">
+                                <Briefcase className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <h4 className="text-base font-bold text-gray-800">
+                                  {exp.company_name || "Unnamed Company"}
+                                </h4>
+                                <p className="text-sm font-semibold text-gray-600">{latestTitle}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-gray-500 pt-1">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                            <span>
-                              {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ""} - {
-                                exp.end_year ? new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : "Present"
-                              }
-                            </span>
-                          </div>
-                          {exp.location && (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-gray-500 pt-1">
                             <div className="flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                              <span>{exp.location}</span>
+                              <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                              <span>
+                                {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ""} - {
+                                  exp.end_year ? new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : "Present"
+                                }
+                              </span>
                             </div>
-                          )}
-                          {exp.experience_letter && typeof exp.experience_letter === 'string' && (
-                            <a href={exp.experience_letter} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer">
-                              <FileText className="h-3.5 w-3.5" />
-                              <span>Experience Letter</span>
-                            </a>
-                          )}
-                          {/* Display new fields */}
-                          {!exp.is_internal && (
-                            <>
-                              {exp.category && <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">{exp.category}</span>}
-                              {exp.is_aicte_approved && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">AICTE Approved</span>}
-                              {exp.is_after_pg && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">After PG</span>}
-                            </>
+                            {exp.location && (
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                                <span>{exp.location}</span>
+                              </div>
+                            )}
+                            {exp.experience_letter && typeof exp.experience_letter === 'string' && (
+                              <a href={exp.experience_letter} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer">
+                                <FileText className="h-3.5 w-3.5" />
+                                <span>Experience Letter</span>
+                              </a>
+                            )}
+                            {!exp.is_internal && (
+                              <>
+                                {exp.category && <span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full">{exp.category}</span>}
+                                {exp.is_aicte_approved && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">AICTE Approved</span>}
+                                {exp.is_after_pg && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">After PG</span>}
+                              </>
+                            )}
+                          </div>
+
+                          {/* Multiple designations timeline */}
+                          {sortedDesignations.length > 0 && (
+                            <div className="mt-3 pl-4 border-l-2 border-gray-100 space-y-2.5">
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                <Milestone className="h-3 w-3" />
+                                <span>Role Timeline</span>
+                              </div>
+                              <div className="space-y-2">
+                                {sortedDesignations.map((des, idx) => {
+                                  let title = "";
+                                  let groupInfo = "";
+                                  if (exp.is_internal) {
+                                    title = roles.find(r => r.id === des.company_role)?.role || des.designation || "Unknown";
+                                    const group = groups.find(g => g.id === des.company_group);
+                                    groupInfo = group ? ` (${group.group || group.name})` : "";
+                                  } else {
+                                    title = des.designation || "Unknown";
+                                    groupInfo = des.company_group_text ? ` (${des.company_group_text})` : "";
+                                  }
+                                  return (
+                                    <div key={idx} className="text-xs flex flex-col space-y-0.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                        <span className="font-semibold text-gray-700">{title}{groupInfo}</span>
+                                        <span className="text-[10px] font-bold px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded">
+                                          {des.change_type_display || des.change_type}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-400 pl-3 text-[11px] leading-relaxed">
+                                        {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''} 
+                                        {des.end_date ? ` - ${new Date(des.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' - Present'}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           )}
                         </div>
-
-                        {/* Multiple designations timeline */}
-                        {sortedDesignations.length > 0 && (
-                          <div className="mt-3 pl-4 border-l-2 border-gray-100 space-y-2.5">
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              <Milestone className="h-3 w-3" />
-                              <span>Role Timeline</span>
-                            </div>
-                            <div className="space-y-2">
-                              {sortedDesignations.map((des, idx) => {
-                                let title = "";
-                                let groupInfo = "";
-                                if (exp.is_internal) {
-                                  title = roles.find(r => r.id === des.company_role)?.role || des.designation || "Unknown";
-                                  const group = groups.find(g => g.id === des.company_group);
-                                  groupInfo = group ? ` (${group.group || group.name})` : "";
-                                } else {
-                                  title = des.designation || "Unknown";
-                                  groupInfo = des.company_group_text ? ` (${des.company_group_text})` : "";
-                                }
-                                return (
-                                  <div key={idx} className="text-xs flex flex-col space-y-0.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                      <span className="font-semibold text-gray-700">{title}{groupInfo}</span>
-                                      <span className="text-[10px] font-bold px-1.5 py-0.2 bg-gray-100 text-gray-600 rounded">
-                                        {des.change_type_display || des.change_type}
-                                      </span>
-                                    </div>
-                                    <p className="text-gray-400 pl-3 text-[11px] leading-relaxed">
-                                      {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''} 
-                                      {des.end_date ? ` - ${new Date(des.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' - Present'}
-                                    </p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 col-span-2">
+                      No working history records provided.
+                    </p>
+                  )
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200 col-span-2">
-                    No working history records provided.
-                  </p>
+                  <p className="text-sm text-gray-500 text-center py-6 col-span-2">Experience section is currently disabled by administrator.</p>
                 )}
               </div>
             </div>
@@ -1567,55 +1637,81 @@ export default function EmployeeDetailsPage() {
                 </div>
                 <div className="p-6 space-y-6">
                   <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    {/* Aadhaar Card */}
+                    {isFieldVisible('identity_bank', 'aadhar_no') && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Aadhaar Card</p>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+                          Aadhaar Card
+                          {isFieldMandatory('identity_bank', 'aadhar_no') && <span className="text-red-500 ml-1">*</span>}
+                        </p>
                         <p className="text-base font-bold text-gray-800">{fullProfile?.aadhar_no || "Not provided"}</p>
                       </div>
+                    )}
+                    {/* PAN Number */}
+                    {isFieldVisible('identity_bank', 'pan_no') && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">PAN Number</p>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+                          PAN Number
+                          {isFieldMandatory('identity_bank', 'pan_no') && <span className="text-red-500 ml-1">*</span>}
+                        </p>
                         <p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.pan_no || "Not provided"}</p>
                       </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    {/* KTU ID */}
+                    {isFieldVisible('identity_bank', 'ktu_id') && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">KTU ID</p>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+                          KTU ID
+                          {isFieldMandatory('identity_bank', 'ktu_id') && <span className="text-red-500 ml-1">*</span>}
+                        </p>
                         <p className="text-base font-bold text-gray-800">{fullProfile?.ktu_id || "Not provided"}</p>
                       </div>
+                    )}
+                    {/* AICTE ID */}
+                    {isFieldVisible('identity_bank', 'aicte_id') && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">AICTE ID</p>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+                          AICTE ID
+                          {isFieldMandatory('identity_bank', 'aicte_id') && <span className="text-red-500 ml-1">*</span>}
+                        </p>
                         <p className="text-base font-bold text-gray-800 uppercase">{fullProfile?.aicte_id || "Not provided"}</p>
                       </div>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Bank Information */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-50">
-                      <Landmark className="h-5 w-5" />
+              {isFieldVisible('identity_bank', 'bank_details') && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-50">
+                        <Landmark className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">Bank Information</h3>
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900">Bank Information</h3>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit("bank")} className="text-emerald-600 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 font-bold rounded-lg px-4">
+                      <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit("bank")} className="text-emerald-600 border-emerald-100 bg-emerald-50 hover:bg-emerald-100 font-bold rounded-lg px-4">
-                    <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-                  </Button>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
+                    {bankDetails && bankDetails.length > 0 ? bankDetails.map((bank: any) => (
+                      <div key={bank.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 relative">
+                        {bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}
+                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span><p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p></div>
+                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span><p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p></div>
+                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span><p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p></div>
+                        <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span><p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p></div>
+                      </div>
+                    )) : (
+                      <p className="text-sm text-gray-500 text-center py-4 col-span-2">No financial billing accounts connected.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
-                  {bankDetails && bankDetails.length > 0 ? bankDetails.map((bank: any) => (
-                    <div key={bank.id} className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-100 relative">
-                      {bank.is_primary && <span className="absolute top-3 right-3 text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded shadow-2xs">Primary</span>}
-                      <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Holder</span><p className="text-base font-semibold text-gray-800">{bank.acc_holder_name}</p></div>
-                      <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Bank Name</span><p className="text-base font-semibold text-gray-800">{bank.bank_name} ({bank.branch_name || "N/A"})</p></div>
-                      <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">Account Number</span><p className="text-base font-mono font-bold text-gray-800 tracking-wider">{bank.account_number}</p></div>
-                      <div><span className="text-[10px] uppercase font-bold text-gray-400 mb-1 block">IFSC Code</span><p className="text-base font-mono font-bold text-gray-800">{bank.ifsc_code}</p></div>
-                    </div>
-                  )) : (
-                    <p className="text-sm text-gray-500 text-center py-4 col-span-2">No financial billing accounts connected.</p>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -1665,8 +1761,6 @@ export default function EmployeeDetailsPage() {
             </div>
           )}
         </div>
-
-        {/* ALL EDIT DIALOGS*/}
 
         {/* PROFESSIONAL EDIT DIALOG */}
         <Dialog open={editingSection === "professional"} onOpenChange={(open) => !open && handleCancel()}>
@@ -1765,14 +1859,20 @@ export default function EmployeeDetailsPage() {
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Alt Mobile</Label>
-                    <Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Alt Email</Label>
-                    <Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
-                  </div>
+                  {/* Alternate Mobile */}
+                  {isFieldVisible('personal_information', 'alternate_mobile') && (
+                    <div className="space-y-2">
+                      <Label>Alt Mobile</Label>
+                      <Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
+                    </div>
+                  )}
+                  {/* Alternate Email */}
+                  {isFieldVisible('personal_information', 'alternate_email') && (
+                    <div className="space-y-2">
+                      <Label>Alt Email</Label>
+                      <Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
+                    </div>
+                  )}
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50">
@@ -1806,36 +1906,45 @@ export default function EmployeeDetailsPage() {
                   </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Blood Group</Label>
-                    <Select value={editProfileData?.blood_group || ""} onValueChange={(val) => handleProfileChange("blood_group", val)}>
-                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue placeholder="Select blood group" /></SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="A+">A+</SelectItem>
-                        <SelectItem value="A-">A−</SelectItem>
-                        <SelectItem value="B+">B+</SelectItem>
-                        <SelectItem value="B-">B−</SelectItem>
-                        <SelectItem value="O+">O+</SelectItem>
-                        <SelectItem value="O-">O−</SelectItem>
-                        <SelectItem value="AB+">AB+</SelectItem>
-                        <SelectItem value="AB-">AB−</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Religion</Label>
-                    <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(val) => handleProfileChange("religion_id", Number(val))}>
-                        <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Caste Identity</Label>
-                    <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(val) => handleProfileChange("caste_id", Number(val))} disabled={!editProfileData?.religion_id}>
-                        <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                  {/* Blood Group */}
+                  {isFieldVisible('personal_information', 'blood_group') && (
+                    <div className="space-y-2">
+                      <Label>Blood Group</Label>
+                      <Select value={editProfileData?.blood_group || ""} onValueChange={(val) => handleProfileChange("blood_group", val)}>
+                        <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue placeholder="Select blood group" /></SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="A+">A+</SelectItem>
+                          <SelectItem value="A-">A−</SelectItem>
+                          <SelectItem value="B+">B+</SelectItem>
+                          <SelectItem value="B-">B−</SelectItem>
+                          <SelectItem value="O+">O+</SelectItem>
+                          <SelectItem value="O-">O−</SelectItem>
+                          <SelectItem value="AB+">AB+</SelectItem>
+                          <SelectItem value="AB-">AB−</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {/* Religion */}
+                  {isFieldVisible('personal_information', 'religion') && (
+                    <div className="space-y-2">
+                      <Label>Religion</Label>
+                      <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(val) => handleProfileChange("religion_id", Number(val))}>
+                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                          <SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {/* Caste */}
+                  {isFieldVisible('personal_information', 'caste') && (
+                    <div className="space-y-2">
+                      <Label>Caste Identity</Label>
+                      <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(val) => handleProfileChange("caste_id", Number(val))} disabled={!editProfileData?.religion_id}>
+                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                          <SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50 mt-4">
@@ -1845,36 +1954,53 @@ export default function EmployeeDetailsPage() {
         </Dialog>
 
         {/* LEGAL EDIT DIALOG */}
-        <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-            <DialogHeader className="p-8 bg-amber-600 text-white">
-              <DialogTitle className="text-2xl font-black">Statutory Identities</DialogTitle>
-              <DialogDescription className="text-amber-100 font-bold opacity-80">Update governmental and legal identification numbers.</DialogDescription>
-            </DialogHeader>
-            <div className="p-8 space-y-6">
-              <div className="space-y-2">
-                <Label>Aadhaar Number (UIDAI)</Label>
-                <Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11 font-bold" />
+        {(isFieldVisible('identity_bank', 'aadhar_no') || 
+          isFieldVisible('identity_bank', 'pan_no') || 
+          isFieldVisible('identity_bank', 'ktu_id') || 
+          isFieldVisible('identity_bank', 'aicte_id')) && (
+          <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
+            <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+              <DialogHeader className="p-8 bg-amber-600 text-white">
+                <DialogTitle className="text-2xl font-black">Statutory Identities</DialogTitle>
+                <DialogDescription className="text-amber-100 font-bold opacity-80">Update governmental and legal identification numbers.</DialogDescription>
+              </DialogHeader>
+              <div className="p-8 space-y-6">
+                {/* Aadhaar */}
+                {isFieldVisible('identity_bank', 'aadhar_no') && (
+                  <div className="space-y-2">
+                    <Label>Aadhaar Number (UIDAI)</Label>
+                    <Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11 font-bold" />
+                  </div>
+                )}
+                {/* PAN */}
+                {isFieldVisible('identity_bank', 'pan_no') && (
+                  <div className="space-y-2">
+                    <Label>PAN Number (Income Tax)</Label>
+                    <Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 font-bold uppercase" />
+                  </div>
+                )}
+                <Separator />
+                {/* KTU ID */}
+                {isFieldVisible('identity_bank', 'ktu_id') && (
+                  <div className="space-y-2">
+                    <Label>KTU Identifier</Label>
+                    <Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11 font-bold" />
+                  </div>
+                )}
+                {/* AICTE ID */}
+                {isFieldVisible('identity_bank', 'aicte_id') && (
+                  <div className="space-y-2">
+                    <Label>AICTE Identifier</Label>
+                    <Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} className="rounded-xl h-11 font-bold" />
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label>PAN Number (Income Tax)</Label>
-                <Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 font-bold uppercase" />
-              </div>
-              <Separator />
-              <div className="space-y-2">
-                <Label>KTU Identifier</Label>
-                <Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11 font-bold" />
-              </div>
-              <div className="space-y-2">
-                <Label>AICTE Identifier</Label>
-                <Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} className="rounded-xl h-11 font-bold" />
-              </div>
-            </div>
-            <DialogFooter className="p-8 bg-slate-50">
-              <Button onClick={handleSave} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter className="p-8 bg-slate-50">
+                <Button onClick={handleSave} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
@@ -1885,303 +2011,530 @@ export default function EmployeeDetailsPage() {
               </DialogHeader>
               <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Present Edit */}
-                <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase text-blue-600 tracking-widest">Present Residence</h4>
-                    <div className="space-y-3">
-                      <Input placeholder="Line 1" value={editProfileData?.present_address_details.address_line_1 || ""} onChange={e => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
-                      <div className="grid grid-cols-2 gap-3">
-                          <Input placeholder="City" value={editProfileData?.present_address_details.city || ""} onChange={e => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-10" />
-                          <Input placeholder="Pin" value={editProfileData?.present_address_details.pincode || ""} onChange={e => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                {isFieldVisible('address_settings', 'present_address_line') && (
+                  <div className="space-y-4">
+                      <h4 className="text-xs font-black uppercase text-blue-600 tracking-widest">Present Residence</h4>
+                      <div className="space-y-3">
+                        <Input placeholder="Line 1" value={editProfileData?.present_address_details.address_line_1 || ""} onChange={e => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
+                        <div className="grid grid-cols-2 gap-3">
+                            <Input placeholder="City" value={editProfileData?.present_address_details.city || ""} onChange={e => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-10" />
+                            <Input placeholder="Pin" value={editProfileData?.present_address_details.pincode || ""} onChange={e => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                        </div>
+                        <Input placeholder="State" value={editProfileData?.present_address_details.state || ""} onChange={e => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-10" />
                       </div>
-                      <Input placeholder="State" value={editProfileData?.present_address_details.state || ""} onChange={e => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-10" />
-                    </div>
-                </div>
+                  </div>
+                )}
                 {/* Permanent Edit */}
-                <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase text-indigo-600 tracking-widest">Permanent Residence</h4>
-                    <div className="space-y-3">
-                      <Input placeholder="Line 1" value={editProfileData?.permanent_address_details.address_line_1 || ""} onChange={e => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
-                      <div className="grid grid-cols-2 gap-3">
-                          <Input placeholder="City" value={editProfileData?.permanent_address_details.city || ""} onChange={e => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-10" />
-                          <Input placeholder="Pin" value={editProfileData?.permanent_address_details.pincode || ""} onChange={e => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                {isFieldVisible('address_settings', 'permanent_address_line') && (
+                  <div className="space-y-4">
+                      <h4 className="text-xs font-black uppercase text-indigo-600 tracking-widest">Permanent Residence</h4>
+                      <div className="space-y-3">
+                        <Input placeholder="Line 1" value={editProfileData?.permanent_address_details.address_line_1 || ""} onChange={e => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
+                        <div className="grid grid-cols-2 gap-3">
+                            <Input placeholder="City" value={editProfileData?.permanent_address_details.city || ""} onChange={e => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-10" />
+                            <Input placeholder="Pin" value={editProfileData?.permanent_address_details.pincode || ""} onChange={e => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                        </div>
+                        <Input placeholder="State" value={editProfileData?.permanent_address_details.state || ""} onChange={e => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-10" />
                       </div>
-                      <Input placeholder="State" value={editProfileData?.permanent_address_details.state || ""} onChange={e => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-10" />
-                    </div>
-                </div>
+                  </div>
+                )}
               </div>
               <DialogFooter className="p-8 bg-slate-50"><Button onClick={handleSave} className="bg-slate-900 w-full h-12 font-black rounded-xl">Commit Physical Data</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* FAMILY / GUARDIAN EDIT DIALOG */}
-        <Dialog open={editingSection === "family"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Edit Family & Emergency Contacts
-              </DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
-                Manage statutory dependencies and emergency contacts.
-              </DialogDescription>
-              <Users className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
-            </DialogHeader>
+        {/* FAMILY / GUARDIAN EDIT DIALOG  */}
+        {isFieldVisible('family', 'guardians') && (
+          <Dialog open={editingSection === "family"} onOpenChange={(open) => !open && handleCancel()}>
+            <DialogContent className="sm:max-w-4xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+              <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+                <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                  Edit Family & Emergency Contacts
+                </DialogTitle>
+                <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                  Manage statutory dependencies and emergency contacts.
+                </DialogDescription>
+                <Users className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+              </DialogHeader>
 
-            <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div className="space-y-3">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
-                  Primary Emergency Node Configuration
-                </Label>
-                
-                <RadioGroup 
-                  value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
-                  onValueChange={(relationshipType) => { 
-                    const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
-                    setGuardians(updated); 
-                  }} 
-                  className="space-y-3"
-                >
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Father Node */}
-                    <div>
-                      {(() => { 
-                        const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
-                        const updateFather = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...father, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
-                        return (
-                          <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-blue-600"></span> Father Details
-                              </span>
-                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
-                                <RadioGroupItem value="father" id="primary-father" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
-                                <Label htmlFor="primary-father" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+              <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
+                    Primary Emergency Node Configuration
+                  </Label>
+                  
+                  <RadioGroup 
+                    value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
+                    onValueChange={(relationshipType) => { 
+                      const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
+                      setGuardians(updated); 
+                    }} 
+                    className="space-y-3"
+                  >
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Father Node */}
+                      <div>
+                        {(() => { 
+                          const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
+                          const updateFather = (fields: any) => { 
+                            let exists = false; 
+                            const updated = (guardians || []).map((g: any) => { 
+                              if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
+                              return g; 
+                            }); 
+                            if (!exists) updated.push({ ...father, ...fields }); 
+                            setGuardians(updated); 
+                          }; 
+                          return (
+                            <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-blue-600"></span> Father Details
+                                </span>
+                                <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                  <RadioGroupItem value="father" id="primary-father" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                  <Label htmlFor="primary-father" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                  <Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                  <Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                                </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
-                                <Input value={father.name || ""} onChange={(e) => updateFather({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                          ); 
+                        })()}
+                      </div>
+                      
+                      {/* Mother Node */}
+                      <div>
+                        {(() => { 
+                          const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
+                          const updateMother = (fields: any) => { 
+                            let exists = false; 
+                            const updated = (guardians || []).map((g: any) => { 
+                              if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
+                              return g; 
+                            }); 
+                            if (!exists) updated.push({ ...mother, ...fields }); 
+                            setGuardians(updated); 
+                          }; 
+                          return (
+                            <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-[#ef4444]"></span> Mother Details
+                                </span>
+                                <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                  <RadioGroupItem value="mother" id="primary-mother" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                  <Label htmlFor="primary-mother" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                                </div>
                               </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
-                                <Input value={father.phone || ""} onChange={(e) => updateFather({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
-                              </div>
-                            </div>
-                          </div>
-                        ); 
-                      })()}
-                    </div>
-                    
-                    {/* Mother Node */}
-                    <div>
-                      {(() => { 
-                        const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
-                        const updateMother = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...mother, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
-                        return (
-                          <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-[#ef4444]"></span> Mother Details
-                              </span>
-                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
-                                <RadioGroupItem value="mother" id="primary-mother" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
-                                <Label htmlFor="primary-mother" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
-                                <Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
-                                <Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                  <Input value={mother.name || ""} onChange={(e) => updateMother({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                  <Input value={mother.phone || ""} onChange={(e) => updateMother({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ); 
-                      })()}
-                    </div>
+                          ); 
+                        })()}
+                      </div>
 
-                    {/* Marital Status Banner */}
-                    <div>  
-                      <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
-                        <div className="space-y-0.5">
-                          <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
-                            Marital Status: Married?
-                          </Label>
-                          <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
+                      {/* Marital Status Banner */}
+                      <div>  
+                        <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
+                              Marital Status: Married?
+                            </Label>
+                            <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
+                          </div>
+                          <Checkbox 
+                            id="is_married" 
+                            checked={familyIsMarried} 
+                            onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
+                            className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                          />
                         </div>
-                        <Checkbox 
-                          id="is_married" 
-                          checked={familyIsMarried} 
-                          onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
-                          className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                      </div>
+                        
+                      {/* Spouse Node */}
+                      <div>  
+                        {familyIsMarried && (() => { 
+                          const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
+                          const updateSpouse = (fields: any) => { 
+                            let exists = false; 
+                            const updated = (guardians || []).map((g: any) => { 
+                              if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
+                              return g; 
+                            }); 
+                            if (!exists) updated.push({ ...spouse, ...fields }); 
+                            setGuardians(updated); 
+                          }; 
+                          return (
+                            <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-[#f59e0b]"></span> Spouse Details
+                                </span>
+                                <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
+                                  <RadioGroupItem value="spouse" id="primary-spouse" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
+                                  <Label htmlFor="primary-spouse" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
+                                  <Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
+                                  <Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
+                                </div>
+                              </div>
+                            </div>
+                          ); 
+                        })()}
+                      </div>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={handleCancel} 
+                  className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSave} 
+                  disabled={isSaving} 
+                  className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Updating Changes..." : "Save Changes"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* EDUCATION EDIT DIALOG */}
+        {isFieldVisible('qualifications', 'qualification') && (
+          <Dialog open={editingSection === "education"} onOpenChange={(open) => !open && handleCancel()}>
+            <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+              <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+                <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                  Edit Education Details
+                </DialogTitle>
+                <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                  Manage academic qualifications, degrees, and certifications.
+                </DialogDescription>
+                <GraduationCap className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+              </DialogHeader>
+
+              <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                
+                {/* Existing Education Qualifications Stack */}
+                <div className="space-y-3">
+                  {editQualifications.map((qual: any, idx: number) => { 
+                    const levelLabels: Record<string, string> = { 
+                      UG: 'UG', 
+                      PG: 'PG', 
+                      MPHIL: 'M.Phil', 
+                      PHD: 'Ph.D', 
+                      POSTDOC: 'Post Doc', 
+                      RESEARCH_OTHERS: 'Research', 
+                      OTHERS: 'Others' 
+                    }; 
+                    const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
+                    
+                    return (
+                      <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                              {qual.specialization || "Unnamed"}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 px-2 py-0.5 rounded border border-blue-100 shrink-0">
+                              {displayLevel}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[#7a8ba0]">
+                            {qual.institution_name}{qual.university ? `, ${qual.university}` : ""}
+                          </p>
+                          <p className="text-[12px] text-[#434655] font-medium">
+                            {qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} &ndash; {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}
+                            {qual.percentage != null && qual.percentage !== "" ? ` &middot; ${qual.percentage}%` : ""}
+                          </p>
+                          {qual.certificate_preview && (
+                            <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                              <CheckCircle className="h-3 w-3" /> Certificate Document Staged
+                            </p>
+                          )}
+                          {qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && (
+                            <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">
+                              View Uploaded Document
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button 
+                            onClick={() => { 
+                              let normalizedLevel = qual.qualification_level; 
+                              if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
+                              setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
+                              setQualFormOpen(true); 
+                            }} 
+                            className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                            className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {editQualifications.length === 0 && !qualFormOpen && (
+                    <p className="text-sm text-[#7a8ba0] text-center py-6">
+                      No qualifications added yet. Click below to add one.
+                    </p>
+                  )}
+                </div>
+
+                {/* Qualification Mutation Node */}
+                {qualFormOpen && (
+                  <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                      {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
+                    </h4>
+                    
+                    {/* Level & Specialty Block */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Qualification Level<span className="text-red-500 -ml-1">*</span></Label>
+                        <Select value={currentQual?.qualification_level || ''} onValueChange={v => setCurrentQual((p: any) => ({ ...p, qualification_level: v }))} required>
+                          <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white">
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[
+                              ['UG','Undergraduate (UG)'],
+                              ['PG','Postgraduate (PG)'],
+                              ['MPHIL','M.Phil.'],
+                              ['PHD','Ph.D.'],
+                              ['POSTDOC','Post Doctoral'],
+                              ['RESEARCH_OTHERS','Research (Others)'],
+                              ['OTHERS','Others']
+                            ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
+                        required
                         />
                       </div>
                     </div>
-                      
-                    {/* Spouse Node (Conditional) */}
-                    <div>  
-                      {familyIsMarried && (() => { 
-                        const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
-                        const updateSpouse = (fields: any) => { 
-                          let exists = false; 
-                          const updated = (guardians || []).map((g: any) => { 
-                            if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
-                            return g; 
-                          }); 
-                          if (!exists) updated.push({ ...spouse, ...fields }); 
-                          setGuardians(updated); 
-                        }; 
-                        return (
-                          <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-[#434655] uppercase tracking-wider flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-[#f59e0b]"></span> Spouse Details
-                              </span>
-                              <div className="flex items-center space-x-2 bg-white px-2.5 py-1 rounded-md border border-[#dde3ec] shadow-sm">
-                                <RadioGroupItem value="spouse" id="primary-spouse" className="text-blue-600 focus:ring-[#004ac6]/20 border-[#dde3ec]" />
-                                <Label htmlFor="primary-spouse" className="text-[11px] font-bold text-[#7a8ba0] cursor-pointer">Set Primary Guardian</Label>
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Full Name</Label>
-                                <Input value={spouse.name || ""} onChange={(e) => updateSpouse({ name: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10" />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase">Mobile Number</Label>
-                                <Input value={spouse.phone || ""} onChange={(e) => updateSpouse({ phone: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 font-mono" maxLength={10} minLength={10} />
-                              </div>
-                            </div>
-                          </div>
-                        ); 
-                      })()}
+
+                    {/* Institutional Identification Block */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Institution / College<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input value={currentQual?.institution_name || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, institution_name: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="College or school name" required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Affiliated University<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input value={currentQual?.university || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, university: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="University name" required />
+                      </div>
+                    </div>
+
+                    {/* Geographic Metadata */}
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input value={currentQual?.location || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, location: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="City, State" required />
+                      </div>
+                    </div>
+
+                    {/* Chronology & Metrics Matrix */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Date<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input type="date" value={currentQual?.start_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, start_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Completion Date<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input type="date" value={currentQual?.completion_date || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, completion_date: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Score / %<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input type="number" min="0" max="100" step="0.01" value={currentQual?.percentage ?? ''} onChange={e => setCurrentQual((p: any) => ({ ...p, percentage: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. 85.5" required />
+                      </div>
+                    </div>
+
+                    {/* Verification Attestations */}
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Certificate Document (.pdf, image)<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input type="file" accept=".pdf,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) setCurrentQual((p: any) => ({ ...p, certificate_file: file, certificate_preview: file.name })); }} className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" required />
+                      </div>
+                    </div>
+
+                    {/* Mutation Action Sub-block */}
+                    <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                      <Button 
+                        type="button" 
+                        onClick={() => { 
+                          if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
+                          if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
+                          const { _idx, ...qualData } = currentQual; 
+                          if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
+                          else { setEditQualifications(prev => [...prev, qualData]); } 
+                          setCurrentQual({}); 
+                          setQualFormOpen(false); 
+                        }} 
+                        className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                      >
+                        {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        type="button" 
+                        onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
+                        className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                </RadioGroup>
+                )}
+
+                {/* Trigger Node to Reveal Form */}
+                {!qualFormOpen && (
+                  <button 
+                    type="button" 
+                    onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
+                    className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Add Qualification Record
+                  </button>
+                )}
               </div>
-            </div>
 
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancel} 
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={isSaving} 
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
-              >
-                {isSaving ? "Updating Changes..." : "Save Changes"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+                <Button 
+                  variant="outline" 
+                  type="button" 
+                  onClick={handleCancel} 
+                  className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button" 
+                  onClick={handleSave} 
+                  disabled={isSaving} 
+                  className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Saving Education Details..." : "Save Education Details"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
-        {/* EDUCATION EDIT DIALOG */}
-        <Dialog open={editingSection === "education"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Edit Education Details
-              </DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
-                Manage academic qualifications, degrees, and certifications.
-              </DialogDescription>
-              <GraduationCap className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
-            </DialogHeader>
+        {/* EXPERIENCE EDIT DIALOG */}
+        {isFieldVisible('experience', 'experience') && (
+          <Dialog open={editingSection === "experience"} onOpenChange={(open) => !open && handleCancel()}>
+            <DialogContent className="sm:max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+              <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+                <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                  Edit Work Experience
+                </DialogTitle>
+                <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                  Manage professional employment history. Toggle "Internal Role" &ndash; company & location auto‑fill from organisation profile.
+                </DialogDescription>
+                <BriefcaseBusiness className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+              </DialogHeader>
 
-            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
-              {/* Existing Education Qualifications Stack */}
-              <div className="space-y-3">
-                {editQualifications.map((qual: any, idx: number) => { 
-                  const levelLabels: Record<string, string> = { 
-                    UG: 'UG', 
-                    PG: 'PG', 
-                    MPHIL: 'M.Phil', 
-                    PHD: 'Ph.D', 
-                    POSTDOC: 'Post Doc', 
-                    RESEARCH_OTHERS: 'Research', 
-                    OTHERS: 'Others' 
-                  }; 
-                  const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
-                  
-                  return (
+              <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                
+                {/* Existing Experiences Stack */}
+                <div className="space-y-3">
+                  {editExperiences.map((exp: ExperienceItem, idx: number) => (
                     <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
-                            {qual.specialization || "Unnamed"}
+                            {exp.company_name || 'Company'}
                           </span>
-                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 px-2 py-0.5 rounded border border-blue-100 shrink-0">
-                            {displayLevel}
-                          </span>
+                          {!exp.is_internal && exp.category && (
+                            <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">
+                              {exp.category}
+                            </span>
+                          )}
+                          {!exp.is_internal && exp.is_aicte_approved && (
+                            <span className="text-[10px] font-bold uppercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                              AICTE Approved
+                            </span>
+                          )}
                         </div>
                         <p className="text-[12px] text-[#7a8ba0]">
-                          {qual.institution_name}{qual.university ? `, ${qual.university}` : ""}
+                          {exp.start_year ? new Date(exp.start_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
+                          {exp.end_year ? ` &ndash; ${new Date(exp.end_year).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' &ndash; Present'}
+                          {exp.location ? ` &middot; ${exp.location}` : ''}
                         </p>
-                        <p className="text-[12px] text-[#434655] font-medium">
-                          {qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} &ndash; {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}
-                          {qual.percentage != null && qual.percentage !== "" ? ` &middot; ${qual.percentage}%` : ""}
+                        <p className="text-[12px] text-[#434655] font-medium mt-1">
+                          {exp.designations?.length || 0} role(s) defined
                         </p>
-                        {qual.certificate_preview && (
-                          <p className="text-[11px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
-                            <CheckCircle className="h-3 w-3" /> Certificate Document Staged
-                          </p>
-                        )}
-                        {qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && (
-                          <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">
-                            View Uploaded Document
-                          </a>
-                        )}
                       </div>
                       <div className="flex gap-1 shrink-0">
                         <button 
-                          onClick={() => { 
-                            let normalizedLevel = qual.qualification_level; 
-                            if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
-                            setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
-                            setQualFormOpen(true); 
-                          }} 
+                          type="button"
+                          onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
                           className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                         >
                           Edit
                         </button>
                         <button 
+<<<<<<< HEAD
                           onClick={() => {
                             setEditQualifications(prev => prev.filter((_, i) => i !== idx));
                             setTimeout(() => {
                               document.getElementById("save-education-btn")?.click();
                             }, 100);
                           }} 
+=======
+                          type="button"
+                          onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
+>>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
                         </button>
                       </div>
                     </div>
+<<<<<<< HEAD
                   );
                 })}
                 {editQualifications.length === 0 && !qualFormOpen && (
@@ -2533,455 +2886,594 @@ export default function EmployeeDetailsPage() {
                         </Label>
                       </div>
                     </>
+=======
+                  ))}
+                  {editExperiences.length === 0 && !expFormOpen && (
+                    <p className="text-sm text-[#7a8ba0] text-center py-6">
+                      No experience records added yet. Click below to add one.
+                    </p>
+>>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
                   )}
+                </div>
 
-                  {/* Tenure Lifespan */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">End Year <span className="text-[#7a8ba0]/70 normal-case font-normal">(leave blank if current)</span></Label>
-                      <Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" />
-                    </div>
-                  </div>
+                {/* Experience Mutation Node */}
+                {expFormOpen && currentExp && (
+                  <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                      {currentExp.id ? 'Edit Experience Log' : 'Add Experience Log'}
+                    </h4>
 
-                  {/* Verification Attestation */}
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
-                    <Input 
-                      type="file" 
-                      accept=".pdf,.jpg,.png" 
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
-                      className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
-                    />
-                    {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
-                      <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
-                    )}
-                  </div>
-
-                  {/* Multiple Designations Vector Segment */}
-                  <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
-                      <Button 
-                        type="button" 
-                        onClick={() => { 
-                          const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
-                          if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
-                          else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
-                          setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
-                        }} 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
-                      >
-                        <Plus className="h-3 w-3" /> Add Role
-                      </Button>
+                    {/* Internal Role Configuration Node */}
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-[#dde3ec]">
+                      <Checkbox
+                        id="internal-role-checkbox"
+                        checked={currentExp.is_internal || false}
+                        onCheckedChange={(checked) => {
+                          const isInternal = !!checked;
+                          let newCompanyName = currentExp.company_name;
+                          let newLocation = currentExp.location;
+                          if (isInternal && company) {
+                            newCompanyName = company.company_name || company.name || "Internal Organization";
+                            if (companyProfile) {
+                              const addressParts = [
+                                companyProfile.city,
+                                companyProfile.district,
+                                companyProfile.state
+                              ].filter(Boolean);
+                              newLocation = addressParts.join(", ");
+                              if (!newLocation) newLocation = companyProfile.city || "";
+                            } else {
+                              newLocation = "";
+                            }
+                          } else if (!isInternal && !currentExp.company_name) {
+                            const defaultCompany = company?.company_name || company?.name || "Internal Organization";
+                            if (newCompanyName === defaultCompany) newCompanyName = "";
+                            if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
+                          }
+                          setCurrentExp({ 
+                            ...currentExp, 
+                            is_internal: isInternal,
+                            company_name: newCompanyName,
+                            location: newLocation,
+                           
+                            category: isInternal ? 'Other' : currentExp.category || 'Other',
+                          });
+                        }}
+                        className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
+                      />
+                      <Label htmlFor="internal-role-checkbox" className="text-[13px] font-semibold text-[#434655] cursor-pointer select-none">
+                        This is an internal role (organisation uses predefined Roles & Groups)
+                      </Label>
                     </div>
-                    
-                    <div className="space-y-3 overflow-y-auto pr-1">
-                      {currentExp.designations && currentExp.designations.map((des, desIdx) => (
-                        <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
-                              className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
+
+                    {/* Company & Location Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Company / Organization</Label>
+                        <Input
+                          value={currentExp.company_name || ''}
+                          onChange={e => setCurrentExp({ ...currentExp, company_name: e.target.value })}
+                          disabled={currentExp.is_internal}
+                          className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
+                          placeholder={currentExp.is_internal ? "Auto-filled from company" : "Company name"}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Location (City, State)</Label>
+                        <Input
+                          value={currentExp.location || ''}
+                          onChange={e => setCurrentExp({ ...currentExp, location: e.target.value })}
+                          disabled={currentExp.is_internal}
+                          className={`w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white ${currentExp.is_internal ? 'bg-[#f2f4f6] text-[#7a8ba0] cursor-not-allowed border-[#dde3ec]/60' : ''}`}
+                          placeholder={currentExp.is_internal ? "Auto-filled from company address" : "e.g. Bangalore, India"}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Category & AICTE Approved (only for external) */}
+                    {!currentExp.is_internal && (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                              Category <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                              value={currentExp.category || 'Other'}
+                              onValueChange={(val) => setCurrentExp({ ...currentExp, category: val })}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                          
-                          {currentExp.is_internal ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Role</Label>
-                                <Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
-                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select role" /></SelectTrigger>
-                                  <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group</Label>
-                                <Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
-                                  <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select group" /></SelectTrigger>
-                                  <SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Designation Title</Label>
-                                <Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Software Engineer" />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group / Department <span className="text-[#7a8ba0]/70 normal-case font-normal">(optional)</span></Label>
-                                <Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Engineering" />
-                              </div>
-                            </div>
-                          )}
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
-                              <Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">End Date</Label>
-                              <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
-                            <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
-                              <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] bg-white">
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Joined">Joined</SelectItem>
-                                <SelectItem value="Promotion">Promotion</SelectItem>
-                                <SelectItem value="Transfer">Transfer</SelectItem>
-                                <SelectItem value="Demotion">Demotion</SelectItem>
-                                <SelectItem value="Contract">Contract</SelectItem>
+                                <SelectItem value="Institution">Institutional</SelectItem>
+                                <SelectItem value="Industry">Industrial</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="space-y-1.5 flex items-end">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id="aicte-approved"
+                                checked={currentExp.is_aicte_approved || false}
+                                onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_aicte_approved: !!checked })}
+                                disabled={currentExp.category !== 'Institution'}
+                                className={`h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 ${currentExp.category !== 'Institution' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              />
+                              <Label htmlFor="aicte-approved" className={`text-[13px] font-semibold ${currentExp.category !== 'Institution' ? 'text-gray-400' : 'text-[#434655]'} cursor-pointer`}>
+                                AICTE Approved
+                              </Label>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                      {(!currentExp.designations || currentExp.designations.length === 0) && (
-                        <p className="text-xs text-[#7a8ba0] text-center py-2">No roles added. Click "Add Role" to specify.</p>
+
+                        {/*After PG checkbox */}
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="after-pg"
+                            checked={currentExp.is_after_pg || false}
+                            onCheckedChange={(checked) => setCurrentExp({ ...currentExp, is_after_pg: !!checked })}
+                            className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20"
+                          />
+                          <Label htmlFor="after-pg" className="text-[13px] font-semibold text-[#434655] cursor-pointer">
+                            Experience acquired after PG degree
+                          </Label>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Tenure Lifespan */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Start Year<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input type="date" value={currentExp.start_year || ''} onChange={e => setCurrentExp({ ...currentExp, start_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">End Year <span className="text-[#7a8ba0]/70 normal-case font-normal">(leave blank if current)</span></Label>
+                        <Input type="date" value={currentExp.end_year || ''} onChange={e => setCurrentExp({ ...currentExp, end_year: e.target.value })} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" />
+                      </div>
+                    </div>
+
+                    {/* Verification Attestation */}
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
+                      <Input 
+                        type="file" 
+                        accept=".pdf,.jpg,.png" 
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
+                        className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
+                      />
+                      {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
+                        <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Form Node Actions */}
-                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
-                      type="button"
-                      onClick={() => {
-                        if (!currentExp.start_year) { 
-                          toast.error("Start year is required."); 
-                          return; 
-                        }
-                        if (!currentExp.designations || currentExp.designations.length === 0) { 
-                          toast.error("At least one role/designation is required."); 
-                          return; 
-                        }
-                        for (let i = 0; i < currentExp.designations.length; i++) {
-                          const des = currentExp.designations[i];
-                          if (currentExp.is_internal) { 
-                            if (!des.company_role || !des.company_group) { 
-                              toast.error(`Role #${i+1}: Please select both Role and Group.`); 
-                              return; 
-                            } 
-                          } else { 
-                            if (!des.designation || des.designation.trim() === '') { 
-                              toast.error(`Role #${i+1}: Designation title is required.`); 
-                              return; 
-                            } 
-                            // For external, category is required
-                            if (!currentExp.category || currentExp.category === '') {
-                              toast.error("Please select a Category for this experience.");
-                              return;
-                            }
-                          }
-                          if (!des.start_date) { 
-                            toast.error(`Role #${i+1}: Start date is required.`); 
-                            return; 
-                          }
-                        }
-                        const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
-                        if (existingIndex !== -1) {
-                          setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
-                        } else {
-                          setEditExperiences(prev => [...prev, currentExp]);
-                        }
-                        setCurrentExp(null); 
-                        setExpFormOpen(false);
-                      }} 
-                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
-                    >
-                      {currentExp.id ? 'Update Record' : 'Add Record'}
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
-                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Trigger Node to Reveal Form */}
-              {!expFormOpen && (
-                <button 
-                  type="button"
-                  onClick={() => { 
-                    setCurrentExp({ 
-                      is_internal: false, 
-                      company_name: "", 
-                      location: "", 
-                      designations: [],
-                      start_year: "",
-                      end_year: null,
-                      category: "Other",
-                      is_aicte_approved: false,
-                      is_after_pg: false,
-                    }); 
-                    setExpFormOpen(true); 
-                  }} 
-                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus className="h-4 w-4" /> Add Experience Record
-                </button>
-              )}
-            </div>
-
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                type="button"
-                variant="outline" 
-                onClick={handleCancel} 
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="button"
-                onClick={handleSave} 
-                disabled={isSaving} 
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
-              >
-                {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* BANK EDIT DIALOG */}
-        <Dialog open={editingSection === "bank"} onOpenChange={(open) => !open && handleCancel()}>
-          <DialogContent className="max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
-            <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-              <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                Bank Accounts
-              </DialogTitle>
-              <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
-                Manage financial accounts linked to your employee profile.
-              </DialogDescription>
-              <Landmark className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
-            </DialogHeader>
-
-            <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-              
-              {/* Account List Stack */}
-              <div className="space-y-3">
-                {editBankDetails.map((bank: any, idx: number) => (
-                  <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
-                          {bank.bank_name || 'Bank'}
-                        </span>
-                        {bank.branch_name && (
-                          <span className="text-[12px] text-[#7a8ba0]">
-                            ({bank.branch_name})
-                          </span>
-                        )}
-                        {bank.is_primary && (
-                          <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 border border-blue-100 px-2 py-0.5 rounded shrink-0">
-                            Primary
-                          </span>
+                    {/* Multiple Designations Vector Segment */}
+                    <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
+                      <div className="flex items-center justify-between mb-2.5">
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
+                        <Button 
+                          type="button" 
+                          onClick={() => { 
+                            const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
+                            if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
+                            else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
+                            setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
+                          }} 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
+                        >
+                          <Plus className="h-3 w-3" /> Add Role
+                        </Button>
+                      </div>
+                      
+                      <div className="space-y-3 overflow-y-auto pr-1">
+                        {currentExp.designations && currentExp.designations.map((des, desIdx) => (
+                          <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
+                              <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
+                                className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            
+                            {currentExp.is_internal ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Role</Label>
+                                  <Select value={des.company_role?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_role = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                    <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select role" /></SelectTrigger>
+                                    <SelectContent>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group</Label>
+                                  <Select value={des.company_group?.toString() || ""} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].company_group = val ? parseInt(val) : null; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                    <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue placeholder="Select group" /></SelectTrigger>
+                                    <SelectContent>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Designation Title</Label>
+                                  <Input value={des.designation || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].designation = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Software Engineer" />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Group / Department <span className="text-[#7a8ba0]/70 normal-case font-normal">(optional)</span></Label>
+                                  <Input value={des.company_group_text || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].company_group_text = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" placeholder="e.g. Engineering" />
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
+                                <Input type="date" value={des.start_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].start_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">End Date</Label>
+                                <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
+                              <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
+                                <SelectTrigger className="h-9 rounded-lg text-[13px] border-[#dde3ec] focus:ring-[#004ac6]/20 bg-white"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Joined">Joined</SelectItem>
+                                  <SelectItem value="Promotion">Promotion</SelectItem>
+                                  <SelectItem value="Transfer">Transfer</SelectItem>
+                                  <SelectItem value="Demotion">Demotion</SelectItem>
+                                  <SelectItem value="Contract">Contract</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        ))}
+                        {(!currentExp.designations || currentExp.designations.length === 0) && (
+                          <p className="text-xs text-[#7a8ba0] text-center py-2">No roles added. Click "Add Role" to specify.</p>
                         )}
                       </div>
-                      <p className="text-[13px] font-mono text-[#434655] tracking-wider">
-                        {bank.account_number}
-                      </p>
-                      <p className="text-[12px] text-[#7a8ba0]">
-                        {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
-                      </p>
                     </div>
-                    
-                    {/* Action Row */}
-                    <div className="flex gap-1 shrink-0">
-                      <button 
+
+                    {/* Form Node Actions */}
+                    <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                      <Button 
                         type="button"
-                        onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
-                        className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                        onClick={() => {
+                          if (!currentExp.start_year) { 
+                            toast.error("Start year is required."); 
+                            return; 
+                          }
+                          if (!currentExp.designations || currentExp.designations.length === 0) { 
+                            toast.error("At least one role/designation is required."); 
+                            return; 
+                          }
+                          for (let i = 0; i < currentExp.designations.length; i++) {
+                            const des = currentExp.designations[i];
+                            if (currentExp.is_internal) { 
+                              if (!des.company_role || !des.company_group) { 
+                                toast.error(`Role #${i+1}: Please select both Role and Group.`); 
+                                return; 
+                              } 
+                            } else { 
+                              if (!des.designation || des.designation.trim() === '') { 
+                                toast.error(`Role #${i+1}: Designation title is required.`); 
+                                return; 
+                              } 
+                             
+                              if (!currentExp.category || currentExp.category === '') {
+                                toast.error("Please select a Category for this experience.");
+                                return;
+                              }
+                            }
+                            if (!des.start_date) { 
+                              toast.error(`Role #${i+1}: Start date is required.`); 
+                              return; 
+                            }
+                          }
+                          const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
+                          if (existingIndex !== -1) {
+                            setEditExperiences(prev => prev.map((exp, idx) => idx === existingIndex ? currentExp : exp));
+                          } else {
+                            setEditExperiences(prev => [...prev, currentExp]);
+                          }
+                          setCurrentExp(null); 
+                          setExpFormOpen(false);
+                        }} 
+                        className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                       >
-                        Edit
-                      </button>
-                      <button 
+                        {currentExp.id ? 'Update Record' : 'Add Record'}
+                      </Button>
+                      <Button 
                         type="button"
-                        onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
-                        className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                        variant="outline" 
+                        onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
+                        className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                       >
-                        Remove
-                      </button>
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                ))}
+                )}
 
-                {editBankDetails.length === 0 && !bankFormOpen && (
-                  <p className="text-sm text-[#7a8ba0] text-center py-6">
-                    No bank accounts added yet. Click below to add one.
-                  </p>
+                {/* Trigger Node to Reveal Form */}
+                {!expFormOpen && (
+                  <button 
+                    type="button"
+                    onClick={() => { 
+                      setCurrentExp({ 
+                        is_internal: false, 
+                        company_name: "", 
+                        location: "", 
+                        designations: [],
+                        start_year: "",
+                        end_year: null,
+                        category: "Other",
+                        is_aicte_approved: false,
+                        is_after_pg: false,
+                      }); 
+                      setExpFormOpen(true); 
+                    }} 
+                    className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Add Experience Record
+                  </button>
                 )}
               </div>
 
-              {/* Inline Account Mutation Node */}
-              {bankFormOpen && (
-                <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
-                    {currentBank?._idx !== undefined ? 'Edit Account Matrix' : 'Add Account Matrix'}
-                  </h4>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.acc_holder_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="Full name as in bank records" 
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.bank_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="e.g. State Bank of India" 
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.branch_name || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                        placeholder="Branch location" 
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.account_number || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
-                        placeholder="Bank account number" 
-                        minLength={9} maxLength={18} required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
-                      <Input 
-                        value={currentBank?.ifsc_code || ''} 
-                        onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
-                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
-                        placeholder="e.g. SBIN0001234" 
-                        minLength={11} maxLength={11} required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="flex items-end pb-2">
-                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                        <Checkbox 
-                          checked={!!currentBank?.is_primary} 
-                          onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
-                          className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
-                        />
-                        <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Form Action Controls */}
-                  <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                    <Button 
-                      type="button"
-                      onClick={() => { 
-                        if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
-                          toast.error("Bank name, account number and IFSC code are required."); 
-                          return; 
-                        } 
-                        const { _idx, ...bankData } = currentBank; 
-                        if (_idx !== undefined) { 
-                          setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
-                        } else { 
-                          setEditBankDetails(prev => [...prev, bankData]); 
-                        } 
-                        setCurrentBank({}); 
-                        setBankFormOpen(false); 
-                      }} 
-                      className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
-                    >
-                      {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
-                      className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Trigger Node to Reveal Form */}
-              {!bankFormOpen && (
-                <button 
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+                <Button 
                   type="button"
-                  onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
-                  className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                  variant="outline" 
+                  onClick={handleCancel} 
+                  className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
                 >
-                  <Plus className="h-4 w-4" /> Add Bank Account
-                </button>
-              )}
-            </div>
+                  Cancel
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleSave} 
+                  disabled={isSaving} 
+                  className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
-            <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-              <Button 
-                type="button"
-                variant="outline" 
-                onClick={handleCancel} 
-                className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="button"
-                onClick={handleSave} 
-                disabled={isSaving} 
-                className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
-              >
-                {isSaving ? "Saving..." : "Save Bank Details"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* BANK EDIT DIALOG */}
+        {isFieldVisible('identity_bank', 'bank_details') && (
+          <Dialog open={editingSection === "bank"} onOpenChange={(open) => !open && handleCancel()}>
+            <DialogContent className="max-w-2xl bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+              <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+                <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                  Bank Accounts
+                </DialogTitle>
+                <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                  Manage financial accounts linked to your employee profile.
+                </DialogDescription>
+                <Landmark className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+              </DialogHeader>
+
+              <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                
+                {/* Account List Stack */}
+                <div className="space-y-3">
+                  {editBankDetails.map((bank: any, idx: number) => (
+                    <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[14px] font-bold text-[#1a1a2e] truncate">
+                            {bank.bank_name || 'Bank'}
+                          </span>
+                          {bank.branch_name && (
+                            <span className="text-[12px] text-[#7a8ba0]">
+                              ({bank.branch_name})
+                            </span>
+                          )}
+                          {bank.is_primary && (
+                            <span className="text-[10px] font-bold uppercase bg-[#eff6ff] text-blue-600 border border-blue-100 px-2 py-0.5 rounded shrink-0">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[13px] font-mono text-[#434655] tracking-wider">
+                          {bank.account_number}
+                        </p>
+                        <p className="text-[12px] text-[#7a8ba0]">
+                          {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
+                        </p>
+                      </div>
+                      
+                      {/* Action Row */}
+                      <div className="flex gap-1 shrink-0">
+                        <button 
+                          type="button"
+                          onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
+                          className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
+                          className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {editBankDetails.length === 0 && !bankFormOpen && (
+                    <p className="text-sm text-[#7a8ba0] text-center py-6">
+                      No bank accounts added yet. Click below to add one.
+                    </p>
+                  )}
+                </div>
+
+                {/* Inline Account Mutation Node */}
+                {bankFormOpen && (
+                  <div className="p-5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#434655] flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                      {currentBank?._idx !== undefined ? 'Edit Account Matrix' : 'Add Account Matrix'}
+                    </h4>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input 
+                          value={currentBank?.acc_holder_name || ''} 
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                          placeholder="Full name as in bank records" 
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input 
+                          value={currentBank?.bank_name || ''} 
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                          placeholder="e.g. State Bank of India" 
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input 
+                          value={currentBank?.branch_name || ''} 
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
+                          placeholder="Branch location" 
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input 
+                          value={currentBank?.account_number || ''} 
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
+                          placeholder="Bank account number" 
+                          minLength={9} maxLength={18} required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
+                        <Input 
+                          value={currentBank?.ifsc_code || ''} 
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
+                          placeholder="e.g. SBIN0001234" 
+                          minLength={11} maxLength={11} required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="flex items-end pb-2">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <Checkbox 
+                            checked={!!currentBank?.is_primary} 
+                            onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
+                            className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
+                          />
+                          <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Form Action Controls */}
+                    <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
+                      <Button 
+                        type="button"
+                        onClick={() => { 
+                          if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
+                            toast.error("Bank name, account number and IFSC code are required."); 
+                            return; 
+                          } 
+                          const { _idx, ...bankData } = currentBank; 
+                          if (_idx !== undefined) { 
+                            setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
+                          } else { 
+                            setEditBankDetails(prev => [...prev, bankData]); 
+                          } 
+                          setCurrentBank({}); 
+                          setBankFormOpen(false); 
+                        }} 
+                        className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
+                      >
+                        {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant="outline" 
+                        onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
+                        className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Trigger Node to Reveal Form */}
+                {!bankFormOpen && (
+                  <button 
+                    type="button"
+                    onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
+                    className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Add Bank Account
+                  </button>
+                )}
+              </div>
+
+              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={handleCancel} 
+                  className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={handleSave} 
+                  disabled={isSaving} 
+                  className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save Bank Details"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {/* PREFERENCES EDIT DIALOG */}
         <Dialog open={editingSection === "preferences"} onOpenChange={(open) => !open && handleCancel()}>
