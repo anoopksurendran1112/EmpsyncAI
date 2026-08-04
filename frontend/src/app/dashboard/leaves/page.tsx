@@ -224,7 +224,7 @@ export default function LeavesPage() {
   // Leave Hierarchy States
   const { data: companyRoles = [] } = useRoles();
   const [hierarchyEmployees, setHierarchyEmployees] = useState<HierarchyEmployee[]>([]);
-  const isHierarchyEmployeesLoading = false;
+  const [isHierarchyEmployeesLoading, setIsHierarchyEmployeesLoading] = useState(false);
   const [isHierarchyExists, setIsHierarchyExists] = useState(false);
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
