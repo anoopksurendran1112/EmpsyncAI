@@ -64,23 +64,24 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-const res = await fetch(`${process.env.API_URL}/apply-leave`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${token}`,
-    "X-Company-ID": companyId || "",   // ✅ dynamic companyId
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-  body: JSON.stringify({
-    from_date: body.from_date,
-    to_date: body.to_date,
-    leave_id: body.leave_id,
-    leave_choice: body.leave_choice === "half_day" || body.leave_choice === "H" ? "H" : "F",
-    custom_reason: body.custom_reason || "",
-    company_id: companyId || "",       // ✅ dynamic companyId
-  }),
-});
+    const res = await fetch(`${process.env.API_URL}/apply-leave`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-Company-ID": companyId || "",   // ✅ dynamic companyId
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        from_date: body.from_date,
+        to_date: body.to_date,
+        leave_id: body.leave_id,
+        leave_choice: body.leave_choice === "half_day" || body.leave_choice === "H" ? "H" : "F",
+        custom_reason: body.custom_reason || "",
+        company_id: companyId || "",       // ✅ dynamic companyId
+        replacement_user_id: body.replacement_user_id,
+      }),
+    });
 
     let data;
     const text = await res.text(); // Read raw response first

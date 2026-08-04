@@ -76,7 +76,7 @@ interface LeavePolicy {
 
   allow_carry_forward: boolean;
   use_credit: boolean;
-
+  requires_replacement?: boolean;
   custom_settings?: Record<string, any>;
 }
 
@@ -146,10 +146,9 @@ type HierarchyEmployee = {
 
 // No dummy data — employees are loaded from the backend
 export default function LeavesPage() {
-  const { company, isAdmin } = useAuth();
+  const { user, company, isAdmin } = useAuth();
   const companyId = company?.id;
   const { data: staffCategories = [] } = useStaffCategories();
-  console.log("Staff Categories:", staffCategories);
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
@@ -204,12 +203,27 @@ export default function LeavesPage() {
     leave_id: "",
     custom_reason: "",
     leave_choice: "full_day",
+    replacement_user_id: "",
   });
+
+  const [loggedInStaffCategoryId, setLoggedInStaffCategoryId] =
+    useState<number | null>(null);
+
+  const selectedLeaveType = leaveTypes.find(
+    (leaveType) => leaveType.id.toString() === requestForm.leave_id
+  );
+  const selectedPolicy = selectedLeaveType?.policies?.find(
+    (policy) => policy.staff_category_id === loggedInStaffCategoryId
+  );
   const [isRequestSubmitting, setIsRequestSubmitting] = useState(false);
 
   // Add Past Leave States
   const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [isEmployeesLoading, setIsEmployeesLoading] = useState(false);
+  const [replacementEmployees, setReplacementEmployees] = useState<
+    { id: number; name: string; email: string }[]>([]);
+
+  const [isReplacementEmployeesLoading, setIsReplacementEmployeesLoading] = useState(false);
   const [pastLeaveMessage, setPastLeaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [pastLeaveForm, setPastLeaveForm] = useState({
     user_id: "",
@@ -224,7 +238,7 @@ export default function LeavesPage() {
   // Leave Hierarchy States
   const { data: companyRoles = [] } = useRoles();
   const [hierarchyEmployees, setHierarchyEmployees] = useState<HierarchyEmployee[]>([]);
-  const isHierarchyEmployeesLoading = false;
+  const [isHierarchyEmployeesLoading, setIsHierarchyEmployeesLoading] = useState(false);
   const [isHierarchyExists, setIsHierarchyExists] = useState(false);
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
@@ -626,6 +640,25 @@ export default function LeavesPage() {
     }
   }, [companyId]);
 
+  const fetchReplacementEmployees = useCallback(async () => {
+    if (!companyId) return;
+
+    setIsReplacementEmployeesLoading(true);
+
+    try {
+      const res = await fetch("/api/leave/eligible-replacements");
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        setReplacementEmployees(result.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to load replacement employees", error);
+    } finally {
+      setIsReplacementEmployeesLoading(false);
+    }
+  }, [companyId]);
+
   // Sync company cookie with AuthContext on page load
   useEffect(() => {
     const syncCompanyCookie = async () => {
@@ -672,6 +705,34 @@ export default function LeavesPage() {
       }
     }
   }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, fetchHierarchyEmployees, cookieSynced]);
+
+  useEffect(() => {
+    const fetchLoggedInProfile = async () => {
+      if (!user?.id || !companyId) return;
+
+      try {
+        const res = await fetch(
+          `/api/employee-with-profile?user_id=${user.id}`,
+          {
+            headers: {
+              "x-company-id": companyId.toString(),
+            },
+          }
+        );
+
+        if (!res.ok) return;
+
+        const result = await res.json();
+        const profile = result.data?.profile || result.data;
+        setLoggedInStaffCategoryId(profile?.staff_category ?? null);
+      } catch (err) {
+        console.error("Failed to fetch logged-in profile", err);
+      }
+    };
+
+    fetchLoggedInProfile();
+  }, [user?.id, companyId]);
+
 
   // Once employees are loaded, fetch the saved hierarchy so names can be resolved
   useEffect(() => {
@@ -740,15 +801,15 @@ export default function LeavesPage() {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
-          policy_mode: "normal",
-          leave_type: "",
-          short_name: "",
-          monthly_limit: 0,
-          yearly_limit: 0,
-          initial_credit: 0,
-          use_credit: false,
-          policies: [],
-        });
+            policy_mode: "normal",
+            leave_type: "",
+            short_name: "",
+            monthly_limit: 0,
+            yearly_limit: 0,
+            initial_credit: 0,
+            use_credit: false,
+            policies: [],
+          });
 
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
@@ -785,16 +846,37 @@ export default function LeavesPage() {
       setRequestMessage({ type: "error", text: "Please fill in all required fields" });
       return;
     }
+    if (
+      selectedPolicy?.requires_replacement &&
+      !requestForm.replacement_user_id
+    ) {
+      setRequestMessage({
+        type: "error",
+        text: "Please select a replacement employee",
+      });
+      return;
+    }
 
     setIsRequestSubmitting(true);
     setRequestMessage(null);
 
     try {
-      console.log('📤 Submitting leave application:', { ...requestForm, company_id: companyId });
+      const payload = {
+        company_id: companyId,
+        leave_id: Number(requestForm.leave_id),
+        from_date: requestForm.from_date,
+        to_date: requestForm.to_date,
+        leave_choice: requestForm.leave_choice === "full_day" ? "F" : "H",
+        custom_reason: requestForm.custom_reason,
+        replacement_user_id: requestForm.replacement_user_id
+          ? Number(requestForm.replacement_user_id)
+          : null,
+      };
+      console.log('📤 Submitting leave application:', payload);
       const res = await fetch("/api/leave/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...requestForm, company_id: companyId }),
+        body: JSON.stringify(payload),
       });
       const result = await res.json();
 
@@ -804,7 +886,7 @@ export default function LeavesPage() {
         setRequestMessage({ type: "success", text: "Leave application submitted successfully!" });
         setTimeout(() => {
           setIsRequestDialogOpen(false);
-          setRequestForm({ from_date: "", to_date: "", leave_id: "", custom_reason: "", leave_choice: "full_day" });
+          setRequestForm({ from_date: "", to_date: "", leave_id: "", custom_reason: "", leave_choice: "full_day", replacement_user_id: "" });
           setRequestMessage(null);
           fetchMyLeaves();
         }, 1500);
@@ -1100,7 +1182,10 @@ export default function LeavesPage() {
         <div className="flex items-center gap-3">
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-            onClick={() => setIsRequestDialogOpen(true)}
+            onClick={() => {
+              setIsRequestDialogOpen(true);
+              fetchReplacementEmployees();
+            }}
           >
             <Plus className="h-4 w-4 mr-2" />
             Request Leave
@@ -1495,97 +1580,95 @@ export default function LeavesPage() {
                       </div>
                       <h4 className="font-bold text-gray-900">{type.leave_type}</h4>
 
-                        <div className="mt-2 mb-3">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              type.policy_mode === "normal"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-700"
+                      <div className="mt-2 mb-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${type.policy_mode === "normal"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-blue-100 text-blue-700"
                             }`}
-                          >
-                            {type.policy_mode === "normal"
-                              ? "Normal Policy"
-                              : "Staff Category Policy"}
-                          </span>
-                        </div>
+                        >
+                          {type.policy_mode === "normal"
+                            ? "Normal Policy"
+                            : "Staff Category Policy"}
+                        </span>
+                      </div>
 
-                        {type.policy_mode === "normal" ? (
-                          <div className="space-y-2 mt-4">
+                      {type.policy_mode === "normal" ? (
+                        <div className="space-y-2 mt-4">
 
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-500">Monthly</span>
-                              <span className="font-semibold">
-                                {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
-                              </span>
-                            </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Monthly</span>
+                            <span className="font-semibold">
+                              {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
+                            </span>
+                          </div>
 
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-500">Yearly</span>
-                              <span className="font-semibold">
-                                {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
-                              </span>
-                            </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Yearly</span>
+                            <span className="font-semibold">
+                              {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
+                            </span>
+                          </div>
 
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-500">Initial Credit</span>
-                              <span className="font-semibold">
-                                {type.initial_credit}
-                              </span>
-                            </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Initial Credit</span>
+                            <span className="font-semibold">
+                              {type.initial_credit}
+                            </span>
+                          </div>
 
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-500">Leave Credit</span>
-                              <span
-                                className={`font-semibold ${
-                                  type.use_credit
-                                    ? "text-green-600"
-                                    : "text-red-500"
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Leave Credit</span>
+                            <span
+                              className={`font-semibold ${type.use_credit
+                                ? "text-green-600"
+                                : "text-red-500"
                                 }`}
-                              >
-                                {type.use_credit ? "Enabled" : "Disabled"}
+                            >
+                              {type.use_credit ? "Enabled" : "Disabled"}
+                            </span>
+                          </div>
+
+                        </div>
+                      ) : (
+                        <div className="space-y-2 mt-4">
+
+                          {(type.policies || []).slice(0, 3).map((policy) => (
+                            <div
+                              key={policy.staff_category_id}
+                              className="flex justify-between items-center rounded-md border px-3 py-2"
+                            >
+                              <span className="font-medium text-gray-700">
+                                {policy.staff_category_name}
+                              </span>
+
+                              <span className="text-sm text-gray-600">
+                                <span className="font-semibold">
+                                  {policy.monthly_limit}
+                                </span>
+                                {" / "}
+                                <span className="font-semibold">
+                                  {policy.yearly_limit}
+                                </span>
+                                {" Days"}
                               </span>
                             </div>
+                          ))}
 
-                          </div>
-                        ) : (
-                          <div className="space-y-2 mt-4">
+                          {(type.policies?.length || 0) > 3 && (
+                            <div className="text-center text-xs font-medium text-blue-600">
+                              +{type.policies!.length - 3} More Categories
+                            </div>
+                          )}
 
-                            {(type.policies || []).slice(0, 3).map((policy) => (
-                              <div
-                                key={policy.staff_category_id}
-                                className="flex justify-between items-center rounded-md border px-3 py-2"
-                              >
-                                <span className="font-medium text-gray-700">
-                                  {policy.staff_category_name}
-                                </span>
+                          {(type.policies?.length || 0) === 0 && (
+                            <div className="rounded-md border border-dashed p-4 text-center text-sm text-gray-500">
+                              No Staff Category Policies
+                            </div>
+                          )}
 
-                                <span className="text-sm text-gray-600">
-                                  <span className="font-semibold">
-                                    {policy.monthly_limit}
-                                  </span>
-                                  {" / "}
-                                  <span className="font-semibold">
-                                    {policy.yearly_limit}
-                                  </span>
-                                  {" Days"}
-                                </span>
-                              </div>
-                            ))}
-
-                            {(type.policies?.length || 0) > 3 && (
-                              <div className="text-center text-xs font-medium text-blue-600">
-                                +{type.policies!.length - 3} More Categories
-                              </div>
-                            )}
-
-                            {(type.policies?.length || 0) === 0 && (
-                              <div className="rounded-md border border-dashed p-4 text-center text-sm text-gray-500">
-                                No Staff Category Policies
-                              </div>
-                            )}
-
-                          </div>
-                        )}
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
@@ -2017,6 +2100,48 @@ export default function LeavesPage() {
                 </Select>
               </div>
             </div>
+            {selectedPolicy?.requires_replacement && (
+              <div className="space-y-2">
+                <Label htmlFor="replacement_user_id">
+                  Replacement Employee
+                </Label>
+
+                <Select
+                  value={requestForm.replacement_user_id}
+                  onValueChange={(val) =>
+                    setRequestForm({
+                      ...requestForm,
+                      replacement_user_id: val,
+                    })
+                  }
+                >
+                  <SelectTrigger id="replacement_user_id">
+                    <SelectValue
+                      placeholder={
+                        isReplacementEmployeesLoading
+                          ? "Loading employees..."
+                          : "Select Replacement Employee"
+                      }
+                    />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {replacementEmployees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id.toString()}>
+                        {emp.name}
+                      </SelectItem>
+                    ))}
+
+                    {replacementEmployees.length === 0 &&
+                      !isReplacementEmployeesLoading && (
+                        <SelectItem value="none" disabled>
+                          No eligible replacement employees found
+                        </SelectItem>
+                      )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="reason">Reason for Leave</Label>
               <textarea
@@ -2038,7 +2163,7 @@ export default function LeavesPage() {
         </DialogContent>
       </Dialog>
 
-     {/* 2. Add Leave Type Dialog */}
+      {/* 2. Add Leave Type Dialog */}
       <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
         <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -2383,8 +2508,8 @@ export default function LeavesPage() {
                 {isLeaveTypeSubmitting
                   ? "Saving..."
                   : editingLeaveType
-                  ? "Update Type"
-                  : "Save Type"}
+                    ? "Update Type"
+                    : "Save Type"}
               </Button>
             </DialogFooter>
           </form>
