@@ -1945,98 +1945,107 @@ export default function LeavesPage() {
       {/* Dialogs */}
 
       {/* 1. Apply Leave Request Dialog */}
-      <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
-            <DialogDescription>Submit your leave application for approval</DialogDescription>
-          </DialogHeader>
+<Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
+  <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
+      <DialogDescription>Submit your leave application for approval</DialogDescription>
+    </DialogHeader>
 
-          {requestMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
-              }`}>
-              {requestMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              {requestMessage.text}
-            </div>
-          )}
+    <div className="p-3 rounded-lg flex items-center gap-2 text-sm bg-amber-50 text-amber-700 border border-amber-200">
+      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+      <span>Leave request form is on progress, will update the latest version soon</span>
+    </div>
 
-          <form onSubmit={handleRequestSubmit} className="grid gap-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="from_date">From Date</Label>
-                <Input
-                  id="from_date"
-                  type="date"
-                  required
-                  value={requestForm.from_date}
-                  onChange={(e) => setRequestForm({ ...requestForm, from_date: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to_date">To Date</Label>
-                <Input
-                  id="to_date"
-                  type="date"
-                  required
-                  value={requestForm.to_date}
-                  onChange={(e) => setRequestForm({ ...requestForm, to_date: e.target.value })}
-                  min={requestForm.from_date}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="leave_id">Leave Type</Label>
-                <Select
-                  value={requestForm.leave_id}
-                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_id: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leaveTypes.map(lt => (
-                      <SelectItem key={lt.id} value={lt.id.toString()}>{lt.leave_type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="leave_choice">Duration</Label>
-                <Select
-                  value={requestForm.leave_choice}
-                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_choice: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="full_day">Full Day</SelectItem>
-                    <SelectItem value="half_day">Half Day</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason for Leave</Label>
-              <textarea
-                id="reason"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Enter short details..."
-                value={requestForm.custom_reason}
-                onChange={(e) => setRequestForm({ ...requestForm, custom_reason: e.target.value })}
-                required
-              ></textarea>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-600 text-white" disabled={isRequestSubmitting}>
-                {isRequestSubmitting ? "Submitting..." : "Submit Request"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+    {requestMessage && (
+      <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
+        }`}>
+        {requestMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+        {requestMessage.text}
+      </div>
+    )}
+
+    <form onSubmit={handleRequestSubmit} className="grid gap-6 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="from_date">From Date</Label>
+          <Input
+            id="from_date"
+            type="date"
+            required
+            value={requestForm.from_date}
+            onChange={(e) => setRequestForm({ ...requestForm, from_date: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="to_date">To Date</Label>
+          <Input
+            id="to_date"
+            type="date"
+            required
+            value={requestForm.to_date}
+            onChange={(e) => setRequestForm({ ...requestForm, to_date: e.target.value })}
+            min={requestForm.from_date}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="leave_id">Leave Type</Label>
+          <Select
+            value={requestForm.leave_id}
+            onValueChange={(val) => setRequestForm({ ...requestForm, leave_id: val })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {leaveTypes.map(lt => (
+                <SelectItem key={lt.id} value={lt.id.toString()}>{lt.leave_type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="leave_choice">Duration</Label>
+          <Select
+            value={requestForm.leave_choice}
+            onValueChange={(val) => setRequestForm({ ...requestForm, leave_choice: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="full_day">Full Day</SelectItem>
+              <SelectItem value="half_day">Half Day</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="reason">Reason for Leave</Label>
+        <textarea
+          id="reason"
+          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="Enter short details..."
+          value={requestForm.custom_reason}
+          onChange={(e) => setRequestForm({ ...requestForm, custom_reason: e.target.value })}
+          required
+        ></textarea>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancel</Button>
+        <Button 
+          type="submit" 
+          className="bg-blue-600 text-white" 
+          disabled={true}  
+        >
+          {isRequestSubmitting ? "Submitting..." : "Submit Request"}
+        </Button>
+      </DialogFooter>
+    </form>
+  </DialogContent>
+</Dialog>
 
      {/* 2. Add Leave Type Dialog */}
       <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>

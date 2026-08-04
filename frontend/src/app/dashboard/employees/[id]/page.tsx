@@ -194,6 +194,16 @@ export default function EmployeeDetailsPage() {
 
   const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(companyId || null);
 
+ 
+  const [dataEntryPercentage, setDataEntryPercentage] = useState<number | null>(null);
+  const [dataEntryLoading, setDataEntryLoading] = useState(true);
+  const [dataEntryDetails, setDataEntryDetails] = useState<{
+    total_mandatory: number;
+    filled_mandatory: number;
+    total_visible: number;
+    filled_visible: number;
+    overall_completion_percentage: number;
+  } | null>(null);
 
   const { data: employee, isLoading, isError, refetch } = useEmployee(companyId, employeeId);
   const [formData, setFormData] = useState<User | null>(null);
@@ -254,6 +264,47 @@ export default function EmployeeDetailsPage() {
     { id: 'notifications', label: 'Notification Preferences', icon: <MessageSquareDot className="h-4 w-4" /> },
   ];
 
+  
+  const fetchDataEntryPercentage = useCallback(async () => {
+    if (!employeeId || !companyId) return;
+    
+    setDataEntryLoading(true);
+    try {
+      const response = await fetch(`/api/data-entry-percentage/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          company_id: companyId,
+          user_id: parseInt(employeeId),
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setDataEntryPercentage(result.data.completion_percentage);
+          setDataEntryDetails({
+            total_mandatory: result.data.total_mandatory_fields,
+            filled_mandatory: result.data.filled_mandatory_fields,
+            total_visible: result.data.total_visible_fields,
+            filled_visible: result.data.filled_visible_fields,
+            overall_completion_percentage: result.data.overall_completion_percentage || 0,
+          });
+        }
+      } else {
+        console.error('Failed to fetch data entry percentage:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error fetching data entry percentage:', error);
+    } finally {
+      setDataEntryLoading(false);
+    }
+  }, [employeeId, companyId]);
+
   useEffect(() => {
     if (employee) {
       setFormData(employee);
@@ -290,6 +341,13 @@ export default function EmployeeDetailsPage() {
     }
     fetchCastes(editProfileData.religion_id);
   }, [editProfileData?.religion_id, editingSection]);
+
+ 
+  useEffect(() => {
+    if (employeeId && companyId) {
+      fetchDataEntryPercentage();
+    }
+  }, [employeeId, companyId, fetchDataEntryPercentage]);
 
  
   const fetchProfile = async () => {
@@ -916,7 +974,13 @@ export default function EmployeeDetailsPage() {
       if (result.data?.guardians) setGuardians(result.data.guardians);
 
       refetch();
-      fetchProfile();
+      await fetchProfile();
+      
+      // Refresh data entry percentage after save
+      setTimeout(() => {
+        fetchDataEntryPercentage();
+      }, 500);
+      
     } catch (err: any) {
       toast.error(err.message || "An error occurred while saving.");
     } finally {
@@ -981,7 +1045,13 @@ export default function EmployeeDetailsPage() {
       }
 
       toast.success("Extended profile initialized!");
-      fetchProfile();
+      await fetchProfile();
+      
+      // Refresh data entry percentage after creating profile
+      setTimeout(() => {
+        fetchDataEntryPercentage();
+      }, 500);
+      
     } catch (error: any) {
       toast.error(error.message || "Failed to create profile skeleton");
     } finally {
@@ -1048,8 +1118,8 @@ export default function EmployeeDetailsPage() {
           )}
         </div>
 
-        {/* Hero Profile Card with Image Upload */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
+        {/* Hero Profile Card with Image Upload and Completion Badge */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 relative">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
             <div className="relative group">
               <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
@@ -1154,6 +1224,79 @@ export default function EmployeeDetailsPage() {
               </div>
             </div>
           </div>
+
+          {/* Profile Completion Badge */}
+          {!dataEntryLoading && dataEntryPercentage !== null && dataEntryDetails && (
+            <div className="absolute bottom-4 right-4">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/70 rounded-xl border border-blue-200/50 shadow-lg p-3 min-w-[160px] backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+
+                  <div className="relative h-14 w-14 flex-shrink-0">
+                    <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.9155"
+                        fill="none"
+                        stroke="#dbeafe"
+                        strokeWidth="3"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.9155"
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="3"
+                        strokeDasharray={`${(dataEntryDetails.overall_completion_percentage / 100) * 100} 100`}
+                        strokeLinecap="round"
+                        className="transition-all duration-800 ease-out"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="12"
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2.5"
+                        strokeDasharray={`${(dataEntryPercentage / 100) * 100} 100`}
+                        strokeLinecap="round"
+                        className="transition-all duration-800 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold text-blue-600">
+                        {Math.round(dataEntryDetails.overall_completion_percentage)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Profile Completion</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-medium text-green-600">Mandatory: {Math.round(dataEntryPercentage)}%</span>
+                      <span className="text-xs text-gray-300">|</span>
+                      <span className="text-xs font-medium text-blue-600">Overall: {Math.round(dataEntryDetails.overall_completion_percentage)}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+                      <span>{dataEntryDetails.filled_mandatory}/{dataEntryDetails.total_mandatory}</span>
+                      <span>•</span>
+                      <span>{dataEntryDetails.filled_visible}/{dataEntryDetails.total_visible}</span>
+                    </div>
+                    <div className={`mt-1 text-[10px] font-semibold ${
+                      dataEntryPercentage >= 80 ? 'text-green-600' :
+                      dataEntryPercentage >= 50 ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {dataEntryPercentage >= 80 ? '✅ Complete' :
+                       dataEntryPercentage >= 50 ? '⚠️ Partial' :
+                       '❌ Incomplete'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Attendance Dialog */}
