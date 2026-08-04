@@ -1,7 +1,7 @@
 # serializers.py
 from rest_framework import serializers
 from user.serializer import UserSerializer
-from .models import Leave,LeaveType,LeaveFlowHierarchy # Replace with the actual path
+from .models import Leave,LeaveType,LeaveFlowHierarchy,LeavePolicy # Replace with the actual path
 
 
 class LeaveTypeSerializer(serializers.ModelSerializer):
@@ -72,3 +72,14 @@ class LeaveFlowHierarchySerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveFlowHierarchy
         fields = '__all__'
+class LeavePolicySerializer(serializers.ModelSerializer):
+    staff_category_name = serializers.CharField(
+        source="staff_category.category_name",
+        read_only=True
+    )
+
+    class Meta:
+        model = LeavePolicy
+        fields = "__all__"
+
+        

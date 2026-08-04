@@ -2,7 +2,6 @@
 "use client";
 import { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { format } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import AddLeaveButton from "@/components/AddLeaveButton";

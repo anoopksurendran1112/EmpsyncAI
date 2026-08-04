@@ -59,6 +59,7 @@ export default function CandidateApplicationPage() {
     group: "",
     role: "",
   });
+
   // Helper to extract array from nested responses
   const extractArray = (data: unknown): any[] => {
     if (Array.isArray(data)) return data;
@@ -180,7 +181,6 @@ export default function CandidateApplicationPage() {
       }
     }
     if (name === "phone") {
-      
       if (!/^\d*$/.test(value)) {
         return;
       }
@@ -212,7 +212,6 @@ export default function CandidateApplicationPage() {
     setSuccess(false);
     setError(null);
   };
-  
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -352,7 +351,7 @@ export default function CandidateApplicationPage() {
                   value={form.first_name || ''}
                   onChange={handleChange}
                   placeholder="Enter your first name"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+                  className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.first_name ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm`}
                   required
                 />
                 <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -360,21 +359,6 @@ export default function CandidateApplicationPage() {
               {validationErrors.first_name && (
                 <p className="mt-1 text-sm text-red-600">
                   {validationErrors.first_name}
-                </p>
-              )}
-              {validationErrors.last_name && (
-                <p className="mt-1 text-sm text-red-600">
-                  {validationErrors.last_name}
-                </p>
-              )}
-              {validationErrors.email && (
-                <p className="mt-1 text-sm text-red-600">
-                  {validationErrors.email}
-                </p>
-              )}
-              {validationErrors.phone && (
-                <p className="mt-1 text-sm text-red-600">
-                  {validationErrors.phone}
                 </p>
               )}
             </div>
@@ -391,11 +375,16 @@ export default function CandidateApplicationPage() {
                   value={form.last_name || ''}
                   onChange={handleChange}
                   placeholder="Enter your last name"
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+                  className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.last_name ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm`}
                   required
                 />
                 <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               </div>
+              {validationErrors.last_name && (
+                <p className="mt-1 text-sm text-red-600">
+                  {validationErrors.last_name}
+                </p>
+              )}
             </div>
           </div>
 
@@ -413,11 +402,16 @@ export default function CandidateApplicationPage() {
                 value={form.email || ''}
                 onChange={handleChange}
                 placeholder="Enter your email address"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+                className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.email ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm`}
                 required
               />
               <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             </div>
+            {validationErrors.email && (
+              <p className="mt-1 text-sm text-red-600">
+                {validationErrors.email}
+              </p>
+            )}
           </div>
 
           {/* Phone */}
@@ -434,13 +428,17 @@ export default function CandidateApplicationPage() {
                 value={form.phone || ''}
                 onChange={handleChange}
                 placeholder="Enter your phone number"
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+                className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm`}
                 required
               />
               <Phone className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
             </div>
+            {validationErrors.phone && (
+              <p className="mt-1 text-sm text-red-600">
+                {validationErrors.phone}
+              </p>
+            )}
           </div>
-
 
           {/* Group */}
           <div className="space-y-1.5">
@@ -455,7 +453,7 @@ export default function CandidateApplicationPage() {
                 value={form.group || ''}
                 onChange={handleChange}
                 disabled={!companyId || loading || groups.length === 0}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+                className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.group ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none`}
                 required
               >
                 <option value="">Select group</option>
@@ -467,6 +465,11 @@ export default function CandidateApplicationPage() {
               </select>
               <Users className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
             </div>
+            {validationErrors.group && (
+              <p className="mt-1 text-sm text-red-600">
+                {validationErrors.group}
+              </p>
+            )}
             {companyId && groups.length === 0 && !loading && (
               <p className="mt-1.5 text-xs text-amber-600">No groups available for this company</p>
             )}
@@ -485,7 +488,7 @@ export default function CandidateApplicationPage() {
                 value={form.role || ''}
                 onChange={handleChange}
                 disabled={!companyId || loading || roles.length === 0}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none"
+                className={`w-full pl-10 pr-4 py-2.5 border ${validationErrors.role ? 'border-red-500' : 'border-gray-300'} rounded-xl text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed appearance-none`}
                 required
               >
                 <option value="">Select role</option>
@@ -497,6 +500,11 @@ export default function CandidateApplicationPage() {
               </select>
               <Briefcase className="absolute left-3 top-3 h-5 w-5 text-gray-400 pointer-events-none" />
             </div>
+            {validationErrors.role && (
+              <p className="mt-1 text-sm text-red-600">
+                {validationErrors.role}
+              </p>
+            )}
             {companyId && roles.length === 0 && !loading && (
               <p className="mt-1.5 text-xs text-amber-600">No roles available for this company</p>
             )}

@@ -12,7 +12,7 @@ import {
   Mail, UserIcon, Shield, ShieldCheck,
   MessageSquare, MessageCircle, Home, Activity, Hash, Users,
   CheckCircle, XCircle, Crown, Edit3, Settings, Key, Smartphone, Briefcase, Calendar, MapPin, Milestone, FileText,
-  Heart, Plus, RefreshCw, Camera, Landmark, MessageSquareDot, BriefcaseBusiness, GraduationCap, Trash2
+  Heart, Plus, RefreshCw, Camera, Landmark, MessageSquareDot, BriefcaseBusiness, GraduationCap, Trash2, Percent, Clock
 } from "lucide-react";
 import { useAuth, User } from "@/context/AuthContext";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -193,7 +193,17 @@ interface RoleItem { id: number; role?: string; name?: string; }
 export default function ProfilePage() {
   const { user, isAdmin, updateUser, company } = useAuth();
   
- 
+  // Data Entry Percentage State
+  const [dataEntryPercentage, setDataEntryPercentage] = useState<number | null>(null);
+  const [dataEntryLoading, setDataEntryLoading] = useState(true);
+  const [dataEntryDetails, setDataEntryDetails] = useState<{
+    total_mandatory: number;
+    filled_mandatory: number;
+    total_visible: number;
+    filled_visible: number;
+    overall_completion_percentage: number;
+  } | null>(null);
+  
   const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(company?.id || null);
   
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -211,14 +221,11 @@ export default function ProfilePage() {
   const [bankDetails, setBankDetails] = useState<any[]>([]);
   const [guardians, setGuardians] = useState<GuardianItem[]>([]);
 
- 
   const [companyProfile, setCompanyProfile] = useState<any>(null);
 
- 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imgError, setImgError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
 
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -227,25 +234,20 @@ export default function ProfilePage() {
   const [religions, setReligions] = useState<LookupItem[]>([]);
   const [castes, setCastes] = useState<LookupItem[]>([]);
 
-  
   const [familyIsMarried, setFamilyIsMarried] = useState(false);
 
-  
   const [editQualifications, setEditQualifications] = useState<any[]>([]);
   const [qualFormOpen, setQualFormOpen] = useState(false);
   const [currentQual, setCurrentQual] = useState<any>({});
 
-  
   const [editExperiences, setEditExperiences] = useState<ExperienceItem[]>([]);
   const [expFormOpen, setExpFormOpen] = useState(false);
   const [currentExp, setCurrentExp] = useState<ExperienceItem | null>(null);
 
- 
   const [editBankDetails, setEditBankDetails] = useState<any[]>([]);
   const [bankFormOpen, setBankFormOpen] = useState(false);
   const [currentBank, setCurrentBank] = useState<any>({});
 
-  
   const initialFetchDone = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -259,7 +261,6 @@ export default function ProfilePage() {
     { id: 'notifications', label: 'Notification Preferences', icon: <MessageSquareDot className="h-4 w-4" /> },
   ];
 
- 
   const sanitizeUser = useCallback((rawUser: any): User => ({
     id: rawUser.id,
     first_name: rawUser.first_name || '',
@@ -281,7 +282,6 @@ export default function ProfilePage() {
     gender_display: rawUser.gender_display || '',
   }), []);
 
-  
   const getGroupName = (groupId: string | number | undefined) => {
     if (!groupId) return "Not provided";
     const asNum = Number(groupId);
@@ -317,7 +317,6 @@ export default function ProfilePage() {
   const getGenderIcon = (gender: string) => ({ M: "👨", F: "👩" }[gender] || "🧑");
   const getInitials = () => `${user?.first_name?.[0] || ""}${user?.last_name?.[0] || ""}`;
 
- 
   const getProfileImageUrl = () => {
     if (!user?.prof_img) return null;
     if (user.prof_img.startsWith('http')) return user.prof_img;
@@ -337,7 +336,47 @@ export default function ProfilePage() {
     return age;
   };
 
- 
+  // Fetch Data Entry Percentage
+  const fetchDataEntryPercentage = useCallback(async () => {
+    if (!user?.id || !company?.id) return;
+    
+    setDataEntryLoading(true);
+    try {
+      const response = await fetch(`/api/data-entry-percentage/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          company_id: company.id,
+          user_id: user.id,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setDataEntryPercentage(result.data.completion_percentage);
+          setDataEntryDetails({
+            total_mandatory: result.data.total_mandatory_fields,
+            filled_mandatory: result.data.filled_mandatory_fields,
+            total_visible: result.data.total_visible_fields,
+            filled_visible: result.data.filled_visible_fields,
+            overall_completion_percentage: result.data.overall_completion_percentage || 0,
+          });
+        }
+      } else {
+        console.error('Failed to fetch data entry percentage:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error fetching data entry percentage:', error);
+    } finally {
+      setDataEntryLoading(false);
+    }
+  }, [user?.id, company?.id]);
+
   const fetchProfile = useCallback(async () => {
     if (!user?.id || !company?.id) return;
     if (abortControllerRef.current) abortControllerRef.current.abort();
@@ -445,7 +484,6 @@ export default function ProfilePage() {
     }
   }, [company?.id]);
 
-  
   useEffect(() => {
     const fetchCompanyProfile = async () => {
       if (!company?.id) return;
@@ -462,7 +500,11 @@ export default function ProfilePage() {
     fetchCompanyProfile();
   }, [company?.id]);
 
- 
+  // Fetch data entry percentage on mount
+  useEffect(() => {
+    fetchDataEntryPercentage();
+  }, [fetchDataEntryPercentage]);
+
   useEffect(() => {
     if (!initialFetchDone.current && user?.id && company?.id) {
       initialFetchDone.current = true;
@@ -474,7 +516,6 @@ export default function ProfilePage() {
     };
   }, [user?.id, company?.id, fetchProfile, fetchLookups]);
 
- 
   useEffect(() => {
     if (!fullProfile && !profileLoading && retryCount < 2 && user?.id && company?.id) {
       const timer = setTimeout(() => { fetchProfile(); setRetryCount(c => c + 1); }, 2000);
@@ -482,17 +523,14 @@ export default function ProfilePage() {
     }
   }, [fullProfile, profileLoading, retryCount, user?.id, company?.id, fetchProfile]);
 
-  
   useEffect(() => {
     if (user) setEditedUser(prev => prev?.id === user.id ? prev : { ...user });
   }, [user]);
 
- 
   useEffect(() => {
     setImgError(false);
   }, [user?.prof_img]);
 
-  
   useEffect(() => {
     if (editingSection !== "personal") {
       setCastes([]);
@@ -518,7 +556,6 @@ export default function ProfilePage() {
     return () => { isMounted = false; };
   }, [editProfileData?.religion_id, editingSection, company?.id]);
 
- 
   useEffect(() => {
     if (!fullProfile) return;
     if (fullProfile.religion_name && fullProfile.caste_name) return;
@@ -535,7 +572,6 @@ export default function ProfilePage() {
     if (updated) setFullProfile(newProfile);
   }, [fullProfile, religions, castes]);
 
-  
   const ensureAddressDefaults = (addr: AddressDetails): AddressDetails => {
     const requiredFields = ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'];
     const result = { ...addr };
@@ -554,8 +590,6 @@ export default function ProfilePage() {
     return value;
   };
 
-  
- 
   const handleEditExtended = (section: string) => {
     if (!user) return;
     setValidationErrors({});
@@ -732,7 +766,6 @@ export default function ProfilePage() {
     try {
       const formData = new FormData();
 
-      
       formData.append("user_id", user.id.toString());
       
       if (editingSection === "personal") {
@@ -762,29 +795,31 @@ export default function ProfilePage() {
           return;
         }
 
-        if (!editProfileData?.dob) {
-          toast.error("Date of Birth is required");
-          return;
+        if (isFieldVisible('personal_information', 'dob')) {
+          if (!editProfileData?.dob) {
+            toast.error("Date of Birth is required");
+            return;
+          }
+
+          if (isFutureDate(editProfileData.dob)) {
+            toast.error("Date of Birth cannot be in the future");
+            return;
+          }
+
+          const age = calculateAge(editProfileData.dob);
+
+          if (age !== null && age < 18) {
+            toast.error("Employee must be at least 18 years old");
+            return;
+          }
+
+          if (age !== null && age > 80) {
+            toast.error("Please enter a valid Date of Birth");
+            return;
+          }
         }
 
-        if (isFutureDate(editProfileData.dob)) {
-          toast.error("Date of Birth cannot be in the future");
-          return;
-        }
-
-        const age = calculateAge(editProfileData.dob);
-
-        if (age !== null && age < 18) {
-          toast.error("Employee must be at least 18 years old");
-          return;
-        }
-
-        if (age !== null && age > 80) {
-          toast.error("Please enter a valid Date of Birth");
-          return;
-        }
-
-        if (!editedUser?.gender) {
+        if (isFieldVisible('personal_information', 'gender') && !editedUser?.gender) {
           toast.error("Gender selection is required");
           return;
         }
@@ -901,7 +936,6 @@ export default function ProfilePage() {
           return;
         }
 
-        
         const altMobile = editProfileData?.alternate_mobile?.trim();
 
         if (altMobile) {
@@ -930,7 +964,6 @@ export default function ProfilePage() {
           }
         }
 
-      
         formData.append("email", primaryEmail);
         formData.append("mobile", primaryMobile);
 
@@ -973,13 +1006,11 @@ export default function ProfilePage() {
 
           guardianNames.add(guardianName);
 
-     
           if (!guardian.relationship_type) {
             toast.error("Relationship is required");
             return;
           }
 
-         
           const phone = guardian.phone?.trim() || "";
 
           if (!phone) {
@@ -1001,7 +1032,6 @@ export default function ProfilePage() {
 
         }
 
-       
         let guardiansToSend = guardians
           .filter((g: any) => g.name?.trim())
           .map((g: any) => ({
@@ -1017,7 +1047,6 @@ export default function ProfilePage() {
           guardiansToSend = guardiansToSend.filter(g => g.relationship_type !== 'spouse');
         }
 
-       
         formData.append("guardians", JSON.stringify(guardiansToSend));
       }
 
@@ -1055,7 +1084,6 @@ export default function ProfilePage() {
           toast.error("Please fill in all required present address fields");
           return;
         }
-      
 
         if (presentAddr.address_line_1.trim().length < 5) {
           toast.error("Address Line 1 must contain at least 5 characters");
@@ -1101,19 +1129,16 @@ export default function ProfilePage() {
           
           for (const qualification of editQualifications) {
 
-            
             if (!qualification.qualification_level) {
               toast.error("Qualification Level is required");
               return;
             }
 
-      
             if (!qualification.specialization?.trim()) {
               toast.error("Specialization is required");
               return;
             }
 
-          
             if (!qualification.institution_name?.trim()) {
               toast.error("Institution Name is required");
               return;
@@ -1124,31 +1149,26 @@ export default function ProfilePage() {
               return;
             }
 
-          
             if (!qualification.university?.trim()) {
               toast.error("University Name is required");
               return;
             }
 
-            
             if (!qualification.location?.trim()) {
               toast.error("Location is required");
               return;
             }
 
-            
             if (!qualification.start_date) {
               toast.error("Start Date is required");
               return;
             }
 
-         
             if (!qualification.completion_date) {
               toast.error("Completion Date is required");
               return;
             }
 
-          
             if (
               new Date(qualification.completion_date) <
               new Date(qualification.start_date)
@@ -1157,7 +1177,6 @@ export default function ProfilePage() {
               return;
             }
 
-           
             if (
               qualification.percentage !== "" &&
               qualification.percentage != null
@@ -1203,16 +1222,13 @@ export default function ProfilePage() {
       else if (editingSection === "experience") {
         if (editExperiences) {
 
-          
           for (const exp of editExperiences) {
 
-        
             if (!exp.company_name?.trim()) {
               toast.error("Company / Organization is required");
               return;
             }
 
-          
             if (!exp.location?.trim()) {
               toast.error("Location is required");
               return;
@@ -1286,7 +1302,6 @@ export default function ProfilePage() {
             }
           }
 
-         
           if (isFieldVisible('identity_bank', 'pan_no')) {
             if (!editProfileData.pan_no?.trim()) {
               toast.error("PAN Number is required");
@@ -1298,7 +1313,6 @@ export default function ProfilePage() {
             }
           }
 
-          
           if (isFieldVisible('identity_bank', 'aicte_id')) {
             if (!editProfileData.aicte_id?.trim()) {
               toast.error("AICTE ID is required");
@@ -1310,7 +1324,6 @@ export default function ProfilePage() {
             }
           }
 
-          
           if (isFieldVisible('identity_bank', 'ktu_id')) {
             if (!editProfileData.ktu_id?.trim()) {
               toast.error("KTU ID is required");
@@ -1337,7 +1350,6 @@ export default function ProfilePage() {
           
           for (const bank of editBankDetails) {
 
-            
             if (!bank.acc_holder_name?.trim()) {
               toast.error("Account Holder Name is required");
               return;
@@ -1348,13 +1360,11 @@ export default function ProfilePage() {
               return;
             }
 
-            
             if (!bank.bank_name?.trim()) {
               toast.error("Bank Name is required");
               return;
             }
 
-            
             if (!bank.account_number?.trim()) {
               toast.error("Account Number is required");
               return;
@@ -1365,7 +1375,6 @@ export default function ProfilePage() {
               return;
             }
 
-      
             if (!bank.ifsc_code?.trim()) {
               toast.error("IFSC Code is required");
               return;
@@ -1376,7 +1385,6 @@ export default function ProfilePage() {
               return;
             }
 
-            
             if (!bank.branch_name?.trim()) {
               toast.error("Branch Name is required");
               return;
@@ -1445,6 +1453,12 @@ export default function ProfilePage() {
       }
 
       await fetchProfile();
+      
+      // Refresh data entry percentage after save
+      setTimeout(() => {
+        fetchDataEntryPercentage();
+      }, 500);
+      
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -1478,6 +1492,7 @@ export default function ProfilePage() {
       if (!response.ok || !result.success) throw new Error("Failed to create profile");
       toast.success("Extended profile initialized!");
       await fetchProfile();
+      fetchDataEntryPercentage();
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -1485,7 +1500,6 @@ export default function ProfilePage() {
     }
   };
 
- 
   if (!user) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
 
   const profileUrl = getProfileImageUrl();
@@ -1498,6 +1512,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
+        
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           {!fullProfile && !profileLoading && <Button onClick={createEmptyProfile} className="bg-blue-50 text-blue-700 border-none hover:bg-blue-100"><Plus className="h-4 w-4 mr-2" /> Initialize Extended Profile</Button>}
@@ -1507,62 +1523,147 @@ export default function ProfilePage() {
         {/* Inactive User Warning */}
         {!user.is_active && <Alert className="mb-6 bg-yellow-50 border-yellow-200"><AlertDescription className="text-yellow-800 flex items-center gap-2"><XCircle className="h-4 w-4" /><span><strong>Account Inactive:</strong> Your account is currently inactive. Please contact your administrator.</span></AlertDescription></Alert>}
 
-        {/* Hero Profile Card with Image Upload */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-            <div className="relative group">
-              <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
-                {profileUrl && !imgError ? (
-                  <Image
-                    src={profileUrl}
-                    alt="Profile"
-                    width={128}
-                    height={128}
-                    className="object-cover h-full w-full"
-                    onError={() => setImgError(true)}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-blue-700">
-                    <span className="text-4xl font-bold">{initials}</span>
-                    <span className="text-xs font-semibold uppercase mt-1">User</span>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingImage}
-                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
-                aria-label="Change profile picture"
-              >
-                {uploadingImage ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                ) : (
-                  <Camera className="h-4 w-4 text-white" />
-                )}
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleSave}
+       {/* Hero Profile Card with Image Upload */}
+<div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 relative">
+  <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+    <div className="relative group">
+      <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
+        {profileUrl && !imgError ? (
+          <Image
+            src={profileUrl}
+            alt="Profile"
+            width={128}
+            height={128}
+            className="object-cover h-full w-full"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center text-blue-700">
+            <span className="text-4xl font-bold">{initials}</span>
+            <span className="text-xs font-semibold uppercase mt-1">User</span>
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploadingImage}
+        className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
+        aria-label="Change profile picture"
+      >
+        {uploadingImage ? (
+          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+        ) : (
+          <Camera className="h-4 w-4 text-white" />
+        )}
+      </button>
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleSave}
+      />
+      <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
+        {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
+      </div>
+    </div>
+    <div className="flex-1 text-center md:text-left">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-1">{user.first_name} {user.last_name}</h2>
+          <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500">
+            <Mail className="h-4 w-4" />
+            <span>{user.email}</span>
+          </div>
+        </div>
+        <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
+          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1">
+            <Briefcase className="h-3 w-3 mr-1.5" /> {getRoleName(user.role_id || user.role)}
+          </Badge>
+          {isAdmin && <Badge className="bg-amber-50 text-amber-700 border-amber-200 px-3 py-1">
+            <Shield className="h-3 w-3 mr-1.5" /> Admin
+          </Badge>}
+          {user.is_superuser && <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1">
+            <Crown className="h-3 w-3 mr-1.5" /> Super User
+          </Badge>}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Profile Completion Badge */}
+  {!dataEntryLoading && dataEntryPercentage !== null && dataEntryDetails && (
+    <div className="absolute bottom-4 right-4">
+      <div className="bg-gradient-to-br from-blue-50 to-blue-100/70 rounded-xl border border-blue-200/50 shadow-lg p-3 min-w-[160px] backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+
+          <div className="relative h-14 w-14 flex-shrink-0">
+            <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
+              <circle
+                cx="18"
+                cy="18"
+                r="15.9155"
+                fill="none"
+                stroke="#dbeafe"
+                strokeWidth="3"
               />
-              <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
-                {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
-              </div>
+              <circle
+                cx="18"
+                cy="18"
+                r="15.9155"
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="3"
+                strokeDasharray={`${(dataEntryDetails.overall_completion_percentage / 100) * 100} 100`}
+                strokeLinecap="round"
+                className="transition-all duration-800 ease-out"
+              />
+              <circle
+                cx="18"
+                cy="18"
+                r="12"
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth="2.5"
+                strokeDasharray={`${(dataEntryPercentage / 100) * 100} 100`}
+                strokeLinecap="round"
+                className="transition-all duration-800 ease-out"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-sm font-bold text-blue-600">
+                {Math.round(dataEntryDetails.overall_completion_percentage)}%
+              </span>
             </div>
-            <div className="flex-1 text-center md:text-left">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div><h2 className="text-3xl font-bold text-gray-900 mb-1">{user.first_name} {user.last_name}</h2><div className="flex items-center justify-center md:justify-start gap-2 text-gray-500"><Mail className="h-4 w-4" /><span>{user.email}</span></div></div>
-                <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
-                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1"><Briefcase className="h-3 w-3 mr-1.5" /> {getRoleName(user.role_id || user.role)}</Badge>
-                  {isAdmin && <Badge className="bg-amber-50 text-amber-700 border-amber-200 px-3 py-1"><Shield className="h-3 w-3 mr-1.5" /> Admin</Badge>}
-                  {user.is_superuser && <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1"><Crown className="h-3 w-3 mr-1.5" /> Super User</Badge>}
-                </div>
-              </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Profile Completion</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs font-medium text-green-600">Mandatory: {Math.round(dataEntryPercentage)}%</span>
+              <span className="text-xs text-gray-300">|</span>
+              <span className="text-xs font-medium text-blue-600">Overall: {Math.round(dataEntryDetails.overall_completion_percentage)}%</span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+              <span>{dataEntryDetails.filled_mandatory}/{dataEntryDetails.total_mandatory}</span>
+              <span>•</span>
+              <span>{dataEntryDetails.filled_visible}/{dataEntryDetails.total_visible}</span>
+            </div>
+            <div className={`mt-1 text-[10px] font-semibold ${
+              dataEntryPercentage >= 80 ? 'text-green-600' :
+              dataEntryPercentage >= 50 ? 'text-yellow-600' :
+              'text-red-600'
+            }`}>
+              {dataEntryPercentage >= 80 ? '✅ Complete' :
+               dataEntryPercentage >= 50 ? '⚠️ Partial' :
+               '❌ Incomplete'}
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )}
+</div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -1621,18 +1722,24 @@ export default function ProfilePage() {
                     <div className="p-6 space-y-6">
                       <div className="grid grid-cols-3 gap-6">
                         {/* DOB */}
-                        <div>
-                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
-                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p>
-                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                          <p className="text-base font-semibold text-gray-800 gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
-                        </div>
+                        {isFieldVisible('personal_information', 'dob') && (
+                          <div>
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
+                            <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                          </div>
+                        )}
+                        {isFieldVisible('personal_information', 'dob') && (
+                          <div className="text-center">
+                            <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Age</p>
+                            <p className="text-base font-semibold text-gray-800">{fullProfile?.dob && calculateAge(fullProfile.dob)}</p>
+                          </div>
+                        )}
+                        {isFieldVisible('personal_information', 'gender') && (
+                          <div className="text-right">
+                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                            <p className="text-base font-semibold text-gray-800 gap-1.5">{getGenderIcon(user.gender || "O")} {user.gender_display || (user.gender === "M" ? "Male" : user.gender === "F" ? "Female" : "Other")}</p>
+                          </div>
+                        )}
                         {/* Blood Group */}
                         {isFieldVisible('personal_information', 'blood_group') && (
                           <div>
@@ -1667,7 +1774,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Professional Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("professional")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("professional")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -1703,7 +1810,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Contact Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("contact")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("contact")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -1786,7 +1893,7 @@ export default function ProfilePage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">Address Details</h3>
                       </div>
-                      <button variant="outline" onClick={() => handleEditExtended("address")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                      <button onClick={() => handleEditExtended("address")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                         <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                       </button>
                     </div>
@@ -2005,7 +2112,7 @@ export default function ProfilePage() {
                       </div>
                       <h3 className="text-lg font-bold text-gray-900">Identity & Legal</h3>
                     </div>
-                    <button variant="outline" onClick={() => handleEditExtended("legal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
+                    <button onClick={() => handleEditExtended("legal")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center">
                       <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
                     </button>
                   </div>
@@ -2096,7 +2203,7 @@ export default function ProfilePage() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-3"><div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600"><Settings className="h-5 w-5" /></div><h3 className="text-lg font-bold text-gray-900">Notification Preferences</h3></div>
-                    <button variant="outline" onClick={() => handleEditExtended("preferences")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
+                    <button onClick={() => handleEditExtended("preferences")} className="text-blue-600 border border-blue-100 bg-blue-50 hover:bg-blue-100 font-bold rounded-lg px-4 py-2 text-sm flex items-center"><Edit3 className="h-3.5 w-3.5 mr-2" /> Edit</button>
                   </div>
                   <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50"><div className="flex items-center gap-3"><MessageCircle className="h-4 w-4 text-green-500" /><span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span></div><span className={`text-xs px-2.5 py-1 rounded-full font-bold ${user?.is_whatsapp ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{user?.is_whatsapp ? "Enabled" : "Disabled"}</span></div>
@@ -2160,34 +2267,44 @@ export default function ProfilePage() {
 
               {/* DOB & Gender */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Date of Birth<span className="text-red-500 -ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={editProfileData?.dob || ""}
-                    onChange={(e) => handleProfileChange("dob", e.target.value)}
-                    className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
-                    required
-                  />
-                  {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
-                      <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Gender<span className="text-red-500 -ml-1">*</span></Label>
-                  <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
-                    <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg border-[#dde3ec]">
-                      <SelectItem value="M">Male</SelectItem>
-                      <SelectItem value="F">Female</SelectItem>
-                      <SelectItem value="O">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isFieldVisible('personal_information', 'dob') && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                      Date of Birth
+                      {isFieldMandatory('personal_information', 'dob') && <span className="text-red-500 -ml-1">*</span>}
+                    </Label>
+                    <Input
+                      type="date"
+                      value={editProfileData?.dob || ""}
+                      onChange={(e) => handleProfileChange("dob", e.target.value)}
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10"
+                      required
+                    />
+                    {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#eff6ff] border border-blue-200 text-[12px] text-[#004ac6] font-medium mt-1.5">
+                        <Activity className="h-3 w-3" /> Age: {calculateAge(editProfileData.dob)} years
+                      </div>
+                    )}
+                  </div>
+                )}
+                {isFieldVisible('personal_information', 'gender') && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                      Gender
+                      {isFieldMandatory('personal_information', 'gender') && <span className="text-red-500 -ml-1">*</span>}
+                    </Label>
+                    <Select value={editedUser?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)} required>
+                      <SelectTrigger className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] transition-all h-10 bg-white">
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-lg border-[#dde3ec]">
+                        <SelectItem value="M">Male</SelectItem>
+                        <SelectItem value="F">Female</SelectItem>
+                        <SelectItem value="O">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               {/* Blood Group, Religion, Caste */}

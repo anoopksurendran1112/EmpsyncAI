@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useStaffCategories } from "@/hooks/settings/staff_category/useStaffCategories";
 import { format } from "date-fns";
+import { useRoles } from "@/hooks/settings/useRoles";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -63,15 +65,37 @@ const DUMMY_STATS = {
 
 
 
+interface LeavePolicy {
+  id?: number;
+  staff_category_id: number;
+  staff_category_name?: string;
+
+  monthly_limit: number;
+  yearly_limit: number;
+  initial_credit: number;
+
+  allow_carry_forward: boolean;
+  use_credit: boolean;
+
+  custom_settings?: Record<string, any>;
+}
+
 interface LeaveType {
   id: number;
   leave_type: string;
-  name?: string; // Sometimes returned as name
+  name?: string;
+
   short_name: string;
+
   monthly_limit: number;
   yearly_limit: number;
   initial_credit?: number;
+
   use_credit?: boolean;
+
+  policy_mode?: "normal" | "staff_category";
+
+  policies?: LeavePolicy[];
 }
 
 interface LeaveRequest {
@@ -120,44 +144,12 @@ type HierarchyEmployee = {
   initials: string;
 };
 
-const DUMMY_HIERARCHY_EMPLOYEES: HierarchyEmployee[] = [
-  {
-    id: "dummy-1",
-    name: "Arun Kumar",
-    email: "arun.kumar@example.com",
-    role: "HR Manager",
-    department: "Human Resources",
-    initials: "AK",
-  },
-  {
-    id: "dummy-2",
-    name: "Meera Nair",
-    email: "meera.nair@example.com",
-    role: "Team Lead",
-    department: "Engineering",
-    initials: "MN",
-  },
-  {
-    id: "dummy-3",
-    name: "Rahul Menon",
-    email: "rahul.menon@example.com",
-    role: "Project Manager",
-    department: "Operations",
-    initials: "RM",
-  },
-  {
-    id: "dummy-4",
-    name: "Anjali Joseph",
-    email: "anjali.joseph@example.com",
-    role: "Department Head",
-    department: "Administration",
-    initials: "AJ",
-  },
-];
+// No dummy data — employees are loaded from the backend
 export default function LeavesPage() {
   const { company, isAdmin } = useAuth();
   const companyId = company?.id;
-
+  const { data: staffCategories = [] } = useStaffCategories();
+  console.log("Staff Categories:", staffCategories);
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isAddTypeOpen, setIsAddTypeOpen] = useState(false);
@@ -193,7 +185,10 @@ export default function LeavesPage() {
     yearly_limit: 0,
     initial_credit: 0,
     use_credit: false,
+    policy_mode: "normal",
+    policies: [],
   });
+  const [activePolicyTab, setActivePolicyTab] = useState(0);
   const [editingLeaveType, setEditingLeaveType] = useState<LeaveType | null>(null);
   const [isLeaveTypeLoading, setIsLeaveTypeLoading] = useState(false);
   const [isLeaveTypeSubmitting, setIsLeaveTypeSubmitting] = useState(false);
@@ -227,8 +222,10 @@ export default function LeavesPage() {
   });
 
   // Leave Hierarchy States
-  const isHierarchyEmployeesLoading = false;
-
+  const { data: companyRoles = [] } = useRoles();
+  const [hierarchyEmployees, setHierarchyEmployees] = useState<HierarchyEmployee[]>([]);
+  const [isHierarchyEmployeesLoading, setIsHierarchyEmployeesLoading] = useState(false);
+  const [isHierarchyExists, setIsHierarchyExists] = useState(false);
   const [hierarchySearch, setHierarchySearch] = useState("");
   const [selectedHierarchyEmployeeId, setSelectedHierarchyEmployeeId] = useState("");
   const [leaveHierarchy, setLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
@@ -237,8 +234,6 @@ export default function LeavesPage() {
   const [savedLeaveHierarchy, setSavedLeaveHierarchy] = useState<HierarchyEmployee[]>([]);
   const [draggedHierarchyIndex, setDraggedHierarchyIndex] = useState<number | null>(null);
   const [isHierarchySaving, setIsHierarchySaving] = useState(false);
-  const hierarchyEmployees: HierarchyEmployee[] =
-    DUMMY_HIERARCHY_EMPLOYEES;
 
   const filteredHierarchyEmployees = hierarchyEmployees.filter((employee) => {
     const searchValue = hierarchySearch.trim().toLowerCase();
@@ -376,6 +371,136 @@ export default function LeavesPage() {
   });
   const [requestMessage, setRequestMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // ─── Fetch hierarchy employees (pool for the search / role dropdown) ────────
+  const fetchHierarchyEmployees = useCallback(async () => {
+    if (!companyId) return;
+    setIsHierarchyEmployeesLoading(true);
+    try {
+      const res = await fetch(`/api/leave/add-leave`);
+      const result = await res.json();
+      if (res.ok && result.success) {
+        const users: HierarchyEmployee[] = (result.data || []).map(
+          (u: { id: number; first_name: string; last_name?: string; email?: string }) => ({
+            id: String(u.id),
+            name: `${u.first_name}${u.last_name ? " " + u.last_name : ""}`.trim(),
+            email: u.email || "",
+            role: "Employee",
+            department: "",
+            initials: `${u.first_name?.[0] ?? ""}${u.last_name?.[0] ?? ""}`.toUpperCase(),
+          })
+        );
+        setHierarchyEmployees(users);
+      }
+    } catch (err) {
+      console.error("Failed to load hierarchy employees", err);
+    } finally {
+      setIsHierarchyEmployeesLoading(false);
+    }
+  }, [companyId]);
+
+  // ─── Fetch saved leave hierarchy from backend ─────────────────────────────
+  const fetchLeaveHierarchy = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const res = await fetch(`/api/leave/hierarchy`);
+      if (res.status === 404) {
+        // No hierarchy saved yet — start empty
+        setIsHierarchyExists(false);
+        setLeaveHierarchy([]);
+        setSavedLeaveHierarchy([]);
+        return;
+      }
+      const result = await res.json();
+      if (res.ok && result.success && result.data) {
+        setIsHierarchyExists(true);
+        const flowConfig: Array<{ level: number; criteria: string; managed_by: string }> =
+          result.data.flow_config || [];
+
+        // Convert backend flow_config into HierarchyEmployee UI format
+        const mapped: HierarchyEmployee[] = flowConfig.map((item) => {
+          const isRole = item.criteria === "role";
+          const roleLabel = isRole ? item.managed_by : "";
+          return {
+            id: isRole
+              ? `role-${item.managed_by.toLowerCase().replace(/\s+/g, "-")}`
+              : String(item.managed_by),
+            name: isRole ? item.managed_by : item.managed_by,
+            email: isRole ? "All employees assigned to this role" : "",
+            role: isRole ? "Role" : "Employee",
+            department: isRole ? "All departments" : "",
+            initials: item.managed_by
+              .split(" ")
+              .map((w: string) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase(),
+          };
+        });
+
+        // Enrich user entries with real names from the loaded employees
+        const enriched = mapped.map((item) => {
+          if (item.id.startsWith("role-")) return item;
+          const found = hierarchyEmployees.find((e) => e.id === item.id);
+          return found ? { ...found, id: item.id } : item;
+        });
+
+        setLeaveHierarchy(enriched);
+        setSavedLeaveHierarchy(enriched);
+      } else {
+        setIsHierarchyExists(false);
+        setLeaveHierarchy([]);
+        setSavedLeaveHierarchy([]);
+      }
+    } catch (err) {
+      console.error("Failed to load leave hierarchy", err);
+      toast.error("Failed to load leave hierarchy");
+    }
+  }, [companyId, hierarchyEmployees]);
+
+  // ─── Build payload for POST/PUT ───────────────────────────────────────────
+  const buildHierarchyPayload = () => ({
+    company_id: companyId,
+    flow_config: leaveHierarchy.map((item, index) => ({
+      level: index + 1,
+      criteria: item.id.startsWith("role-") ? "role" : "user",
+      managed_by: item.id.startsWith("role-") ? item.name : item.id,
+    })),
+  });
+
+  // ─── Save hierarchy to backend (POST if new, PUT if exists) ──────────────
+  const handleSaveHierarchy = async () => {
+    if (!companyId) {
+      toast.error("No company selected");
+      return;
+    }
+    setIsHierarchySaving(true);
+    try {
+      const payload = buildHierarchyPayload();
+      const method = isHierarchyExists ? "PUT" : "POST";
+
+      const res = await fetch(`/api/leave/hierarchy`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        toast.success("Leave hierarchy saved successfully");
+        setIsHierarchyExists(true);
+        // Refresh from backend so UI reflects what was actually stored
+        await fetchLeaveHierarchy();
+      } else {
+        toast.error(result.message || "Failed to save leave hierarchy");
+      }
+    } catch (err) {
+      console.error("Failed to save hierarchy", err);
+      toast.error("Network error while saving hierarchy");
+    } finally {
+      setIsHierarchySaving(false);
+    }
+  };
 
   // Fetch functions
   const fetchLeaveTypes = useCallback(async () => {
@@ -537,6 +662,8 @@ export default function LeavesPage() {
           fetchLeaveRequests();
           fetchHolidays();
           fetchRoles();
+          // Load employee pool and saved hierarchy when entering admin view
+          fetchHierarchyEmployees();
         }
       }
 
@@ -544,7 +671,14 @@ export default function LeavesPage() {
         fetchMyLeaves();
       }
     }
-  }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, cookieSynced]);
+  }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, fetchHierarchyEmployees, cookieSynced]);
+
+  // Once employees are loaded, fetch the saved hierarchy so names can be resolved
+  useEffect(() => {
+    if (companyId && cookieSynced && hierarchyEmployees.length > 0) {
+      fetchLeaveHierarchy();
+    }
+  }, [companyId, cookieSynced, hierarchyEmployees, fetchLeaveHierarchy]);
 
   // Trigger employee fetch when Past Leave Dialog opens
   useEffect(() => {
@@ -554,6 +688,7 @@ export default function LeavesPage() {
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
   // Leave Type Handlers
+
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -574,12 +709,17 @@ export default function LeavesPage() {
 
     try {
       const method = editingLeaveType ? "PUT" : "POST";
+      console.log("Data before payload:", data);
+      console.log("Policies before payload:", data.policies);
+
       const payload = {
         ...data,
         company_id: companyId,
         leave_type: data.leave_type.trim(),
-        short_name: data.short_name.trim()
+        short_name: data.short_name.trim(),
       };
+
+      console.log("Payload:", payload);
 
       console.log(`📤 ${method === "PUT" ? "Updating" : "Creating"} leave type:`, payload);
 
@@ -600,13 +740,16 @@ export default function LeavesPage() {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
           setLeaveTypeForm({
-            leave_type: "",
-            short_name: "",
-            monthly_limit: 0,
-            yearly_limit: 0,
-            initial_credit: 0,
-            use_credit: false,
-          });
+          policy_mode: "normal",
+          leave_type: "",
+          short_name: "",
+          monthly_limit: 0,
+          yearly_limit: 0,
+          initial_credit: 0,
+          use_credit: false,
+          policies: [],
+        });
+
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
         }, 1500);
@@ -1273,8 +1416,41 @@ export default function LeavesPage() {
                   <h3 className="font-bold text-gray-900">Configured Leave Types</h3>
                   <p className="text-xs text-gray-500">Define how many days can be taken for each category</p>
                 </div>
-                <Button onClick={() => setIsAddTypeOpen(true)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                  <Plus className="h-4 w-4 mr-2" /> Add Leave Type
+                <Button
+                  onClick={() => {
+                    setEditingLeaveType(null);
+
+                    setLeaveTypeForm({
+                      policy_mode: "normal",
+                      leave_type: "",
+                      short_name: "",
+                      monthly_limit: 0,
+                      yearly_limit: 0,
+                      initial_credit: 0,
+                      use_credit: false,
+
+                      policies: staffCategories.map((category: any) => ({
+                        staff_category_id: category.id,
+                        staff_category_name: category.name,
+
+                        monthly_limit: 0,
+                        yearly_limit: 0,
+                        initial_credit: 0,
+
+                        allow_carry_forward: true,
+                        use_credit: false,
+
+                        custom_settings: {},
+                      })),
+                    });
+
+                    setIsAddTypeOpen(true);
+                  }}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Leave Type
                 </Button>
               </div>
 
@@ -1298,6 +1474,9 @@ export default function LeavesPage() {
                             size="icon"
                             className="h-8 w-8 text-blue-600 border-blue-100 bg-blue-50 hover:bg-blue-100"
                             onClick={() => {
+                              console.log("Editing Leave Type:", type);
+                              console.log("Policies:", type.policies);
+
                               setEditingLeaveType(type);
                               setIsAddTypeOpen(true);
                             }}
@@ -1314,17 +1493,99 @@ export default function LeavesPage() {
                           </Button>
                         </div>
                       </div>
-                      <h4 className="font-bold text-gray-900 mb-1">{type.leave_type}</h4>
-                      <div className="grid grid-cols-2 gap-4 mt-4">
-                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Monthly</p>
-                          <p className="text-sm font-bold text-gray-700">{type.monthly_limit} Day</p>
+                      <h4 className="font-bold text-gray-900">{type.leave_type}</h4>
+
+                        <div className="mt-2 mb-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              type.policy_mode === "normal"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {type.policy_mode === "normal"
+                              ? "Normal Policy"
+                              : "Staff Category Policy"}
+                          </span>
                         </div>
-                        <div className="p-2 rounded-lg bg-gray-50 border border-gray-100">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-0.5">Yearly</p>
-                          <p className="text-sm font-bold text-gray-700">{type.yearly_limit} Days</p>
-                        </div>
-                      </div>
+
+                        {type.policy_mode === "normal" ? (
+                          <div className="space-y-2 mt-4">
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Monthly</span>
+                              <span className="font-semibold">
+                                {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Yearly</span>
+                              <span className="font-semibold">
+                                {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Initial Credit</span>
+                              <span className="font-semibold">
+                                {type.initial_credit}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-500">Leave Credit</span>
+                              <span
+                                className={`font-semibold ${
+                                  type.use_credit
+                                    ? "text-green-600"
+                                    : "text-red-500"
+                                }`}
+                              >
+                                {type.use_credit ? "Enabled" : "Disabled"}
+                              </span>
+                            </div>
+
+                          </div>
+                        ) : (
+                          <div className="space-y-2 mt-4">
+
+                            {(type.policies || []).slice(0, 3).map((policy) => (
+                              <div
+                                key={policy.staff_category_id}
+                                className="flex justify-between items-center rounded-md border px-3 py-2"
+                              >
+                                <span className="font-medium text-gray-700">
+                                  {policy.staff_category_name}
+                                </span>
+
+                                <span className="text-sm text-gray-600">
+                                  <span className="font-semibold">
+                                    {policy.monthly_limit}
+                                  </span>
+                                  {" / "}
+                                  <span className="font-semibold">
+                                    {policy.yearly_limit}
+                                  </span>
+                                  {" Days"}
+                                </span>
+                              </div>
+                            ))}
+
+                            {(type.policies?.length || 0) > 3 && (
+                              <div className="text-center text-xs font-medium text-blue-600">
+                                +{type.policies!.length - 3} More Categories
+                              </div>
+                            )}
+
+                            {(type.policies?.length || 0) === 0 && (
+                              <div className="rounded-md border border-dashed p-4 text-center text-sm text-gray-500">
+                                No Staff Category Policies
+                              </div>
+                            )}
+
+                          </div>
+                        )}
                     </div>
                   ))
                 )}
@@ -1509,7 +1770,7 @@ export default function LeavesPage() {
                 )}
 
                 {hierarchySelectionType === "role" && (
-                   <div className="relative flex-1 -ml-20">
+                  <div className="relative flex-1 -ml-20">
                     <Select
                       value={selectedHierarchyRole}
                       onValueChange={setSelectedHierarchyRole}
@@ -1519,13 +1780,32 @@ export default function LeavesPage() {
                       </SelectTrigger>
 
                       <SelectContent>
-                        {Array.from(
-                          new Set(DUMMY_HIERARCHY_EMPLOYEES.map((employee) => employee.role))
-                        ).map((role) => (
-                          <SelectItem key={role} value={role}>
-                            {role}
+                        <SelectItem value="Company Head">
+                          Company Head
+                        </SelectItem>
+
+                        <SelectItem value="Team Lead">
+                          Team Lead
+                        </SelectItem>
+
+                        <div className="my-1 h-0.5 bg-gray-300" />
+
+                        {/* Combined dynamic roles from both companyRoles and hierarchyEmployees */}
+                        {companyRoles.map((role: any) => (
+                          <SelectItem key={role.id} value={role.role}>
+                            {role.role}
                           </SelectItem>
                         ))}
+
+                        {Array.from(
+                          new Set(hierarchyEmployees.map((employee) => employee.role))
+                        )
+                          .filter((role) => !companyRoles.some((cr: any) => cr.role === role)) // Avoids duplicates
+                          .map((role) => (
+                            <SelectItem key={role} value={role}>
+                              {role}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1639,8 +1919,9 @@ export default function LeavesPage() {
               <div className="flex justify-end gap-3 mt-6">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setLeaveHierarchy(savedLeaveHierarchy);
+                  disabled={isHierarchySaving}
+                  onClick={async () => {
+                    await fetchLeaveHierarchy();
                     toast.success("Changes discarded");
                   }}
                 >
@@ -1649,12 +1930,10 @@ export default function LeavesPage() {
 
                 <Button
                   className="bg-blue-600 text-white"
-                  onClick={() => {
-                    setSavedLeaveHierarchy([...leaveHierarchy]);
-                    toast.success("Leave hierarchy saved");
-                  }}
+                  disabled={isHierarchySaving}
+                  onClick={handleSaveHierarchy}
                 >
-                  Save Hierarchy
+                  {isHierarchySaving ? "Saving..." : "Save Hierarchy"}
                 </Button>
               </div>
 
@@ -1666,102 +1945,111 @@ export default function LeavesPage() {
       {/* Dialogs */}
 
       {/* 1. Apply Leave Request Dialog */}
-      <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
-            <DialogDescription>Submit your leave application for approval</DialogDescription>
-          </DialogHeader>
+<Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
+  <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-xl font-bold">Apply for Leave</DialogTitle>
+      <DialogDescription>Submit your leave application for approval</DialogDescription>
+    </DialogHeader>
 
-          {requestMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
-              }`}>
-              {requestMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              {requestMessage.text}
-            </div>
-          )}
+    <div className="p-3 rounded-lg flex items-center gap-2 text-sm bg-amber-50 text-amber-700 border border-amber-200">
+      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+      <span>Leave request form is on progress, will update the latest version soon</span>
+    </div>
 
-          <form onSubmit={handleRequestSubmit} className="grid gap-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="from_date">From Date</Label>
-                <Input
-                  id="from_date"
-                  type="date"
-                  required
-                  value={requestForm.from_date}
-                  onChange={(e) => setRequestForm({ ...requestForm, from_date: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to_date">To Date</Label>
-                <Input
-                  id="to_date"
-                  type="date"
-                  required
-                  value={requestForm.to_date}
-                  onChange={(e) => setRequestForm({ ...requestForm, to_date: e.target.value })}
-                  min={requestForm.from_date}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="leave_id">Leave Type</Label>
-                <Select
-                  value={requestForm.leave_id}
-                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_id: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {leaveTypes.map(lt => (
-                      <SelectItem key={lt.id} value={lt.id.toString()}>{lt.leave_type}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="leave_choice">Duration</Label>
-                <Select
-                  value={requestForm.leave_choice}
-                  onValueChange={(val) => setRequestForm({ ...requestForm, leave_choice: val })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="full_day">Full Day</SelectItem>
-                    <SelectItem value="half_day">Half Day</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reason">Reason for Leave</Label>
-              <textarea
-                id="reason"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Enter short details..."
-                value={requestForm.custom_reason}
-                onChange={(e) => setRequestForm({ ...requestForm, custom_reason: e.target.value })}
-                required
-              ></textarea>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-600 text-white" disabled={isRequestSubmitting}>
-                {isRequestSubmitting ? "Submitting..." : "Submit Request"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+    {requestMessage && (
+      <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${requestMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700 text-left'
+        }`}>
+        {requestMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+        {requestMessage.text}
+      </div>
+    )}
 
-      {/* 2. Add Leave Type Dialog */}
+    <form onSubmit={handleRequestSubmit} className="grid gap-6 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="from_date">From Date</Label>
+          <Input
+            id="from_date"
+            type="date"
+            required
+            value={requestForm.from_date}
+            onChange={(e) => setRequestForm({ ...requestForm, from_date: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="to_date">To Date</Label>
+          <Input
+            id="to_date"
+            type="date"
+            required
+            value={requestForm.to_date}
+            onChange={(e) => setRequestForm({ ...requestForm, to_date: e.target.value })}
+            min={requestForm.from_date}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="leave_id">Leave Type</Label>
+          <Select
+            value={requestForm.leave_id}
+            onValueChange={(val) => setRequestForm({ ...requestForm, leave_id: val })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {leaveTypes.map(lt => (
+                <SelectItem key={lt.id} value={lt.id.toString()}>{lt.leave_type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="leave_choice">Duration</Label>
+          <Select
+            value={requestForm.leave_choice}
+            onValueChange={(val) => setRequestForm({ ...requestForm, leave_choice: val })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="full_day">Full Day</SelectItem>
+              <SelectItem value="half_day">Half Day</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="reason">Reason for Leave</Label>
+        <textarea
+          id="reason"
+          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="Enter short details..."
+          value={requestForm.custom_reason}
+          onChange={(e) => setRequestForm({ ...requestForm, custom_reason: e.target.value })}
+          required
+        ></textarea>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancel</Button>
+        <Button 
+          type="submit" 
+          className="bg-blue-600 text-white" 
+          disabled={true}  
+        >
+          {isRequestSubmitting ? "Submitting..." : "Submit Request"}
+        </Button>
+      </DialogFooter>
+    </form>
+  </DialogContent>
+</Dialog>
+
+     {/* 2. Add Leave Type Dialog */}
       <Dialog open={isAddTypeOpen} onOpenChange={setIsAddTypeOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
               {editingLeaveType ? "Edit Leave Type" : "Add Leave Type"}
@@ -1804,59 +2092,308 @@ export default function LeavesPage() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monthly Limit</Label>
-                <Input
-                  type="number"
-                  value={editingLeaveType ? editingLeaveType.monthly_limit : leaveTypeForm.monthly_limit}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, monthly_limit: val });
-                    else setLeaveTypeForm({ ...leaveTypeForm, monthly_limit: val });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Yearly Limit</Label>
-                <Input
-                  type="number"
-                  value={editingLeaveType ? editingLeaveType.yearly_limit : leaveTypeForm.yearly_limit}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, yearly_limit: val });
-                    else setLeaveTypeForm({ ...leaveTypeForm, yearly_limit: val });
-                  }}
-                />
-              </div>
-            </div>
             <div className="space-y-2">
-              <Label>Initial Credit</Label>
-              <Input
-                type="number"
-                value={editingLeaveType ? editingLeaveType.initial_credit : leaveTypeForm.initial_credit}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value) || 0;
-                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, initial_credit: val });
-                  else setLeaveTypeForm({ ...leaveTypeForm, initial_credit: val });
-                }}
-              />
+              <Label>Policy Type</Label>
+
+              <div className="flex gap-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    value="normal"
+                    checked={
+                      (editingLeaveType
+                        ? editingLeaveType.policy_mode
+                        : leaveTypeForm.policy_mode) === "normal"
+                    }
+                    onChange={() => {
+                      if (editingLeaveType) {
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          policy_mode: "normal",
+                        });
+                      } else {
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          policy_mode: "normal",
+                        });
+                      }
+                    }}
+                  />
+                  Normal
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    value="staff_category"
+                    checked={
+                      (editingLeaveType
+                        ? editingLeaveType.policy_mode
+                        : leaveTypeForm.policy_mode) === "staff_category"
+                    }
+                    onChange={() => {
+                      if (editingLeaveType) {
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          policy_mode: "staff_category",
+                        });
+                      } else {
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          policy_mode: "staff_category",
+                        });
+                      }
+                    }}
+                  />
+                  Staff Category Policy
+                </label>
+              </div>
             </div>
-            <div className="flex items-center gap-2 pt-2">
-              <Switch
-                id="use_credit"
-                checked={editingLeaveType ? editingLeaveType.use_credit : leaveTypeForm.use_credit}
-                onCheckedChange={(checked) => {
-                  if (editingLeaveType) setEditingLeaveType({ ...editingLeaveType, use_credit: checked });
-                  else setLeaveTypeForm({ ...leaveTypeForm, use_credit: checked });
-                }}
-              />
-              <Label htmlFor="use_credit">Enable Leave Credit</Label>
-            </div>
+
+            {/* NORMAL POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "normal" && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Monthly Limit</Label>
+                    <Input
+                      type="number"
+                      value={
+                        editingLeaveType
+                          ? editingLeaveType.monthly_limit
+                          : leaveTypeForm.monthly_limit
+                      }
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (editingLeaveType)
+                          setEditingLeaveType({
+                            ...editingLeaveType,
+                            monthly_limit: val,
+                          });
+                        else
+                          setLeaveTypeForm({
+                            ...leaveTypeForm,
+                            monthly_limit: val,
+                          });
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Yearly Limit</Label>
+                    <Input
+                      type="number"
+                      value={
+                        editingLeaveType
+                          ? editingLeaveType.yearly_limit
+                          : leaveTypeForm.yearly_limit
+                      }
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        if (editingLeaveType)
+                          setEditingLeaveType({
+                            ...editingLeaveType,
+                            yearly_limit: val,
+                          });
+                        else
+                          setLeaveTypeForm({
+                            ...leaveTypeForm,
+                            yearly_limit: val,
+                          });
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Initial Credit</Label>
+                  <Input
+                    type="number"
+                    value={
+                      editingLeaveType
+                        ? editingLeaveType.initial_credit
+                        : leaveTypeForm.initial_credit
+                    }
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      if (editingLeaveType)
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          initial_credit: val,
+                        });
+                      else
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          initial_credit: val,
+                        });
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Switch
+                    id="use_credit"
+                    checked={
+                      editingLeaveType
+                        ? editingLeaveType.use_credit
+                        : leaveTypeForm.use_credit
+                    }
+                    onCheckedChange={(checked) => {
+                      if (editingLeaveType)
+                        setEditingLeaveType({
+                          ...editingLeaveType,
+                          use_credit: checked,
+                        });
+                      else
+                        setLeaveTypeForm({
+                          ...leaveTypeForm,
+                          use_credit: checked,
+                        });
+                    }}
+                  />
+                  <Label htmlFor="use_credit">Enable Leave Credit</Label>
+                </div>
+              </>
+            )}
+
+            {/* STAFF CATEGORY POLICY MODE */}
+            {(editingLeaveType ? editingLeaveType.policy_mode : leaveTypeForm.policy_mode) === "staff_category" && (
+              <>
+                <hr className="my-2" />
+
+                <div className="space-y-5">
+                  <h3 className="font-semibold text-sm border-b pb-2">
+                    Staff Category Policies
+                  </h3>
+
+                  {(() => {
+                    const policies = editingLeaveType
+                      ? editingLeaveType.policies || []
+                      : leaveTypeForm.policies || [];
+
+                    const policy = policies[activePolicyTab];
+
+                    if (!policy) return null;
+
+                    return (
+                      <>
+                        {/* Tabs */}
+                        <div className="flex flex-wrap gap-2">
+                          {policies.map((p, index) => (
+                            <Button
+                              key={p.staff_category_id}
+                              type="button"
+                              size="sm"
+                              variant={activePolicyTab === index ? "default" : "outline"}
+                              onClick={() => setActivePolicyTab(index)}
+                            >
+                              {p.staff_category_name}
+                            </Button>
+                          ))}
+                        </div>
+
+                        {/* Active Policy */}
+                        <div className="rounded-lg border p-4 mt-3 space-y-4">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <Label>Monthly</Label>
+                              <Input
+                                type="number"
+                                value={policy.monthly_limit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].monthly_limit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Yearly</Label>
+                              <Input
+                                type="number"
+                                value={policy.yearly_limit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].yearly_limit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <Label>Initial Credit</Label>
+                              <Input
+                                type="number"
+                                value={policy.initial_credit}
+                                onChange={(e) => {
+                                  const updated = [...policies];
+                                  updated[activePolicyTab].initial_credit = Number(e.target.value);
+
+                                  if (editingLeaveType) {
+                                    setEditingLeaveType({
+                                      ...editingLeaveType,
+                                      policies: updated,
+                                    });
+                                  } else {
+                                    setLeaveTypeForm({
+                                      ...leaveTypeForm,
+                                      policies: updated,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddTypeOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-blue-600 text-white" disabled={isLeaveTypeSubmitting}>
-                {isLeaveTypeSubmitting ? "Saving..." : (editingLeaveType ? "Update Type" : "Save Type")}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddTypeOpen(false)}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="submit"
+                className="bg-blue-600 text-white"
+                disabled={isLeaveTypeSubmitting}
+              >
+                {isLeaveTypeSubmitting
+                  ? "Saving..."
+                  : editingLeaveType
+                  ? "Update Type"
+                  : "Save Type"}
               </Button>
             </DialogFooter>
           </form>
@@ -2045,7 +2582,7 @@ export default function LeavesPage() {
 
       {/* 4. Add Past Leave Dialog (Admin Only) */}
       <Dialog open={isAddPastLeaveOpen} onOpenChange={setIsAddPastLeaveOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Add Past Leave Record</DialogTitle>
             <DialogDescription>Record a past leave for an employee (Past dates only)</DialogDescription>

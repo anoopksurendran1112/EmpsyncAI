@@ -35,22 +35,32 @@ class Holiday(models.Model):
 
 class LeaveType(models.Model):
     leave_type = models.CharField(max_length=100)
-    short_name = models.CharField(max_length=10,null=True,blank=True)
+    short_name = models.CharField(max_length=10, null=True, blank=True)
     monthly_limit = models.FloatField(null=True, blank=True)
     yearly_limit = models.FloatField(null=True, blank=True)
-    allow_carry_forward = models.BooleanField(default=True) 
+    allow_carry_forward = models.BooleanField(default=True)
     initial_credit = models.FloatField(default=0)
     is_active = models.BooleanField(default=True)
     is_global = models.BooleanField(default=False)
-    company = models.ForeignKey('company.Company', on_delete=models.CASCADE, null=True, blank=True)
-    is_global = models.BooleanField(default=False)
+    company = models.ForeignKey(
+        'company.Company',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
     use_credit = models.BooleanField(default=False)
+    
+    policy_mode = models.CharField(
+        max_length=20,
+        choices=[
+            ("normal", "Normal"),
+            ("staff_category", "Staff Category"),
+        ],
+        default="normal",
+    )
 
     def __str__(self):
         return self.leave_type
-
-   
-
 
 
 class Leave(models.Model):
@@ -76,14 +86,24 @@ class Leave(models.Model):
     status = models.CharField(choices=LEAVE_STATUS_CHOICES,max_length=50)
     custom_reason = models.TextField(null=True, blank=True)  # 🔥 For custom leave reason
     approval_trail = models.JSONField(default=dict,blank=True,null=True)
-    current_level = models.PositiveIntegerField(default=0)
+    ta_da_payable = models.BooleanField(null=True, blank=True)  # Only for Duty Leave: True = college pays TA+DA
+    current_level = models.IntegerField(default=1)  # Starts at approval level 1
     current_approver = models.ForeignKey(
-        'user.CustomUser', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='leaves_to_approve'
+        'user.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='approver_for_leaves'
     )
 
+    replacement_user = models.ForeignKey(
+        'user.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='replacement_for_leaves'
+    )
     def __str__(self):
         return f"{self.user} - {self.leave_type or 'Custom'} ({self.from_date})"
+
 
 class LeaveFlowHierarchy(models.Model):
     company = models.OneToOneField('company.Company',on_delete=models.CASCADE,related_name='leave_hierarchy')
@@ -92,11 +112,13 @@ class LeaveFlowHierarchy(models.Model):
     def __str__(self):
         return f"Leave Flow for {self.company}"
 
+
 class LeaveCredit(models.Model):
     user = models.ForeignKey('user.CustomUser', on_delete=models.CASCADE)
     leave_type = models.ForeignKey('LeaveType', on_delete=models.CASCADE)
     credits = models.FloatField(default=0)
     year = models.IntegerField(default=timezone.now().year)
+
 
 class LeavePolicy(models.Model):
     company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='leave_policies')
@@ -109,11 +131,11 @@ class LeavePolicy(models.Model):
     allow_carry_forward = models.BooleanField(default=True)
     use_credit = models.BooleanField(default=False)
     custom_settings = models.JSONField(default=dict, blank=True)
-    
+    requires_replacement = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    has_ta_da = models.BooleanField(default=False)
     class Meta:
         unique_together = ('company', 'staff_category', 'leave_type')
         verbose_name_plural = "Leave Policies"
