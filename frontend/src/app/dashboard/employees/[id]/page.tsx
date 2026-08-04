@@ -213,6 +213,8 @@ export default function EmployeeDetailsPage() {
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editProfileData, setEditProfileData] = useState<EditableProfile | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showBiometricDialog, setShowBiometricDialog] = useState(false);
+  const [biometricInput, setBiometricInput] = useState("");
   
   const [isSaving, setIsSaving] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -308,6 +310,7 @@ export default function EmployeeDetailsPage() {
   useEffect(() => {
     if (employee) {
       setFormData(employee);
+      setBiometricInput(employee.biometric_id || "");
       setRetryCount(0);
     } else {
       setFormData(null);
@@ -601,6 +604,7 @@ export default function EmployeeDetailsPage() {
 
   const handleCancel = () => {
     setFormData(employee ?? null);
+    setBiometricInput(employee?.biometric_id || "");
     setEditingSection(null);
     setQualFormOpen(false);
     setExpFormOpen(false);
@@ -642,8 +646,10 @@ export default function EmployeeDetailsPage() {
   };
 
   
-  const handleSave = async () => {
+  const handleSave = async (sectionOverride?: string) => {
     if (!formData || !company) return;
+
+    const activeSection = sectionOverride ?? editingSection;
 
     setIsSaving(true);
     try {
@@ -653,7 +659,7 @@ export default function EmployeeDetailsPage() {
       formDataPayload.append("user_id", employeeId);
 
 
-      if (editingSection === "personal") {
+      if (activeSection === "personal") {
         if (!formData.first_name?.trim()) {
           toast.error("First name is required");
           return;
@@ -662,11 +668,11 @@ export default function EmployeeDetailsPage() {
           toast.error("Last name is required");
           return;
         }
-        if (!editProfileData?.dob) {
+        if (isFieldVisible('personal_information', 'dob') && !editProfileData?.dob) {
           toast.error("Date of birth is required");
           return;
         }
-        if (!formData.gender) {
+        if (isFieldVisible('personal_information', 'gender') && !formData.gender) {
           toast.error("Gender selection is required");
           return;
         }
@@ -686,7 +692,7 @@ export default function EmployeeDetailsPage() {
         }
       } 
       
-      else if (editingSection === "professional") {
+      else if (activeSection === "professional") {
         if (!formData.group_id) {
           toast.error("Department / Group is required");
           return;
@@ -723,7 +729,7 @@ export default function EmployeeDetailsPage() {
         }
       } 
       
-      else if (editingSection === "contact") {
+      else if (activeSection === "contact") {
         const primaryMobile = formData.mobile?.trim() || '';
         if (!primaryMobile) {
           toast.error("Primary mobile number is required");
@@ -768,7 +774,7 @@ export default function EmployeeDetailsPage() {
         }
       } 
       
-      else if (editingSection === "family") {
+      else if (activeSection === "family") {
         for (const guardian of guardians) {
           const phone = guardian.phone?.trim();
           if (phone && !isValidMobile(phone)) {
@@ -795,7 +801,7 @@ export default function EmployeeDetailsPage() {
         formDataPayload.append("guardians", JSON.stringify(guardiansToSend));
       } 
       
-      else if (editingSection === "address") {
+      else if (activeSection === "address") {
         if (editProfileData) {
           const presentAddr = { ...editProfileData.present_address_details };
           const permanentAddr = { ...editProfileData.permanent_address_details };
@@ -813,7 +819,7 @@ export default function EmployeeDetailsPage() {
         }
       }
 
-      else if (editingSection === "education") {
+      else if (activeSection === "education") {
         const qualsToSend = editQualifications.map((q: any) => ({
           ...(q.id ? { id: q.id } : {}),
           user: Number(employeeId),
@@ -835,7 +841,7 @@ export default function EmployeeDetailsPage() {
         });
       }
 
-      else if (editingSection === "experience") {
+      else if (activeSection === "experience") {
         const experiencesToSend = editExperiences.map((exp: ExperienceItem) => {
           const cleanedExp: any = {
             ...(exp.id ? { id: exp.id } : {}),
@@ -888,7 +894,7 @@ export default function EmployeeDetailsPage() {
         });
       }
 
-      else if (editingSection === "legal") {
+      else if (activeSection === "legal") {
         if (editProfileData) {
           const profileData = {
             ktu_id: editProfileData.ktu_id || null,
@@ -900,7 +906,7 @@ export default function EmployeeDetailsPage() {
         }
       }
       
-      else if (editingSection === "bank") {
+      else if (activeSection === "bank") {
         const banksToSend = editBankDetails.map((b: any) => ({
           ...(b.id ? { id: b.id } : {}),
           user: Number(employeeId),
@@ -914,14 +920,23 @@ export default function EmployeeDetailsPage() {
         formDataPayload.append("bank_details", JSON.stringify(banksToSend));
       }
 
-      else if (editingSection === "preferences") {
+      else if (activeSection === "preferences") {
         formDataPayload.append("is_wfh", String(formData.is_wfh || false));
         formDataPayload.append("is_whatsapp", String(formData.is_whatsapp || false));
         formDataPayload.append("is_sms", String(formData.is_sms || false));
       }
 
-      else if (editingSection === "hero") {
+      else if (activeSection === "hero") {
         formDataPayload.append("is_active", String(formData.is_active ?? true));
+      }
+
+      else if (activeSection === "biometric") {
+        const biometricValue = biometricInput.trim();
+        if (!biometricValue) {
+          toast.error("Biometric ID is required");
+          return;
+        }
+        formDataPayload.append("biometric_id", biometricValue);
       }
       
       else {
@@ -1207,6 +1222,18 @@ export default function EmployeeDetailsPage() {
                     <Activity className="h-4 w-4 mr-2" />
                     View Punches
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setBiometricInput(formData?.biometric_id || "");
+                      setShowBiometricDialog(true);
+                    }}
+                    className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 font-bold rounded-lg h-9 px-4"
+                  >
+                    <Fingerprint className="h-4 w-4 mr-2" />
+                    Update Biometric
+                  </Button>
                 </div>
                 <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
                   <span className="text-[10px] font-bold uppercase text-gray-400 ml-2">Account Status</span>
@@ -1299,6 +1326,34 @@ export default function EmployeeDetailsPage() {
           )}
         </div>
 
+        {/* Biometric Update Dialog */}
+        <Dialog open={showBiometricDialog} onOpenChange={setShowBiometricDialog}>
+          <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <DialogHeader className="p-8 bg-emerald-600 text-white">
+              <DialogTitle className="text-2xl font-black">Update Biometric ID</DialogTitle>
+              <DialogDescription className="text-emerald-100 font-bold opacity-80">Assign or refresh the biometric identifier for this employee.</DialogDescription>
+            </DialogHeader>
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <Label>Biometric ID <span className="text-red-500">*</span></Label>
+                <Input
+                  value={biometricInput}
+                  onChange={(e) => setBiometricInput(e.target.value)}
+                  className="rounded-xl h-11 border-slate-200 font-bold"
+                  placeholder="Enter biometric identifier"
+                />
+                <p className="text-xs text-gray-500">This value is used for punch verification and attendance lookup.</p>
+              </div>
+            </div>
+            <DialogFooter className="p-8 bg-slate-50 flex gap-4">
+              <Button variant="ghost" onClick={() => setShowBiometricDialog(false)} className="font-bold rounded-xl h-12">Cancel</Button>
+              <Button onClick={() => handleSave("biometric")} disabled={isSaving} className="bg-emerald-600 font-black rounded-xl h-12 flex-1 shadow-lg shadow-emerald-100">
+                {isSaving ? "Saving..." : "Save Biometric ID"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Attendance Dialog */}
         <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
           <DialogContent className="max-w-6xl p-0 overflow-hidden border-none rounded-xl shadow-2xl bg-white">
@@ -1385,17 +1440,21 @@ export default function EmployeeDetailsPage() {
                 </div>
                 <div className="p-6 space-y-6">
                   <div className="grid grid-cols-3 gap-6">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
-                        {fullProfile?.dob && <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">{calculateAge(fullProfile.dob)} yrs</Badge>}
+                    {isFieldVisible('personal_information', 'dob') && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">Date of Birth</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-base font-semibold text-gray-800">{fullProfile?.dob || "Not provided"}</p>
+                          {fullProfile?.dob && <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-200">{calculateAge(fullProfile.dob)} yrs</Badge>}
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                        <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                        <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
-                    </div>
+                    )}
+                    {isFieldVisible('personal_information', 'gender') && (
+                      <div>
+                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                          <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
+                      </div>
+                    )}
                     {/* Blood Group */}
                     {isFieldVisible('personal_information', 'blood_group') && (
                       <div>
@@ -2033,20 +2092,24 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
             <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Date of Birth <span className="text-red-500">*</span></Label>
-                    <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
-                    {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
-                      <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Gender <span className="text-red-500">*</span></Label>
-                    <Select value={formData?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}>
-                        <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
-                    </Select>
-                  </div>
+                  {isFieldVisible('personal_information', 'dob') && (
+                    <div className="space-y-2">
+                      <Label>Date of Birth {isFieldMandatory('personal_information', 'dob') && <span className="text-red-500">*</span>}</Label>
+                      <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
+                      {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                        <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
+                      )}
+                    </div>
+                  )}
+                  {isFieldVisible('personal_information', 'gender') && (
+                    <div className="space-y-2">
+                      <Label>Gender {isFieldMandatory('personal_information', 'gender') && <span className="text-red-500">*</span>}</Label>
+                      <Select value={formData?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}>
+                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                  )}
               </div>
               <div className="grid grid-cols-3 gap-4">
                   {/* Blood Group */}
