@@ -1672,11 +1672,26 @@ def get_eligible_replacements(request):
 
     my_category = profile.staff_category
 
-    eligible = CustomUser.objects.filter(
-        company__id=company_id,
-        profile__staff_category=my_category,
-        is_active=True
-    ).exclude(id=user.id).select_related('profile')
+    try:
+        my_company_link = CompanyUser.objects.get(user=user,company_id=company_id)
+    except CompanyUser.DoesNotExist:
+        return Response(
+        {
+            'success': False,
+            'message': 'Your company department is not configured'
+        },
+        status=status.HTTP_400_BAD_REQUEST
+    )
+    my_group = my_company_link.group
+    if not my_group:
+        return Response(
+        {
+            'success': False,
+            'message': 'Your department is not configured'
+        },
+        status=status.HTTP_400_BAD_REQUEST
+    )
+    eligible = CustomUser.objects.filter(company_links__company_id=company_id,company_links__group=my_group,profile__staff_category=my_category,is_active=True).exclude(id=user.id).select_related('profile').distinct()
 
     data = [
         {
