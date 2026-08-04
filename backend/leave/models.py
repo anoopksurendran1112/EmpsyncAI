@@ -104,6 +104,7 @@ class Leave(models.Model):
     def __str__(self):
         return f"{self.user} - {self.leave_type or 'Custom'} ({self.from_date})"
 
+
 class LeaveFlowHierarchy(models.Model):
     company = models.OneToOneField('company.Company',on_delete=models.CASCADE,related_name='leave_hierarchy')
     flow_config = models.JSONField(default=list,blank=True,help_text='Stores ordered user IDs or steps between team lead and company head')
@@ -111,11 +112,13 @@ class LeaveFlowHierarchy(models.Model):
     def __str__(self):
         return f"Leave Flow for {self.company}"
 
+
 class LeaveCredit(models.Model):
     user = models.ForeignKey('user.CustomUser', on_delete=models.CASCADE)
     leave_type = models.ForeignKey('LeaveType', on_delete=models.CASCADE)
     credits = models.FloatField(default=0)
     year = models.IntegerField(default=timezone.now().year)
+
 
 class LeavePolicy(models.Model):
     company = models.ForeignKey('company.Company', on_delete=models.CASCADE, related_name='leave_policies')
