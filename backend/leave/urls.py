@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import get_calendar,apply_leave,get_leave_types,get_leave_flow_hierarchy,get_requested_leaves,update_leave_status,update_leave_type,get_holiday,update_holiday,add_holiday, add_past_leave, get_my_leaves
+from .views import get_calendar,apply_leave,get_leave_types,get_requested_leaves,update_leave_status,update_leave_type,get_holiday,update_holiday,add_holiday, add_past_leave, get_my_leaves,reject_leave,approve_leave,get_pending_approvals,get_leave_flow_hierarchy
 
 urlpatterns = [path('api/get-calendar/<int:id>',get_calendar),
                 path('api/apply-leave',apply_leave),
@@ -12,5 +12,8 @@ urlpatterns = [path('api/get-calendar/<int:id>',get_calendar),
                 path('api/update-holiday',update_holiday),           
                 path('api/add-holiday',add_holiday),
                 path('api/holiday',get_holiday),
+                path('leaves/<int:id>/approve/', approve_leave),
+                path('leaves/<int:id>/reject/', reject_leave),
+                path('leaves/pending-approvals/', get_pending_approvals),
 
                ]

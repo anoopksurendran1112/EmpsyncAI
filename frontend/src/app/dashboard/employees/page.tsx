@@ -21,6 +21,7 @@ import {
   MoreHorizontal,
   Users,
   UserCheck,
+  UserRoundX,
   Clock,
   Search,
   RefreshCw,
@@ -255,9 +256,7 @@ function PunchSessions({
                 <span className="text-xs text-gray-500 font-medium">
                   Session {idx + 1}
                 </span>
-                <span className="font-bold text-blue-600">
-                  {duration}h
-                </span>
+                <span className="font-bold text-blue-600">{duration}h</span>
               </div>
               <div className="flex items-center gap-2 text-gray-700 font-medium">
                 <span>{checkInTime}</span>
@@ -279,14 +278,34 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
   // State for filters
   const [selectedGroupId, setSelectedGroupId] = useState<number>(0);
-  const [searchQuery, setSearchQuery] = useState<string>("");         // input value
+  const [searchQuery, setSearchQuery] = useState<string>(""); // input value
   const [submittedSearchQuery, setSubmittedSearchQuery] = useState<string>(""); // actual filter value
+  const [selectedStatusFilter, setSelectedStatusFilter] =
+    useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [clickLoading, setClickLoading] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   // hasActiveFilters now uses submittedSearchQuery (not the live input)
-  const hasActiveFilters = selectedGroupId !== 0 || submittedSearchQuery !== "";
+  const hasActiveFilters =
+    selectedGroupId !== 0 ||
+    submittedSearchQuery !== "" ||
+    selectedStatusFilter !== "all";
+
+  const statusFilterParams = useMemo(() => {
+    switch (selectedStatusFilter) {
+      case "active":
+        return { isActive: true };
+      case "leave":
+        return { isActive: false };
+      case "male":
+        return { gender: "M" };
+      case "female":
+        return { gender: "F" };
+      default:
+        return {};
+    }
+  }, [selectedStatusFilter]);
 
   // Employee caching and prefetching hooks
   const { getEmployee, setEmployee } = useEmployeeCache();
@@ -307,7 +326,8 @@ function EmployeesList({ companyId }: { companyId: number }) {
     companyId,
     page,
     groupId: selectedGroupId !== 0 ? selectedGroupId : undefined,
-    searchQuery: submittedSearchQuery,  // Use submittedSearchQuery instead of debounced value
+    searchQuery: submittedSearchQuery, // Use submittedSearchQuery instead of debounced value
+    ...statusFilterParams,
   });
 
   const {
@@ -357,10 +377,14 @@ function EmployeesList({ companyId }: { companyId: number }) {
   const { data: activeUsersData, isLoading: activeUsersLoading } =
     useActiveUsersCount(companyId);
 
+  useEffect(() => {
+    console.log("activeUsersData:", activeUsersData);
+  }, [activeUsersData]);
+
   // Reset to page 1 when filters change (depends on submittedSearchQuery, not live input)
   useEffect(() => {
     setPage(1);
-  }, [selectedGroupId, submittedSearchQuery]);
+  }, [selectedGroupId, submittedSearchQuery, selectedStatusFilter]);
 
   // Get pagination data
   const currentPage = useMemo(() => {
@@ -669,6 +693,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
     setSelectedGroupId(0);
     setSearchQuery("");
     setSubmittedSearchQuery("");
+    setSelectedStatusFilter("all");
     setPage(1);
   };
 
@@ -712,86 +737,124 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
       <div className="pb-4">
         {/* Stats Cards */}
-        <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Total Employees Card */}
-          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 mb-1">
-                Total Employees
-              </h3>
-              <p className="text-3xl font-bold text-blue-600">
-                {countLoading ? (
-                  <span className="text-gray-400">Loading...</span>
-                ) : (
-                  displayTotalCount.toLocaleString()
-                )}
-              </p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
+        <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+  {/* Total Employees Card */}
+  <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+    <div>
+      <h3 className="text-sm font-semibold text-gray-500 mb-1">
+        Total Employees
+      </h3>
+      <p className="text-3xl font-bold text-blue-600">
+        {countLoading ? (
+          <span className="text-gray-400">Loading...</span>
+        ) : (
+          displayTotalCount.toLocaleString()
+        )}
+      </p>
+    </div>
+    <div className="p-3 bg-blue-100 rounded-full">
+      <Users className="h-6 w-6 text-blue-600" />
+    </div>
+  </div>
+
+  {/* On Leave Card */}
+  <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+    <div>
+      <h3 className="text-sm font-semibold text-gray-500 mb-1">
+        On Leave
+      </h3>
+      <p className="text-3xl font-bold text-red-600">
+        {activeUsersLoading ? (
+          <span className="text-gray-400">--</span>
+        ) : (
+          activeUsersData?.male_count || 0
+        )}
+      </p>
+    </div>
+    <div className="p-3 bg-red-100 rounded-full">
+      <UserRoundX className="h-6 w-6 text-red-600" />
+    </div>
+  </div>
+
+  {/* Active Today Card - bigger, spans full width below, with gender progress bar */}
+  <div className="sm:col-span-1 lg:col-span-1 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+    <div className="flex items-center justify-between mb-5">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 mb-1">
+          Active Today
+        </h3>
+        <p className="text-4xl font-bold text-green-600">
+          {activeUsersLoading ? (
+            <span className="text-gray-400">Loading...</span>
+          ) : (
+            activeUsersData?.total.toLocaleString() || "0"
+          )}
+        </p>
+      </div>
+      <div className="p-4 bg-green-100 rounded-full">
+        <UserCheck className="h-8 w-8 text-green-600" />
+      </div>
+    </div>
+
+    {/* Gender Breakdown Progress Bar */}
+    {(() => {
+      const male = activeUsersData?.male_count || 0;
+      const female = activeUsersData?.female_count || 0;
+      const total = male + female;
+      const malePct = total > 0 ? (male / total) * 100 : 0;
+      const femalePct = total > 0 ? (female / total) * 100 : 0;
+
+      return (
+        <div>
+          {/* Stacked bar */}
+          <div className="flex w-full h-3 rounded-full overflow-hidden bg-gray-100">
+            {activeUsersLoading ? (
+              <div className="w-full h-full bg-gray-200 animate-pulse" />
+            ) : (
+              <>
+                <div
+                  className="h-full bg-purple-500 transition-all duration-500"
+                  style={{ width: `${malePct}%` }}
+                />
+                <div
+                  className="h-full bg-pink-500 transition-all duration-500"
+                  style={{ width: `${femalePct}%` }}
+                />
+              </>
+            )}
           </div>
 
-          {/* Active Today Card */}
-          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 mb-1">
-                Active Today
-              </h3>
-              <p className="text-3xl font-bold text-green-600">
-                {activeUsersLoading ? (
-                  <span className="text-gray-400">Loading...</span>
-                ) : (
-                  activeUsersData?.total.toLocaleString() || "0"
-                )}
-              </p>
+          {/* Legend */}
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+              <span className="text-sm text-gray-600">
+                Men{" "}
+                <span className="font-semibold text-purple-600">
+                  {activeUsersLoading ? "--" : male.toLocaleString()}
+                </span>
+              </span>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <UserCheck className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-
-          {/* Male Staff Card */}
-          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 mb-1">
-                Male Staff
-              </h3>
-              <p className="text-3xl font-bold text-purple-600">
-                {activeUsersLoading ? (
-                  <span className="text-gray-400">--</span>
-                ) : (
-                  activeUsersData?.male_count || 0
-                )}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Users className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-
-          {/* Female Staff Card */}
-          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-500 mb-1">
-                Female Staff
-              </h3>
-              <p className="text-3xl font-bold text-red-600">
-                {activeUsersLoading ? (
-                  <span className="text-gray-400">--</span>
-                ) : (
-                  activeUsersData?.female_count || 0
-                )}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <Users className="h-6 w-6 text-red-600" />
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-pink-500" />
+              <span className="text-sm text-gray-600">
+                Women{" "}
+                <span className="font-semibold text-pink-600">
+                  {activeUsersLoading ? "--" : female.toLocaleString()}
+                </span>
+              </span>
             </div>
           </div>
         </div>
+      );
+    })()}
+  </div>
+</div>
 
         <div className="pt-6 mt-2">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Employee Records</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">
+            Employee Records
+          </h2>
 
           {/* Filter Bar - with manual search button */}
           <div className="flex flex-wrap items-end gap-5 mb-8">
@@ -810,6 +873,24 @@ function EmployeesList({ companyId }: { companyId: number }) {
                   className="border border-gray-300 pl-10 pr-4 py-2 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
                 />
               </div>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex flex-col w-full md:w-46">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Filter
+              </label>
+              <select
+                value={selectedStatusFilter}
+                onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white h-[42px]"
+              >
+                <option value="all">None</option>
+                <option value="active">Active Today</option>
+                <option value="leave">On Leave</option>
+                <option value="male">Male Staff</option>
+                <option value="female">Female Staff</option>
+              </select>
             </div>
 
             {/* Group Selector */}
@@ -842,7 +923,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
                 Search
               </button>
 
-              {(selectedGroupId !== 0 || searchQuery) && (
+              {(selectedGroupId !== 0 ||
+                searchQuery ||
+                selectedStatusFilter !== "all") && (
                 <button
                   onClick={clearFilters}
                   className="flex items-center justify-center gap-2 px-6 py-[9px] bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium text-sm h-[42px]"
@@ -875,7 +958,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
                 "No employees found for this company."
               ) : (
                 <div>
-                  <p className="text-lg mb-2">No employees match your filters</p>
+                  <p className="text-lg mb-2">
+                    No employees match your filters
+                  </p>
                   <button
                     onClick={clearFilters}
                     className="text-blue-600 hover:text-blue-800 underline"
@@ -887,7 +972,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
             </div>
           ) : (
             <>
-              <ul className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredEmployees.map((emp, index) => {
                   const serialNumber = adjustedStartSerialNumber + index;
                   const profileUrl = getProfileImageUrl(emp);
@@ -900,9 +985,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
                   const totalSessions = punch?.total_sessions || 0;
 
                   return (
-                    <li
+                    <div
                       key={emp.uniqueKey}
-                      className="bg-white border border-gray-200 p-4 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors shadow-sm group relative"
+                      className="relative bg-white border border-purple-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:border-purple-300 transition-all duration-200 cursor-pointer group"
                       onMouseEnter={() => {
                         onHoverStart(emp.id.toString());
                         setHoveredId(emp.uniqueKey);
@@ -914,107 +999,117 @@ function EmployeesList({ companyId }: { companyId: number }) {
                       onClick={(e) => handleEmployeeClick(emp, e)}
                     >
                       {/* Serial Number Badge */}
-                      <div className="absolute top-0 left-0 bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded-tl-lg rounded-br-lg z-10 shadow-sm">
+                      <div className="absolute top-0 left-0 bg-purple-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-br-xl z-20 shadow-sm">
                         #{serialNumber}
                       </div>
 
-                      <div className="flex items-center justify-between flex-wrap gap-4">
-                        {/* Left Section - Profile and Employee Details */}
-                        <div className="flex items-center gap-4 flex-1 min-w-[200px]">
-                          <div className="h-14 w-14 rounded-xl border-2 border-blue-100 bg-blue-50 flex flex-col items-center justify-center flex-shrink-0 relative overflow-hidden">
-                            {profileUrl ? (
-                              <Image
-                                src={profileUrl}
-                                alt={`${emp.first_name} ${emp.last_name}`}
-                                width={56}
-                                height={56}
-                                className="object-cover h-full w-full"
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <div className="flex flex-col items-center justify-center text-blue-700">
-                                <span className="text-xl font-bold leading-none">{initials}</span>
-                                <span className="text-[10px] font-semibold uppercase mt-1">EMP</span>
+                      {/* Loading indicator */}
+                      {clickLoading === emp.id.toString() && (
+                        <Clock className="absolute top-3 right-3 h-4 w-4 text-white drop-shadow animate-spin z-20" />
+                      )}
+
+                      {/* Top Half - Large Profile Image */}
+                      <div className="relative h-40 w-full bg-purple-50 flex items-center justify-center overflow-hidden">
+                        {profileUrl ? (
+                          <Image
+                            src={profileUrl}
+                            alt={`${emp.first_name} ${emp.last_name}`}
+                            fill
+                            className="object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-purple-700">
+                            <span className="text-3xl font-bold leading-none">
+                              {initials}
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase mt-2 tracking-wide">
+                              EMP
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Session count badge, overlaid on image, doesn't collide with text below */}
+                        {multiMode && totalSessions > 1 && (
+                          <span className="absolute bottom-2 right-2 text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold shadow-sm z-10">
+                            {totalSessions} SESSIONS
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Bottom Half - Details */}
+                      <div className="p-4">
+                        {/* Name + Email */}
+                        <div className="text-center mb-2">
+                          <p className="font-semibold text-base text-gray-900 truncate">
+                            {emp.first_name} {emp.last_name}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {emp.email}
+                          </p>
+                        </div>
+
+                        {/* Tags */}
+                        <div className="flex flex-wrap justify-center gap-1.5 mb-4">
+                          {emp.group && (
+                            <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                              {emp.group}
+                            </span>
+                          )}
+                          {emp.is_wfh !== undefined && (
+                            <span className="text-[10px] bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                              {emp.is_wfh ? "WFH" : "On-Site"}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="h-px bg-purple-100 mb-4" />
+
+                        {/* Punch Times (IN + OUT grouped left) + TimeCircle (right) */}
+                        <div className="flex items-center justify-between">
+                          {/* IN + OUT grouped together */}
+                          <div className="flex items-center gap-4">
+                            {/* Check-in */}
+                            <div className="flex flex-col items-center min-w-[50px]">
+                              <div className="flex items-center gap-1 mb-1">
+                                <ArrowUpCircle className="h-4 w-4 text-green-500" />
+                                <span className="text-[10px] font-bold text-green-600">
+                                  IN
+                                </span>
                               </div>
-                            )}
-                          </div>
-
-                          {/* Employee Details */}
-                          <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-semibold text-lg text-gray-900 truncate">
-                                {emp.first_name} {emp.last_name}
-                              </p>
-                              {clickLoading === emp.id.toString() && (
-                                <Clock className="h-4 w-4 text-blue-600 animate-spin" />
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm text-gray-500 truncate">
-                                {emp.email}
-                              </p>
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              {emp.group && (
-                                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full font-medium">
-                                  {emp.group}
-                                </span>
-                              )}
-                              {emp.is_wfh !== undefined && (
-                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
-                                  {emp.is_wfh ? "WFH" : "On-Site"}
-                                </span>
-                              )}
-                              {multiMode && totalSessions > 1 && (
-                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">
-                                  {totalSessions} SESSIONS
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Middle Section - Punch Times */}
-                        <div className="flex items-center gap-8 mx-4 sm:mx-8">
-                          {/* Check-in */}
-                          <div className="flex flex-col items-center min-w-[60px]">
-                            <div className="flex items-center gap-2 mb-1">
-                              <ArrowUpCircle className="h-4 w-4 text-green-500" />
-                              <span className="text-[10px] font-bold text-gray-400">IN</span>
-                            </div>
-                            <span className="text-lg font-bold text-gray-900 leading-none">
-                              {checkInTime}
-                            </span>
-                            {multiMode && punch?.check_in_count > 1 && (
-                              <span className="text-[10px] text-green-600 font-bold mt-0.5">
-                                +{punch.check_in_count - 1} MORE
+                              <span className="text-sm font-bold text-gray-900 leading-none">
+                                {checkInTime}
                               </span>
-                            )}
-                          </div>
-
-                          {/* Check-out */}
-                          <div className="flex flex-col items-center min-w-[60px]">
-                            <div className="flex items-center gap-2 mb-1">
-                              <ArrowDownCircle className="h-4 w-4 text-red-500" />
-                              <span className="text-[10px] font-bold text-gray-400">OUT</span>
+                              {multiMode && punch?.check_in_count > 1 && (
+                                <span className="text-[9px] text-green-600 font-bold mt-0.5">
+                                  +{punch.check_in_count - 1} MORE
+                                </span>
+                              )}
                             </div>
-                            <span className="text-lg font-bold text-gray-900 leading-none">
-                              {checkOutTime}
-                            </span>
-                            {multiMode && punch?.check_out_count > 1 && (
-                              <span className="text-[10px] text-red-600 font-bold mt-0.5">
-                                +{punch.check_out_count - 1} MORE
-                              </span>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Right Section - Average Work Hours */}
-                        <div className="flex items-center justify-end flex-shrink-0">
+                            {/* Check-out */}
+                            <div className="flex flex-col items-center min-w-[50px]">
+                              <div className="flex items-center gap-1 mb-1">
+                                <ArrowDownCircle className="h-4 w-4 text-red-500" />
+                                <span className="text-[10px] font-bold text-red-600">
+                                  OUT
+                                </span>
+                              </div>
+                              <span className="text-sm font-bold text-gray-900 leading-none">
+                                {checkOutTime}
+                              </span>
+                              {multiMode && punch?.check_out_count > 1 && (
+                                <span className="text-[9px] text-red-600 font-bold mt-0.5">
+                                  +{punch.check_out_count - 1} MORE
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Average Work Hours Circle - right side */}
                           <TimeCircle
                             sessions={sessions}
                             checkIn={checkInTime}
@@ -1025,21 +1120,31 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
                       {/* Multiple Sessions Breakdown on Hover */}
                       {hoveredId === emp.uniqueKey && multiMode && (
-                        <PunchSessions sessions={sessions} multiMode={multiMode} />
+                        <div className="px-4 pb-4 pt-0 border-t border-purple-100 mt-0">
+                          <PunchSessions
+                            sessions={sessions}
+                            multiMode={multiMode}
+                          />
+                        </div>
                       )}
-                    </li>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-2 py-4 border-t mt-8">
                   <div className="text-xs text-gray-500 font-medium">
-                    Showing {start}-{end} of {displayTotalCount.toLocaleString()} employees
+                    Showing {start}-{end} of{" "}
+                    {displayTotalCount.toLocaleString()} employees
                     {selectedGroupId !== 0 && (
                       <span className="ml-2 text-blue-600">
-                        • Group: {allGroups.find((g: { id: number; name: string }) => g.id === selectedGroupId)?.name || `Group ${selectedGroupId}`}
+                        • Group:{" "}
+                        {allGroups.find(
+                          (g: { id: number; name: string }) =>
+                            g.id === selectedGroupId,
+                        )?.name || `Group ${selectedGroupId}`}
                       </span>
                     )}
                     {submittedSearchQuery && (
@@ -1047,45 +1152,66 @@ function EmployeesList({ companyId }: { companyId: number }) {
                         • Searching: "{submittedSearchQuery}"
                       </span>
                     )}
+                    {selectedStatusFilter !== "all" && (
+                      <span className="ml-2 text-purple-600">
+                        • Status:{" "}
+                        {selectedStatusFilter === "active"
+                          ? "Active Today"
+                          : selectedStatusFilter === "leave"
+                            ? "On Leave"
+                            : selectedStatusFilter === "male"
+                              ? "Male Staff"
+                              : "Female Staff"}
+                      </span>
+                    )}
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={currentPage === 1}
                       onClick={() => handlePageChange(currentPage - 1)}
                       className="h-8 text-xs"
                     >
                       Previous
                     </Button>
-                    
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum = currentPage <= 3 
-                          ? i + 1 
-                          : Math.min(currentPage - 2 + i, totalPages - 4 + i);
-                        
-                        if (pageNum <= 0) pageNum = i + 1;
-                        if (pageNum > totalPages) return null;
 
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={currentPage === pageNum ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => handlePageChange(pageNum)}
-                            className={`h-8 w-8 text-xs p-0 ${currentPage === pageNum ? 'bg-blue-600' : ''}`}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      })}
+                    <div className="flex items-center gap-1">
+                      {Array.from(
+                        { length: Math.min(5, totalPages) },
+                        (_, i) => {
+                          let pageNum =
+                            currentPage <= 3
+                              ? i + 1
+                              : Math.min(
+                                  currentPage - 2 + i,
+                                  totalPages - 4 + i,
+                                );
+
+                          if (pageNum <= 0) pageNum = i + 1;
+                          if (pageNum > totalPages) return null;
+
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={
+                                currentPage === pageNum ? "default" : "outline"
+                              }
+                              size="sm"
+                              onClick={() => handlePageChange(pageNum)}
+                              className={`h-8 w-8 text-xs p-0 ${currentPage === pageNum ? "bg-blue-600" : ""}`}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        },
+                      )}
                     </div>
 
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={currentPage === totalPages}
                       onClick={() => handlePageChange(currentPage + 1)}
                       className="h-8 text-xs"

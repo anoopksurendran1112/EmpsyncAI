@@ -35,7 +35,7 @@ async function fetchFilterEmployees({
   gender,
   isActive,
   groups,
-  avgHourFilter
+  avgHourFilter,
 }: {
   companyId: number;
   page?: number;
@@ -51,7 +51,7 @@ async function fetchFilterEmployees({
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       company_id: companyId,
       page: page,
       group_id: groupId,
@@ -59,7 +59,7 @@ async function fetchFilterEmployees({
       gender: gender,
       is_active: isActive,
       groups: groups,
-      avg_hour_filter: avgHourFilter
+      avg_hour_filter: avgHourFilter,
     }),
   });
 
@@ -73,16 +73,26 @@ async function fetchFilterEmployees({
     throw new Error(responseData.error || "Filter failed");
   }
 
-  console.log('✅ Filtered employees data received:', {
+  console.log("✅ Filtered employees data received:", {
     companyId: responseData.company_id,
     groupId: responseData.group_id,
     search: responseData.search,
     page: responseData.page,
     totalEmployees: responseData.totalEmployees,
-    totalPages: responseData.totalPages
+    totalPages: responseData.totalPages,
   });
 
   return {
+<<<<<<< HEAD
+    employees: responseData.data || [],
+    totalEmployees: responseData.totalEmployees || 0,
+    currentPage: responseData.page || page,
+    totalPages: responseData.totalPages || 1,
+    maleCount: responseData.maleCount || 0,
+    femaleCount: responseData.femaleCount || 0,
+    othersCount: responseData.othersCount || 0,
+  };
+=======
   employees: responseData.employees || [],
   currentPage: responseData.currentPage || page,
   totalPages: responseData.totalPages || 1,
@@ -92,6 +102,7 @@ async function fetchFilterEmployees({
     (responseData.totalPages || 1),
   hasPrevPage: (responseData.currentPage || page) > 1,
 };
+>>>>>>> 2abd2e4f33c8d66da989b10bc0230638488f3243
 }
 
 export function useFilterEmployees({
@@ -102,7 +113,7 @@ export function useFilterEmployees({
   gender,
   isActive,
   groups,
-  avgHourFilter
+  avgHourFilter,
 }: {
   companyId: number;
   page?: number;
@@ -114,20 +125,31 @@ export function useFilterEmployees({
   avgHourFilter?: string;
 }) {
   return useQuery<FilterEmployeesData>({
-    queryKey: ["filteredEmployees", companyId, groupId, searchQuery, page],
-    queryFn: () => fetchFilterEmployees({
+    queryKey: [
+      "filteredEmployees",
       companyId,
-      page,
       groupId,
       searchQuery,
       gender,
       isActive,
       groups,
-      avgHourFilter
-    }),
+      avgHourFilter,
+      page,
+    ],
+    queryFn: () =>
+      fetchFilterEmployees({
+        companyId,
+        page,
+        groupId,
+        searchQuery,
+        gender,
+        isActive,
+        groups,
+        avgHourFilter,
+      }),
     enabled: !!companyId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     retry: 2,
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10000),
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 }
