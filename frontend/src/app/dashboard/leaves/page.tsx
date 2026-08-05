@@ -1594,78 +1594,80 @@ export default function LeavesPage() {
                       </div>
 
                       {type.policy_mode === "normal" ? (
-                        <div className="space-y-2 mt-4">
+                        <div className="mt-4 rounded-lg border overflow-hidden">
 
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Monthly</span>
-                            <span className="font-semibold">
-                              {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
-                            </span>
-                          </div>
+                              <div className="grid grid-cols-2 bg-gray-100 text-xs font-semibold px-3 py-2">
+                                <span>Policy</span>
+                                <span className="text-right">Value</span>
+                              </div>
 
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Yearly</span>
-                            <span className="font-semibold">
-                              {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
-                            </span>
-                          </div>
+                              <div className="grid grid-cols-2 px-3 py-2 border-t text-sm">
+                                <span>Monthly</span>
+                                <span className="text-right">
+                                  {type.monthly_limit} {type.monthly_limit === 1 ? "Day" : "Days"}
+                                </span>
+                              </div>
 
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Initial Credit</span>
-                            <span className="font-semibold">
-                              {type.initial_credit}
-                            </span>
-                          </div>
+                              <div className="grid grid-cols-2 px-3 py-2 border-t text-sm">
+                                <span>Yearly</span>
+                                <span className="text-right">
+                                  {type.yearly_limit} {type.yearly_limit === 1 ? "Day" : "Days"}
+                                </span>
+                              </div>
 
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-500">Leave Credit</span>
-                            <span
-                              className={`font-semibold ${type.use_credit
-                                ? "text-green-600"
-                                : "text-red-500"
-                                }`}
-                            >
-                              {type.use_credit ? "Enabled" : "Disabled"}
-                            </span>
-                          </div>
+                              <div className="grid grid-cols-2 px-3 py-2 border-t text-sm">
+                                <span>Initial Credit</span>
+                                <span className="text-right">
+                                  {type.initial_credit}
+                                </span>
+                              </div>
 
-                        </div>
+                              <div className="grid grid-cols-2 px-3 py-2 border-t text-sm">
+                                <span>Leave Credit</span>
+                                <span
+                                  className={`text-right font-medium ${
+                                    type.use_credit
+                                      ? "text-green-600"
+                                      : "text-red-500"
+                                  }`}
+                                >
+                                  {type.use_credit ? "Enabled" : "Disabled"}
+                                </span>
+                              </div>
+
+                            </div>
                       ) : (
-                        <div className="space-y-2 mt-4">
+                        <div className="mt-4 rounded-lg border overflow-hidden">
 
-                          {(type.policies || []).slice(0, 3).map((policy) => (
+                          <div className="grid grid-cols-4 bg-gray-100 text-xs font-semibold px-3 py-2">
+                            <span>Category</span>
+                            <span className="text-center">M</span>
+                            <span className="text-center">Y</span>
+                            <span className="text-center">IC</span>
+                          </div>
+
+                          {(type.policies || []).map((policy) => (
                             <div
                               key={policy.staff_category_id}
-                              className="flex justify-between items-center rounded-md border px-3 py-2"
+                              className="grid grid-cols-4 items-center px-3 py-2 border-t text-sm"
                             >
-                              <span className="font-medium text-gray-700">
+                              <span className="font-medium truncate">
                                 {policy.staff_category_name}
                               </span>
 
-                              <span className="text-sm text-gray-600">
-                                <span className="font-semibold">
-                                  {policy.monthly_limit}
-                                </span>
-                                {" / "}
-                                <span className="font-semibold">
-                                  {policy.yearly_limit}
-                                </span>
-                                {" Days"}
+                              <span className="text-center">
+                                {policy.monthly_limit}
+                              </span>
+
+                              <span className="text-center">
+                                {policy.yearly_limit}
+                              </span>
+
+                              <span className="text-center">
+                                {policy.initial_credit}
                               </span>
                             </div>
                           ))}
-
-                          {(type.policies?.length || 0) > 3 && (
-                            <div className="text-center text-xs font-medium text-blue-600">
-                              +{type.policies!.length - 3} More Categories
-                            </div>
-                          )}
-
-                          {(type.policies?.length || 0) === 0 && (
-                            <div className="rounded-md border border-dashed p-4 text-center text-sm text-gray-500">
-                              No Staff Category Policies
-                            </div>
-                          )}
 
                         </div>
                       )}

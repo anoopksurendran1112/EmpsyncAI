@@ -233,9 +233,10 @@ export async function POST(req: Request) {
       yearly_limit: body.yearly_limit || 0,
       initial_credit: body.initial_credit || 0,
       use_credit: body.use_credit || false,
+      policy_mode: body.policy_mode || "normal",
       policies: body.policies || [],
     };
-
+ 
     const res = await fetch(`${process.env.API_URL}/leave-types`, {
       method: "POST",
       headers: {
