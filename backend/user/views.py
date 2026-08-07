@@ -1035,14 +1035,22 @@ def getAllUsers(request, page):
         
     avg_interval = company.work_summary_interval
     
-    filters = Q(company__id=company_id) & Q(is_active=True) & ~Q(id=request.user.id)
+    # Base filter: exclude requesting user; is_active defaults to True unless explicitly overridden
+    filters = Q(company__id=company_id) & ~Q(id=request.user.id)
+
+    if is_active is not None:
+        filters &= Q(is_active=is_active)
+    else:
+        filters &= Q(is_active=True)  # default: only show active employees
 
     if not is_admin:
         filters &= Q(group_id=user.group_id)
     if gender:
-        filters &= Q(gender__in=gender)
-    if is_active is not None:
-        filters &= Q(is_active=is_active)
+        # Handle both a single string value and a list of values
+        if isinstance(gender, list):
+            filters &= Q(gender__in=gender)
+        else:
+            filters &= Q(gender=gender)
     if roles:
         filters &= Q(role_id__in=roles)
     if groups:
