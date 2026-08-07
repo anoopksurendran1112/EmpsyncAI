@@ -105,6 +105,7 @@ export function useFilterEmployees({
   isActive,
   groups,
   avgHourFilter,
+  enabled = true,
 }: {
   companyId: number;
   page?: number;
@@ -114,6 +115,7 @@ export function useFilterEmployees({
   isActive?: boolean;
   groups?: number[];
   avgHourFilter?: string;
+  enabled?: boolean;
 }) {
   return useQuery<FilterEmployeesData>({
     queryKey: [
@@ -138,7 +140,7 @@ export function useFilterEmployees({
         groups,
         avgHourFilter,
       }),
-    enabled: !!companyId,
+    enabled: !!companyId && enabled,
     staleTime: 2 * 60 * 1000, // 2 minutes
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
