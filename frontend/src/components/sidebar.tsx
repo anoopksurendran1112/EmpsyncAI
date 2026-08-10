@@ -65,7 +65,7 @@ export function Sidebar({ className }: SidebarProps) {
     setOpenMenus(prev => {
       const isOpening = !prev[title]
       if (!isOpening) return { ...prev, [title]: false }
-      
+
       const newState: Record<string, boolean> = { ...prev }
       if (parentItems) {
         parentItems.forEach(item => { newState[item] = false })
@@ -77,13 +77,13 @@ export function Sidebar({ className }: SidebarProps) {
 
   const menuItems: MenuItem[] = [
     { title: "Punch Records", icon: Fingerprint, href: "/dashboard/mypunches" },
-    { title: isAdmin ? "Leaves & Holiday" : "Leaves", icon: CalendarX, href: "/dashboard/leaves"},
+    { title: isAdmin ? "Leaves & Holiday" : "Leaves", icon: CalendarX, href: "/dashboard/leaves" },
 
     // ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
 
     { title: "Employees", icon: Users, href: "/dashboard/employees" },
-    
-  
+
+
     { title: "Company", icon: Building2, href: "/dashboard/company" },
     {
       title: "Settings", icon: Settings, href: "/dashboard/settings", adminOnly: true,
@@ -148,19 +148,21 @@ export function Sidebar({ className }: SidebarProps) {
                 }
               }}
               className={cn(
-                "w-full group flex items-center justify-between px-2.5 py-2 rounded-lg text-sidebar-foreground hover:bg-gray-100 transition-all duration-200",
+                "w-full group flex items-center justify-between rounded-lg text-sidebar-foreground hover:bg-gray-100 transition-all duration-200",
+                depth >= 1 ? "px-2 py-2" : "px-2.5 py-2",
                 (collapsed && !forceShowLabel) && "justify-center",
                 (isActive || (childIsActive && !isOpen)) && "text-teal-600 bg-teal-50/80"
               )}
             >
-              <div className="flex items-center space-x-3">
+              <div className={cn("flex items-center", depth >= 1 ? "space-x-2" : "space-x-3")}>
                 <div className={cn(
-                  "h-8 w-8 rounded-lg flex items-center justify-center transition-colors duration-200",
+                  depth >= 1 ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg",
+                  "flex items-center justify-center transition-colors duration-200",
                   (isActive || childIsActive) ? "bg-teal-50 text-teal-600 shadow-sm" : "text-gray-500 group-hover:bg-gray-100 group-hover:text-teal-600"
                 )}>
                   <item.icon className={cn(
-                    depth === 0 ? "h-4 w-4" : 
-                    depth === 1 ? "h-3.5 w-3.5" : "h-3 w-3"
+                    depth === 0 ? "h-4 w-4" :
+                      depth === 1 ? "h-3.5 w-3.5" : "h-3 w-3"
                   )} />
                 </div>
                 {showLabel && (
@@ -179,8 +181,10 @@ export function Sidebar({ className }: SidebarProps) {
             </button>
             {isOpen && showLabel && (
               <ul className={cn(
-                "mt-1 space-y-1 ml-4 border-l border-teal-300 pl-2",
-                depth === 0 ? "ml-4" : "ml-3"
+                "mt-1 space-y-1 pl-2",
+                depth === 0
+                  ? "ml-4 border-l-2 border-teal-300 pb-2"
+                  : "ml-3"
               )}>
                 {item.children?.map(child => renderMenuItem(child, depth + 1, item.children?.map(c => c.title), forceShowLabel))}
               </ul>
@@ -195,26 +199,28 @@ export function Sidebar({ className }: SidebarProps) {
               href={item.href || "#"}
               onClick={() => collapsed && setActiveFloatingMenu(null)}
               className={cn(
-                "flex items-center space-x-2.5 px-2.5 py-2 rounded-lg text-sidebar-foreground transition-all duration-200",
+                "flex items-center rounded-lg text-sidebar-foreground transition-all duration-200",
+                depth >= 2 ? "space-x-2 px-1.5 py-2" : "space-x-2.5 px-2.5 py-2",
                 (collapsed && !forceShowLabel) && "justify-center",
                 isActive ? "bg-teal-50 text-teal-800 font-bold shadow-sm border border-teal-100" : "hover:bg-gray-100"
               )}
               title={(collapsed && !forceShowLabel) ? item.title : ""}
             >
               <div className={cn(
-                "h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200",
+                depth >= 2 ? "h-6 w-6 rounded-md" : "h-8 w-8 rounded-lg",
+                "flex items-center justify-center transition-all duration-200",
                 isActive ? "bg-teal-600 text-white shadow-teal-200 shadow-md" : "text-gray-500 group-hover:bg-teal-50 group-hover:text-teal-600"
               )}>
                 <item.icon className={cn(
-                  depth === 0 ? "h-4 w-4" : 
-                  depth === 1 ? "h-3.5 w-3.5" : "h-3 w-3"
+                  depth === 0 ? "h-4 w-4" :
+                    depth === 1 ? "h-3.5 w-3.5" : "h-3 w-3"
                 )} />
               </div>
               {showLabel && (
                 <span className={cn(
                   "transition-colors duration-200",
-                  depth === 0 ? "text-sm font-semibold" : 
-                  depth === 1 ? "text-[13px] font-semibold" : "text-[13px] font-medium",
+                  depth === 0 ? "text-sm font-semibold" :
+                    depth === 1 ? "text-[13px] font-semibold" : "text-[13px] font-medium",
                   isActive ? "text-teal-800" : "text-gray-700"
                 )}>
                   {item.title}
@@ -287,13 +293,13 @@ export function Sidebar({ className }: SidebarProps) {
       {collapsed && activeFloatingMenu && (
         <div className="absolute left-[70px] top-1/4 min-w-[240px] bg-white border border-gray-200 shadow-2xl rounded-xl p-3 z-[100] animate-in fade-in slide-in-from-left-2 duration-200">
           <div className="px-3 py-2 border-b border-gray-100 mb-3 bg-gray-50/50 rounded-t-lg">
-             <span className="text-[10px] font-extrabold text-teal-600 uppercase tracking-[0.2em]">{activeFloatingMenu.title}</span>
+            <span className="text-[10px] font-extrabold text-teal-600 uppercase tracking-[0.2em]">{activeFloatingMenu.title}</span>
           </div>
           <ul className="space-y-1.5">
             {activeFloatingMenu.children?.map(child => renderMenuItem(
-              child, 
-              1, 
-              activeFloatingMenu.children?.map(c => c.title), 
+              child,
+              1,
+              activeFloatingMenu.children?.map(c => c.title),
               true
             ))}
           </ul>
