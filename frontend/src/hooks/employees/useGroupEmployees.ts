@@ -4,14 +4,11 @@ import { User } from "@/context/AuthContext";
 
 interface GroupEmployeesResponse {
   success: boolean;
-  data?: {
-    employees?: User[];
-    data?: User[];
-    total?: number;
-    totalCount?: number;
-    last_page?: number;
-    current_page?: number;
-  };
+  employees?: User[];
+  data?: User[];
+  totalEmployees?: number;
+  totalCount?: number;
+  totalPages?: number;
   company_id?: number;
   group_id?: number; // Changed from string to number
   page?: number;
@@ -26,8 +23,8 @@ interface GroupEmployeesData {
 }
 
 async function fetchGroupEmployees(
-  companyId: number, 
-  page: number, 
+  companyId: number,
+  page: number,
   groupId: number // Changed from string to number
 ): Promise<GroupEmployeesData> {
   const res = await fetch("/api/employees/group_filter", {
@@ -35,10 +32,11 @@ async function fetchGroupEmployees(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       company_id: companyId,
       group_id: groupId, // Now sending number instead of string
-      page: page
+      page: page,
+      include_self: true
     }),
   });
 
@@ -60,10 +58,10 @@ async function fetchGroupEmployees(
   });
 
   // Transform the response to match your expected structure
-  const employees = responseData.data?.employees || responseData.data?.data || [];
-  const totalEmployees = responseData.data?.total || responseData.data?.totalCount || 0;
+  const employees = responseData.employees || responseData.data || [];
+  const totalEmployees = responseData.totalEmployees || responseData.totalCount || 0;
   const currentPage = responseData.page || page;
-  const totalPages = responseData.data?.last_page || Math.ceil(totalEmployees / 50) || 1;
+  const totalPages = responseData.totalPages || Math.ceil(totalEmployees / 50) || 1;
 
   return {
     employees,
@@ -74,8 +72,8 @@ async function fetchGroupEmployees(
 }
 
 export function useGroupEmployees(
-  companyId: number | undefined, 
-  page: number, 
+  companyId: number | undefined,
+  page: number,
   groupId: number | undefined // Changed from string to number
 ) {
   return useQuery<GroupEmployeesData>({

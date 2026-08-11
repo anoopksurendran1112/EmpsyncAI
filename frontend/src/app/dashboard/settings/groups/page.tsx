@@ -3,6 +3,7 @@
 import { useGroups } from "@/hooks/settings/groups/useGroups"
 import Loading from "../loading"
 import { Button } from "@/components/ui/button"
+import { useGroupEmployees } from "@/hooks/employees/useGroupEmployees";
 import {
   Dialog,
   DialogContent,
@@ -31,22 +32,25 @@ import { Plus, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 // Add this form component for editing groups
-function EditGroupForm({ 
-  group, 
+function EditGroupForm({
+  group,
   setOpen,
-  companyId 
-}: { 
-  group: any, 
+  companyId
+}: {
+  group: any,
   setOpen: (open: boolean) => void,
-  companyId: number | string 
+  companyId: number | string
 }) {
   const [groupName, setGroupName] = useState(group.group || "");
   const [shortName, setShortName] = useState(group.short_name || "");
+  const [teamLeadId, setTeamLeadId] = useState(group.team_lead?.id?.toString() || "");
   const updateGroupMutation = useUpdateGroup();
+  const { data: groupEmployeesData, isLoading: isGroupEmployeesLoading } = useGroupEmployees(Number(companyId), 1, Number(group.id));
+  const groupEmployees = groupEmployeesData?.employees || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!groupName.trim()) {
       toast.error("Group name is required");
       return;
@@ -56,7 +60,8 @@ function EditGroupForm({
       companyId,
       groupId: group.id,
       new_group: groupName,
-      short_name: shortName
+      short_name: shortName,
+      team_lead_id: teamLeadId ? Number(teamLeadId) : undefined
     }, {
       onSuccess: () => {
         setOpen(false);
@@ -92,6 +97,37 @@ function EditGroupForm({
           className="w-full px-3 py-2 border rounded-md"
           placeholder="Enter short name (optional)"
         />
+      </div>
+      <div>
+        <label
+          htmlFor="teamLead"
+          className="block text-sm font-medium mb-1"
+        >
+          Team Lead
+        </label>
+
+        <select
+          id="teamLead"
+          value={teamLeadId}
+          onChange={(e) => setTeamLeadId(e.target.value)}
+          className="w-full px-3 py-2 border rounded-md"
+          disabled={isGroupEmployeesLoading}
+        >
+          <option value="">
+            {isGroupEmployeesLoading
+              ? "Loading employees..."
+              : "Select Team Lead"}
+          </option>
+
+          {groupEmployees.map((employee: any) => (
+            <option
+              key={employee.id}
+              value={employee.id.toString()}
+            >
+              {employee.first_name} {employee.last_name || ""}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex justify-end space-x-2">
         <Button
@@ -169,8 +205,8 @@ export default function GroupsPage() {
             </DialogDescription>
           </DialogHeader>
           {selectedGroup && company?.id && (
-            <EditGroupForm 
-              group={selectedGroup} 
+            <EditGroupForm
+              group={selectedGroup}
               setOpen={setEditOpen}
               companyId={company.id}
             />
@@ -187,6 +223,10 @@ export default function GroupsPage() {
             <div className="flex-1">
               <p className="font-medium">{group.group}</p>
               <p className="text-sm text-gray-500">{group.short_name}</p>
+
+              <p className="text-sm text-gray-600 mt-1">
+                Team Lead: {group.team_lead?.name || "Not assigned"}
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               {/* Edit Button */}
@@ -198,7 +238,7 @@ export default function GroupsPage() {
               >
                 <Pencil className="h-4 w-4" />
               </Button>
-              
+
               {/* Delete Button */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
