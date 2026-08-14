@@ -27,6 +27,7 @@ export type User = {
 
 export type Company = {
   id: number;
+  id_uuid?: string;
   company_name: string;
   company_img: string;
   mediaBaseUrl: string;

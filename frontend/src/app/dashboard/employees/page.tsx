@@ -286,26 +286,25 @@ function EmployeesList({ companyId }: { companyId: number }) {
   const [clickLoading, setClickLoading] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // hasActiveFilters now uses submittedSearchQuery (not the live input)
-  const hasActiveFilters =
-    selectedGroupId !== 0 ||
-    submittedSearchQuery !== "" ||
-    selectedStatusFilter !== "all";
 
+  // Only server-side params: group, search, and inactive filter
+  // active/leave/male/female are handled client-side via punch data
   const statusFilterParams = useMemo(() => {
     switch (selectedStatusFilter) {
-      case "active":
-        return { isActive: true };
-      case "leave":
+      case "inactive":
         return { isActive: false };
-      case "male":
-        return { gender: "M" };
-      case "female":
-        return { gender: "F" };
       default:
         return {};
     }
   }, [selectedStatusFilter]);
+
+  // hasServerFilters: controls whether useFilterEmployees query fires
+  const hasServerFilters =
+    selectedGroupId !== 0 ||
+    submittedSearchQuery !== "" ||
+    selectedStatusFilter === "inactive";
+
+  const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
 
   // Employee caching and prefetching hooks
   const { getEmployee, setEmployee } = useEmployeeCache();
@@ -326,8 +325,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
     companyId,
     page,
     groupId: selectedGroupId !== 0 ? selectedGroupId : undefined,
-    searchQuery: submittedSearchQuery, // Use submittedSearchQuery instead of debounced value
+    searchQuery: submittedSearchQuery,
     ...statusFilterParams,
+    enabled: hasServerFilters,
   });
 
   const {
@@ -356,16 +356,16 @@ function EmployeesList({ companyId }: { companyId: number }) {
     return extractedGroups;
   }, [groupsData]);
 
-  // Determine which data to use
+  // Determine which data to use (server-filtered vs regular)
   const employeesData = useMemo(() => {
-    if (hasActiveFilters && filteredEmployeesData) {
+    if (hasServerFilters && filteredEmployeesData) {
       return filteredEmployeesData;
     }
     return regularEmployeesData;
-  }, [hasActiveFilters, regularEmployeesData, filteredEmployeesData]);
+  }, [hasServerFilters, regularEmployeesData, filteredEmployeesData]);
 
-  const isLoading = hasActiveFilters ? filteredLoading : regularLoading;
-  const isError = hasActiveFilters ? filteredError : regularError;
+  const isLoading = hasServerFilters ? filteredLoading : regularLoading;
+  const isError = hasServerFilters ? filteredError : regularError;
 
   const { count: totalCompanyEmployees, isLoading: countLoading } =
     useEmployeeCount(companyId);
@@ -381,25 +381,25 @@ function EmployeesList({ companyId }: { companyId: number }) {
     console.log("activeUsersData:", activeUsersData);
   }, [activeUsersData]);
 
-  // Reset to page 1 when filters change (depends on submittedSearchQuery, not live input)
+  // Reset to page 1 when any filter changes
   useEffect(() => {
     setPage(1);
   }, [selectedGroupId, submittedSearchQuery, selectedStatusFilter]);
 
   // Get pagination data
   const currentPage = useMemo(() => {
-    if (hasActiveFilters && filteredEmployeesData) {
+    if (hasServerFilters && filteredEmployeesData) {
       return filteredEmployeesData.page || page;
     }
     return employeesData?.currentPage || employeesData?.page || page;
-  }, [hasActiveFilters, filteredEmployeesData, employeesData, page]);
+  }, [hasServerFilters, filteredEmployeesData, employeesData, page]);
 
   const totalPages = useMemo(() => {
-    if (hasActiveFilters && filteredEmployeesData) {
+    if (hasServerFilters && filteredEmployeesData) {
       return filteredEmployeesData.totalPages || 1;
     }
     return employeesData?.totalPages || employeesData?.last_page || 1;
-  }, [hasActiveFilters, filteredEmployeesData, employeesData]);
+  }, [hasServerFilters, filteredEmployeesData, employeesData]);
 
   // Update current time every minute
   useEffect(() => {
@@ -449,21 +449,47 @@ function EmployeesList({ companyId }: { companyId: number }) {
     return Array.from(uniqueEmployees.values());
   }, [employeesData, pageSize]);
 
+  // Client-side filtering: active/leave use punch data; male/female use employee gender field
   const filteredEmployees = useMemo(() => {
-    return employees;
-  }, [employees]);
+    switch (selectedStatusFilter) {
+      case "active":
+        // Active account AND punched in today
+        return employees.filter((emp) => {
+          const punch = punches[emp.uniqueKey];
+          return !!punch?.first_check_in;
+        });
+      case "leave":
+        // Active account but NO punch today (absent / on leave)
+        return employees.filter((emp) => {
+          const punch = punches[emp.uniqueKey];
+          return !punch?.first_check_in;
+        });
+      case "male":
+        return employees.filter((emp) => emp.gender === "M");
+      case "female":
+        return employees.filter((emp) => emp.gender === "F");
+      default:
+        return employees;
+    }
+  }, [employees, selectedStatusFilter, punches]);
 
   // Starting serial number calculation
   const startSerialNumber = useMemo(() => {
-    if (hasActiveFilters) {
+    const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
+    if (hasClientFilter || hasServerFilters) {
       return 1;
     }
     return (currentPage - 1) * pageSize + 1;
-  }, [hasActiveFilters, currentPage, pageSize]);
+  }, [selectedStatusFilter, hasServerFilters, currentPage, pageSize]);
 
   // Total count calculation
   const displayTotalCount = useMemo(() => {
-    if (hasActiveFilters && filteredEmployeesData) {
+    const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
+    // For client-side filters, show the count of filtered results
+    if (hasClientFilter) {
+      return filteredEmployees.length;
+    }
+    if (hasServerFilters && filteredEmployeesData) {
       return filteredEmployeesData.totalEmployees || 0;
     }
 
@@ -495,7 +521,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
     employeesData,
     totalCompanyEmployees,
     employees.length,
-    hasActiveFilters,
+    filteredEmployees.length,
+    hasServerFilters,
+    selectedStatusFilter,
     filteredEmployeesData,
   ]);
 
@@ -510,7 +538,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
       return { start: 0, end: 0 };
     }
 
-    if (hasActiveFilters) {
+    if (hasServerFilters || hasClientFilter) {
       const start = (currentPage - 1) * pageSize + 1;
       const end = Math.min(start + currentPageCount - 1, totalEmployees);
       return { start, end };
@@ -539,17 +567,18 @@ function EmployeesList({ companyId }: { companyId: number }) {
   }, [
     displayTotalCount,
     filteredEmployees.length,
-    hasActiveFilters,
+    hasServerFilters,
+    hasClientFilter,
     currentPage,
     pageSize,
   ]);
 
   const adjustedStartSerialNumber = useMemo(() => {
-    if (hasActiveFilters) {
+    if (hasClientFilter || hasServerFilters) {
       return 1;
     }
     return start;
-  }, [hasActiveFilters, start]);
+  }, [selectedStatusFilter, hasServerFilters, start]);
 
   // Employee click handler with fast lookup
   const handleEmployeeClick = useCallback(
@@ -885,9 +914,10 @@ function EmployeesList({ companyId }: { companyId: number }) {
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white h-[42px]"
               >
-                <option value="all">None</option>
+              <option value="all">None</option>
                 <option value="active">Active Today</option>
-                <option value="leave">On Leave</option>
+                <option value="leave">Absent Today</option>
+                <option value="inactive">Inactive Members</option>
                 <option value="male">Male Staff</option>
                 <option value="female">Female Staff</option>
               </select>

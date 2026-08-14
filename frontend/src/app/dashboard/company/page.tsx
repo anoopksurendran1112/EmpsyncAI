@@ -669,74 +669,71 @@ export default function CompanyProfilePage() {
         {isAdmin && (
           <Button
             onClick={openFieldSettingsDialog}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+            className="bg-teal-600 hover:bg-teal-700 text-white rounded-lg gap-2"
           >
-            <UserCog className="h-4 w-4 mr-2" />
+            <Settings className="h-4 w-4" />
             Setup Fields
           </Button>
         )}
       </div>
 
       {/* Hero Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-          <div className="relative group">
-            <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-indigo-50 shadow-inner bg-indigo-50 flex items-center justify-center">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-5">
+        <div className="flex items-start gap-6">
+          {/* Logo */}
+          <div className="relative group flex-shrink-0">
+            <div className="h-24 w-24 rounded-xl overflow-hidden bg-teal-50 border border-teal-100 flex items-center justify-center">
               {logoUrl ? (
                 <Image
                   src={logoUrl}
                   alt={company.company_name}
-                  width={128}
-                  height={128}
+                  width={96}
+                  height={96}
                   className="object-cover h-full w-full"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center text-indigo-700">
-                  <Building2 className="h-10 w-10 mb-1" />
-                  <span className="text-2xl font-bold">{initial}</span>
+                <div className="flex flex-col items-center justify-center text-teal-600">
+                  <Building2 className="h-9 w-9 mb-0.5" />
+                  <span className="text-xl font-bold">{initial}</span>
                 </div>
               )}
             </div>
             {isAdmin && (
-              <label className="absolute -bottom-2 -right-2 h-10 w-10 bg-white rounded-full border-2 border-indigo-100 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                <Edit3 className="h-4 w-4 text-gray-600" />
+              <label className="absolute -bottom-2 -right-2 h-7 w-7 bg-white rounded-full border border-gray-200 shadow-sm flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
+                <Edit3 className="h-3.5 w-3.5 text-gray-500" />
                 <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
               </label>
             )}
           </div>
 
-          <div className="flex-1 text-center md:text-left">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-1">
-                  {company.company_name}
-                </h2>
-                <div className="flex items-center justify-center md:justify-start gap-2 text-gray-400 font-medium text-sm">
-                  <Hash className="h-3.5 w-3.5" />
-                  <span>Company ID: {company.id}</span>
-                </div>
+          {/* Company Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-2 text-gray-500 text-sm">
+                <Hash className="h-3.5 w-3.5" />
+                <span>Company ID: {company.id}</span>
               </div>
-              <div className="flex flex-wrap justify-center md:justify-end gap-2">
-                <Badge variant="outline" className="bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100 px-3 py-1.5 rounded-full font-medium">
+              <div className="flex gap-2 flex-shrink-0">
+                <Badge variant="outline" className="bg-white border-teal-200 text-teal-700 hover:bg-teal-50 px-3 py-1 rounded-md font-medium text-xs">
                   <Shield className="h-3 w-3 mr-1.5" />
                   {isAdmin ? "Admin View" : "Employee View"}
                 </Badge>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-100 hover:bg-green-100 px-3 py-1.5 rounded-full font-medium">
+                <Badge variant="outline" className="bg-white border-teal-200 text-teal-700 hover:bg-teal-50 px-3 py-1 rounded-md font-medium text-xs">
                   <Activity className="h-3 w-3 mr-1.5" />
                   Active Status
                 </Badge>
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
-              <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                  <Zap className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5">Punch Mode</p>
-                  <p className="text-sm font-semibold text-gray-700">{company.punch_mode === "S" ? "Single Punch" : "Multi Punch"}</p>
-                </div>
+            <div className="mt-4 flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600 flex-shrink-0">
+                <Zap className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5 tracking-wide">Punch Mode</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {company.punch_mode === "S" ? "Single Punch" : "Multi Punch"}
+                </p>
               </div>
             </div>
           </div>
@@ -744,78 +741,78 @@ export default function CompanyProfilePage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Active Staff</h3>
-            <p className="text-3xl font-bold text-gray-900">{activeEmployeeCount || "0"}</p>
+            <p className="text-sm text-gray-500 mb-1">Active Staff</p>
+            <p className="text-3xl font-bold text-gray-900">{activeEmployeeCount ?? "0"}</p>
             <p className="text-xs text-gray-400 mt-1">Employees</p>
           </div>
-          <div className="p-3 bg-indigo-50 rounded-full">
-            <Users className="h-6 w-6 text-indigo-500" />
+          <div className="h-11 w-11 rounded-full bg-teal-50 flex items-center justify-center">
+            <Users className="h-5 w-5 text-teal-500" />
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Standard Hours</h3>
-            <p className="text-3xl font-bold text-green-600">{company.daily_working_hours}h</p>
+            <p className="text-sm text-gray-500 mb-1">Standard Hours</p>
+            <p className="text-3xl font-bold text-gray-900">{company.daily_working_hours}h</p>
             <p className="text-xs text-gray-400 mt-1">Per Day</p>
           </div>
-          <div className="p-3 bg-green-50 rounded-full">
-            <Clock className="h-6 w-6 text-green-500" />
+          <div className="h-11 w-11 rounded-full bg-teal-50 flex items-center justify-center">
+            <Clock className="h-5 w-5 text-teal-500" />
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Geofence Radius</h3>
-            <p className="text-3xl font-bold text-purple-600">{company.perimeter}km</p>
+            <p className="text-sm text-gray-500 mb-1">Geofence Radius</p>
+            <p className="text-3xl font-bold text-gray-900">{company.perimeter}km</p>
             <p className="text-xs text-gray-400 mt-1">Radius</p>
           </div>
-          <div className="p-3 bg-purple-50 rounded-full">
-            <MapPin className="h-6 w-6 text-purple-500" />
+          <div className="h-11 w-11 rounded-full bg-teal-50 flex items-center justify-center">
+            <MapPin className="h-5 w-5 text-teal-500" />
           </div>
         </div>
 
-        <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+        <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-200 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 mb-1">Travel Threshold</h3>
-            <p className="text-3xl font-bold text-pink-600">{company.travel_speed_threshold || "10"}km</p>
+            <p className="text-sm text-gray-500 mb-1">Travel Threshold</p>
+            <p className="text-3xl font-bold text-gray-900">{company.travel_speed_threshold || "10"}km</p>
             <p className="text-xs text-gray-400 mt-1">Limit</p>
           </div>
-          <div className="p-3 bg-pink-50 rounded-full">
-            <Gauge className="h-6 w-6 text-pink-500" />
+          <div className="h-11 w-11 rounded-full bg-teal-50 flex items-center justify-center">
+            <Gauge className="h-5 w-5 text-teal-500" />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Contact & Address Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Contact & Address */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                <Home className="h-5 w-5" />
+              <div className="h-9 w-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
+                <Home className="h-4 w-4" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Contact & Address</h3>
+              <h3 className="text-base font-bold text-gray-900">Contact &amp; Address</h3>
             </div>
             {isAdmin && (
               <div className="flex gap-2">
                 <Button
                   variant="outline" size="sm"
-                  className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
+                  className="text-teal-600 border-teal-200 bg-white hover:bg-teal-50 rounded-lg text-xs h-8 px-3"
                   onClick={() => handleEdit("address")}
                 >
-                  <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                  <Edit3 className="h-3 w-3 mr-1.5" /> Edit
                 </Button>
                 {profileExists && (
                   <Button
                     variant="outline" size="sm"
-                    className="text-red-600 border-red-100 bg-red-50 hover:bg-red-100 rounded-lg"
+                    className="text-red-600 border-red-200 bg-white hover:bg-red-50 rounded-lg text-xs h-8 px-3"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                    <Trash2 className="h-3 w-3 mr-1.5" /> Delete
                   </Button>
                 )}
               </div>
@@ -823,75 +820,69 @@ export default function CompanyProfilePage() {
           </div>
           <div className="p-6">
             {profileLoading ? (
-              <div className="flex justify-center py-8">Loading profile...</div>
+              <div className="flex justify-center py-6 text-sm text-gray-400">Loading profile...</div>
             ) : profileExists && profileData ? (
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <div className="h-7 w-7 rounded-md bg-gray-50 flex items-center justify-center flex-shrink-0">
-                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                  <div className="h-7 w-7 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <MapPin className="h-3.5 w-3.5 text-teal-500" />
                   </div>
                   <div>
                     <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Address</p>
-                    <p className="text-sm text-gray-800">{getFullAddress()}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{getFullAddress()}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 mt-2">
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-purple-50 flex items-center justify-center flex-shrink-0">
-                      <Mail className="h-3.5 w-3.5 text-purple-500" />
+                    <div className="h-7 w-7 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Mail className="h-3.5 w-3.5 text-teal-500" />
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Email</p>
-                      <p className="text-sm text-gray-800">{profileData.email || "Not provided"}</p>
-                      {profileData.alternate_email && (
-                        <p className="text-xs text-indigo-500 mt-1">Alt: {profileData.alternate_email}</p>
-                      )}
+                      <p className="text-sm text-gray-700">{profileData.email || "Not provided"}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="h-7 w-7 rounded-md bg-pink-50 flex items-center justify-center flex-shrink-0">
-                      <Phone className="h-3.5 w-3.5 text-pink-500" />
+                    <div className="h-7 w-7 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Phone className="h-3.5 w-3.5 text-teal-500" />
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Phone</p>
-                      <p className="text-sm text-gray-800">{profileData.phone_number || "Not provided"}</p>
-                      {profileData.alternate_phone_number && (
-                        <p className="text-xs text-indigo-500 mt-1">Alt: {profileData.alternate_phone_number}</p>
-                      )}
+                      <p className="text-sm text-gray-700">{profileData.phone_number || "Not provided"}</p>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-6 text-gray-400 text-sm">
                 No contact information found.
-                {isAdmin && <p className="text-sm mt-2">Click Edit to add company address & contact details.</p>}
+                {isAdmin && <p className="mt-1 text-xs">Click Edit to add company address &amp; contact details.</p>}
               </div>
             )}
           </div>
         </div>
 
-        {/* Geographic & Location Settings */}
+        {/* Geographic Settings */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-6 py-4 flex items-center justify-between border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                <Globe className="h-5 w-5" />
+              <div className="h-9 w-9 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
+                <Globe className="h-4 w-4" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Geographic Settings</h3>
+              <h3 className="text-base font-bold text-gray-900">Geographic Settings</h3>
             </div>
             {isAdmin && (
               <Button
                 variant="outline" size="sm"
-                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
+                className="text-teal-600 border-teal-200 bg-white hover:bg-teal-50 rounded-lg text-xs h-8 px-3"
                 onClick={() => handleEdit("location")}
               >
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
+                <Edit3 className="h-3 w-3 mr-1.5" /> Edit
               </Button>
             )}
           </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="p-6 space-y-5">
+            <div className="grid grid-cols-2 gap-6">
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Latitude</p>
                 <p className="text-base font-semibold text-gray-800">{company.latitude || "0.0000"}</p>
@@ -901,139 +892,23 @@ export default function CompanyProfilePage() {
                 <p className="text-base font-semibold text-gray-800">{company.longitude || "0.0000"}</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Perimeter (Radius)</p>
-                <p className="text-base font-semibold text-gray-800">{company.perimeter} km</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Travel Threshold</p>
-                <p className="text-base font-semibold text-gray-800">{company.travel_speed_threshold || "10"} km/h</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* System Preferences */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                <Settings className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">System Preferences</h3>
-            </div>
-            {isAdmin && (
-              <Button
-                variant="outline" size="sm"
-                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
-                onClick={() => handleEdit("system")}
-              >
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit
-              </Button>
-            )}
-          </div>
-          <div className="p-6 space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Daily Working Hours</p>
-                <p className="text-base font-semibold text-gray-800">{company.daily_working_hours} Hours</p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Punching Mode</p>
-                <p className="text-base font-semibold text-gray-800">
-                  {company.punch_mode === "S" ? "Single Entry" : "Multiple Entries"}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Summary Calculation</p>
-                <p className="text-base font-semibold text-gray-800">
-                  {company.work_summary_interval === "W" ? "Weekly Basis" : "Monthly Basis"}
-                </p>
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
+            <div className="grid grid-cols-2 gap-6">
+              <div className="flex items-start gap-3">
+                <div className="h-7 w-7 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Clock className="h-3.5 w-3.5 text-teal-500" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">System Status</p>
-                  <p className="text-xs text-green-600">All systems operational</p>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Timezone</p>
+                  <p className="text-sm font-medium text-gray-800">Asia/Kolkata (GMT +05:30)</p>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Communication Policy */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center text-purple-600">
-                <Globe className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-900">Company-wide Communication Policy</h3>
-            </div>
-            {isAdmin && (
-              <Button
-                variant="outline" size="sm"
-                className="text-indigo-600 border-indigo-100 bg-indigo-50 hover:bg-indigo-100 rounded-lg"
-                onClick={() => handleEdit("policy")}
-              >
-                <Edit3 className="h-3.5 w-3.5 mr-2" /> Edit Policy
-              </Button>
-            )}
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <MessageSquare className={`h-4 w-4 ${formData.enable_sms ? "text-green-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-gray-700">SMS Alerts Service</span>
-                  </div>
-                  <Badge variant="outline" className={formData.enable_sms
-                    ? "bg-green-50 text-green-600 border-green-200 rounded-full"
-                    : "bg-gray-100 text-gray-500 border-gray-200 rounded-full"}>
-                    {formData.enable_sms ? "Online" : "Offline"}
-                  </Badge>
+              <div className="flex items-start gap-3">
+                <div className="h-7 w-7 rounded-full bg-teal-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Navigation className="h-3.5 w-3.5 text-teal-500" />
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <MessageSquare className={`h-4 w-4 ${formData.enable_whatsapp ? "text-green-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-gray-700">WhatsApp Alerts Service</span>
-                  </div>
-                  <Badge variant="outline" className={formData.enable_whatsapp
-                    ? "bg-green-50 text-green-600 border-green-200 rounded-full"
-                    : "bg-gray-100 text-gray-500 border-gray-200 rounded-full"}>
-                    {formData.enable_whatsapp ? "Online" : "Offline"}
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <Shield className={`h-4 w-4 ${formData.soft_disable ? "text-red-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-gray-700">Master Kill Switch (Silent Mode)</span>
-                  </div>
-                  <Badge variant="outline" className={formData.soft_disable
-                    ? "bg-red-50 text-red-600 border-red-200 rounded-full"
-                    : "bg-red-50 text-red-500 border-red-100 rounded-full"}>
-                    {formData.soft_disable ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-                  <div className="flex items-center gap-3">
-                    <Shield className={`h-4 w-4 ${(formData.strict_sms || formData.strict_whatsapp) ? "text-blue-500" : "text-gray-400"}`} />
-                    <span className="text-sm font-medium text-gray-700">Strict Enforcement Policy</span>
-                  </div>
-                  <Badge variant="outline" className={(formData.strict_sms || formData.strict_whatsapp)
-                    ? "bg-blue-50 text-blue-600 border-blue-200 rounded-full"
-                    : "bg-green-50 text-green-600 border-green-200 rounded-full"}>
-                    {(formData.strict_sms || formData.strict_whatsapp) ? "Enforced" : "Standard"}
-                  </Badge>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-wide">Location Accuracy</p>
+                  <p className="text-sm font-medium text-gray-800">High ({company.perimeter ? `${company.perimeter * 2}m` : "10m"})</p>
                 </div>
               </div>
             </div>

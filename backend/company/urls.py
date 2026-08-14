@@ -4,13 +4,15 @@ from .views import (addCompany, getCompany, getCompanyRoles, addCompanyRoles, de
                     add_biometric_device, get_biometric_device, delete_virtual_device, 
                     getCompanyGroups, addCompanyGroup, create_all_view, staff_type_view, 
                     staff_category_view, employee_report, manageCompanyProfile, 
-                    manage_staff_id_config, company_field_setting,)
+                    manage_staff_id_config, company_field_setting, company_detail_by_uuid)
 
 urlpatterns = [
     path('company/', create_all_view, name='create_all'),
 
     path('api/admin/add-company', addCompany),
     path('api/company', getCompany),
+
+    path('api/companies/<uuid:uuid>/', company_detail_by_uuid, name='company-detail-by-uuid'),
 
     path('api/role/<int:id>', getCompanyRoles),
     path('api/admin/add-role', addCompanyRoles),

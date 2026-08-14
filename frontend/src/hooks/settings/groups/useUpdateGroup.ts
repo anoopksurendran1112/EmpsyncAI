@@ -8,9 +8,10 @@ type UpdateGroupPayload = {
   groupId: number | string;
   new_group: string;
   short_name?: string;
+  team_lead_id?: number;
 };
 
-async function updateGroup({ companyId, groupId, new_group, short_name }: UpdateGroupPayload) {
+async function updateGroup({ companyId, groupId, new_group, short_name,team_lead_id}: UpdateGroupPayload) {
   const res = await fetch(`/api/settings/groups/${companyId}`, {
     method: "PUT",
     headers: {
@@ -19,7 +20,8 @@ async function updateGroup({ companyId, groupId, new_group, short_name }: Update
     body: JSON.stringify({
       groupId,
       new_group,
-      short_name: short_name || ""
+      short_name: short_name || "" ,
+      team_lead_id
     }),
   });
 
