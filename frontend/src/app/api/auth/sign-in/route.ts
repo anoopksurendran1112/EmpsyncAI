@@ -14,10 +14,18 @@ export async function POST(req: Request) {
       credentials: "include", 
     });
 
-    const data = await res.json();
+    console.log(res);
+
+    // Safely parse JSON — backend may return HTML (e.g. Django 500 error page)
+    let data: any = null;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    }
 
     if (!res.ok) {
-      return NextResponse.json({ error: data?.message || "Login failed" }, { status: res.status });
+      const errorMsg = data?.message || data?.detail || `Login failed (HTTP ${res.status})`;
+      return NextResponse.json({ error: errorMsg }, { status: res.status });
     }
 
     // Example: set httpOnly cookie for production

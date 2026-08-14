@@ -28,7 +28,7 @@ class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
         fields = [
-            'id', 'company_name', 'company_img', 'latitude', 'longitude',
+            'id', 'id_uuid', 'company_name', 'company_img', 'latitude', 'longitude',
             'perimeter', 'travel_speed_threshold', 'daily_working_hours',
             'work_summary_interval', 'punch_mode', 'is_admin',
             'enable_sms', 'enable_whatsapp', 'soft_disable', 

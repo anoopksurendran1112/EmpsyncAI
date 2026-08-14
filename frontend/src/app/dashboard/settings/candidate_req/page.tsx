@@ -49,7 +49,77 @@ export default function CandidateRequestPage() {
   const [updating, setUpdating] = useState(false);
   const [autoGenerateStaffId, setAutoGenerateStaffId] = useState(false);
   const [staffId, setStaffId] = useState("");
-  const [actionType, setActionType] = useState("");    
+  const [autoGenerateBiometricId, setAutoGenerateBiometricId] = useState(false);
+  const [biometricId, setBiometricId] = useState("");
+  const [actionType, setActionType] = useState("");
+  const [staffIdStatus, setStaffIdStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
+  const [biometricIdStatus, setBiometricIdStatus] = useState<"idle" | "checking" | "available" | "unavailable">("idle");
+
+  useEffect(() => {
+    if (selectedApplication && company?.id) {
+      const fetchAvailableIds = async () => {
+        try {
+          const res = await fetch(`/api/available_id/?company_id=${company.id}`);
+          const result = await res.json();
+          if (result.success) {
+            setStaffId(result.next_suggested_staff_id || "");
+            setBiometricId(result.next_suggested_biometric_id || "");
+          }
+        } catch (error) {
+          console.error("Failed to fetch available IDs:", error);
+        }
+      };
+      fetchAvailableIds();
+    }
+  }, [selectedApplication, company?.id]);
+
+  useEffect(() => {
+    if (autoGenerateStaffId || !staffId.trim() || !company?.id) {
+      setStaffIdStatus("idle");
+      return;
+    }
+    
+    setStaffIdStatus("checking");
+    const timeoutId = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/available_id/?company_id=${company.id}&staff_id=${encodeURIComponent(staffId.trim())}`);
+        const data = await res.json();
+        if (data.success) {
+          setStaffIdStatus(data.staff_id_available !== false ? "available" : "unavailable");
+        } else {
+          setStaffIdStatus("idle");
+        }
+      } catch (err) {
+        setStaffIdStatus("idle");
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [staffId, autoGenerateStaffId, company?.id]);
+
+  useEffect(() => {
+    if (autoGenerateBiometricId || !biometricId.trim() || !company?.id) {
+      setBiometricIdStatus("idle");
+      return;
+    }
+    
+    setBiometricIdStatus("checking");
+    const timeoutId = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/available_id/?company_id=${company.id}&biometric_id=${encodeURIComponent(biometricId.trim())}`);
+        const data = await res.json();
+        if (data.success) {
+          setBiometricIdStatus(data.biometric_id_available !== false ? "available" : "unavailable");
+        } else {
+          setBiometricIdStatus("idle");
+        }
+      } catch (err) {
+        setBiometricIdStatus("idle");
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [biometricId, autoGenerateBiometricId, company?.id]);
 
   const fetchRequests = async () => {
     if (!company?.id) return;
@@ -79,9 +149,9 @@ export default function CandidateRequestPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && company?.id) {
-      setShareableUrl(`${window.location.origin}/${company.id}`);
+      setShareableUrl(`${window.location.origin}/${company.id_uuid}`);
     }
-  }, [company?.id]);
+  }, [company?.id, company?.id_uuid]);
 
   const socialLinks = {
     twitter: `https://twitter.com/intent/tweet?url=${encodeURIComponent(shareableUrl)}`,
@@ -122,9 +192,46 @@ export default function CandidateRequestPage() {
     return;
   }
 
+  const checkAvailability = async (sId: string, bId: string) => {
+    let url = `/api/available_id/?company_id=${company?.id}`;
+    if (!autoGenerateStaffId && sId) url += `&staff_id=${encodeURIComponent(sId)}`;
+    if (!autoGenerateBiometricId && bId) url += `&biometric_id=${encodeURIComponent(bId)}`;
+    
+    try {
+      const res = await fetch(url);
+      return await res.json();
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
   const appId = selectedApplication.id;
   setActionType("accept");
   setUpdating(true);
+
+  let finalStaffId = staffId.trim();
+  let finalBiometricId = biometricId.trim();
+
+  if (!autoGenerateStaffId || !autoGenerateBiometricId) {
+    const availability = await checkAvailability(finalStaffId, finalBiometricId);
+    if (availability && availability.success) {
+      if (!autoGenerateStaffId && availability.staff_id_available === false) {
+        alert(`Staff ID ${finalStaffId} is not available. Suggesting an available ID.`);
+        setStaffId(availability.next_suggested_staff_id || "");
+        setUpdating(false);
+        setActionType("");
+        return;
+      }
+      if (!autoGenerateBiometricId && availability.biometric_id_available === false) {
+        alert(`Biometric ID ${finalBiometricId} is not available. Suggesting an available ID.`);
+        setBiometricId(availability.next_suggested_biometric_id || "");
+        setUpdating(false);
+        setActionType("");
+        return;
+      }
+    }
+  }
 
   try {
     const payload = {
@@ -132,9 +239,8 @@ export default function CandidateRequestPage() {
       status: "approved",
       wfh: wfhEnabled,
       password: password.trim(),
-      ...(autoGenerateStaffId
-        ? {}
-        : { staff_id: staffId.trim() }),
+      ...(autoGenerateStaffId ? {} : { staff_id: finalStaffId }),
+      ...(autoGenerateBiometricId ? {} : { biometric_id: finalBiometricId }),
     };
 
     console.log("Payload before fetch:", payload);
@@ -161,6 +267,8 @@ export default function CandidateRequestPage() {
       setPassword(DEFAULT_CANDIDATE_PASSWORD);
       setStaffId("");
       setAutoGenerateStaffId(false);
+      setBiometricId("");
+      setAutoGenerateBiometricId(false);
       setWfhEnabled(false);
     } else {
       alert(result.message || "Failed to approve application.");
@@ -542,14 +650,54 @@ const handleReject = async () => {
                       type="text"
                       placeholder={
                         autoGenerateStaffId
-                          ? "Generated automatically upon acceptance"
+                          ? staffId || "Generated automatically"
                           : "e.g. STF-2026-01"
                       }
                       value={staffId}
                       onChange={(e) => setStaffId(e.target.value)}
                       disabled={autoGenerateStaffId}
-                      className="bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 disabled:opacity-60 text-sm"
+                      className={`bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 disabled:opacity-60 text-sm ${staffIdStatus === "unavailable" ? "border-red-500 focus-visible:ring-red-500 text-red-600" : ""} ${staffIdStatus === "available" ? "border-green-500 focus-visible:ring-green-500" : ""}`}
                     />
+                    {!autoGenerateStaffId && staffIdStatus === "checking" && <p className="text-[11px] text-slate-400 mt-1">Checking availability...</p>}
+                    {!autoGenerateStaffId && staffIdStatus === "available" && <p className="text-[11px] text-green-600 mt-1">Staff ID is available</p>}
+                    {!autoGenerateStaffId && staffIdStatus === "unavailable" && <p className="text-[11px] text-red-600 mt-1">Staff ID is not available</p>}
+                  </div>
+
+                  {/* Biometric ID Section */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="biometricId" className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Biometric ID
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="autoBiometricId"
+                          checked={autoGenerateBiometricId}
+                          onCheckedChange={(checked) => setAutoGenerateBiometricId(checked === true)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <label htmlFor="autoBiometricId" className="text-xs text-slate-500 font-medium cursor-pointer selection:bg-transparent">
+                          Auto-generate
+                        </label>
+                      </div>
+                    </div>
+
+                    <Input
+                      id="biometricId"
+                      type="text"
+                      placeholder={
+                        autoGenerateBiometricId
+                          ? biometricId || "Generated automatically"
+                          : "e.g. 1001"
+                      }
+                      value={biometricId}
+                      onChange={(e) => setBiometricId(e.target.value)}
+                      disabled={autoGenerateBiometricId}
+                      className={`bg-slate-50 border-slate-200 focus-visible:ring-indigo-500 disabled:opacity-60 text-sm ${biometricIdStatus === "unavailable" ? "border-red-500 focus-visible:ring-red-500 text-red-600" : ""} ${biometricIdStatus === "available" ? "border-green-500 focus-visible:ring-green-500" : ""}`}
+                    />
+                    {!autoGenerateBiometricId && biometricIdStatus === "checking" && <p className="text-[11px] text-slate-400 mt-1">Checking availability...</p>}
+                    {!autoGenerateBiometricId && biometricIdStatus === "available" && <p className="text-[11px] text-green-600 mt-1">Biometric ID is available</p>}
+                    {!autoGenerateBiometricId && biometricIdStatus === "unavailable" && <p className="text-[11px] text-red-600 mt-1">Biometric ID is not available</p>}
                   </div>
 
                   {/* Password Section */}

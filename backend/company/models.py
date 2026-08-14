@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 from django.db import models
 
@@ -15,6 +16,8 @@ class Company(models.Model):
 
     company_name = models.CharField(max_length=100)
     company_img = models.ImageField(upload_to="company_images")
+
+    id_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     enable_sms = models.BooleanField(default=False)
     enable_whatsapp = models.BooleanField(default=False)

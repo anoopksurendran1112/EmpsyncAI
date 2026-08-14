@@ -30,8 +30,10 @@ interface CandidateFormData {
 
 export default function CandidateApplicationPage() {
   const params = useParams();
-  const companyId = parseInt(params.cand_appl as string, 10) || 0;
+  const companyUuid = params.cand_appl as string;
 
+  const [companyId, setCompanyId] = useState<number>(0);
+  const [companyName, setCompanyName] = useState<string>('');
   const [groups, setGroups] = useState<Group[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
 
@@ -40,7 +42,7 @@ export default function CandidateApplicationPage() {
     last_name: '',
     email: '',
     phone: '',
-    company_id: companyId,
+    company_id: 0,
     group: 0,
     role: 0,
     status: 'pending',
@@ -83,13 +85,40 @@ export default function CandidateApplicationPage() {
     return [];
   };
 
+  // Fetch company details by UUID
+  useEffect(() => {
+    if (!companyUuid) return;
+
+    const fetchCompanyDetails = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/companies/${companyUuid}/`);
+        if (!res.ok) throw new Error("Failed to fetch company details");
+        const data = await res.json();
+        if (data.id) {
+          setCompanyId(data.id);
+          setCompanyName(data.company_name || '');
+          setForm(prev => ({ ...prev, company_id: data.id }));
+        } else {
+          throw new Error("Invalid company details");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load company details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCompanyDetails();
+  }, [companyUuid]);
+
   // Fetch groups & roles
   useEffect(() => {
     if (!companyId) {
       setGroups([]);
       setRoles([]);
       setForm(prev => ({ ...prev, group: 0, role: 0 }));
-      setError('Invalid company ID in the URL.');
       return;
     }
 
@@ -310,10 +339,16 @@ export default function CandidateApplicationPage() {
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
             Candidate Application Form
           </h1>
+          {companyName && (
+            <h2 className="text-xl font-medium text-blue-600 mt-1">
+              {companyName}
+            </h2>
+          )}
+          <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 mx-auto mb-4 mt-2 rounded-full" />
+
           <p className="text-sm text-gray-500 mt-2">
             Please fill in the details below to submit your application.
           </p>
-          <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-indigo-500 mx-auto mt-4 rounded-full" />
         </div>
 
         {/* Status Messages */}

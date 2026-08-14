@@ -223,6 +223,15 @@ def getCompany(request):
         })
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def company_detail_by_uuid(request, uuid):
+    company = get_object_or_404(Company, id_uuid=uuid)
+    
+    serializer = CompanySerializer(company)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 @extend_schema(request=DeviceSerializer, responses=DeviceSerializer)
 @api_view(['POST', 'PUT'])  # Handle both POST for creating and PUT for updating
 def device(request):

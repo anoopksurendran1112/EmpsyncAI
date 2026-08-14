@@ -91,10 +91,10 @@ export async function GET() {
     // ✅ FIXED: Include company_img and mode in the normalized data
     const normalizedCompanies = companiesArray.map((c: any) => ({
       id: c.id?.toString() || c.company_id?.toString(),
+      id_uuid: c.id_uuid,
       name: c.name || c.company_name || "Unnamed Company",
       logo: c.company_img || c.logo || null,
       is_admin: c.is_admin || false,
-      // mode: c.mode || "single", // ✅ Add company mode (single/multi) - defaults to "single"
     }));
 
     console.log("✅ Normalized companies with logos and modes:", normalizedCompanies);

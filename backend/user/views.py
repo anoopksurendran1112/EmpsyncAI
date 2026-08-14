@@ -960,12 +960,20 @@ def candidateApplication(request):
                     except ValueError:
                         last_biometric_id = 0
 
-                    new_biometric_id = last_biometric_id + 1
+                    new_biometric_id = str(last_biometric_id + 1)
+                    
+                    provided_biometric_id = request.data.get("biometric_id")
+                    if provided_biometric_id:
+                        if CustomUser.objects.filter(company=company, biometric_id=provided_biometric_id).exists():
+                            return Response({"success": False,"message": f"Biometric ID '{provided_biometric_id}' is already in use.",},status=status.HTTP_400_BAD_REQUEST,)
+                        final_biometric_id = provided_biometric_id
+                    else:
+                        final_biometric_id = new_biometric_id
 
                     user, created = CustomUser.objects.get_or_create(email=app.email,defaults={"mobile": app.phone, "first_name": app.first_name,"last_name": app.last_name})
                     
                     user.set_password(password)
-                    user.biometric_id = str(new_biometric_id)
+                    user.biometric_id = final_biometric_id
                     user.first_name = app.first_name
                     user.last_name = app.last_name
                     user.mobile = app.phone
@@ -2052,20 +2060,99 @@ def available_id(request):
     staff_id = request.query_params.get('staff_id')
 
     if not company_id:
-        return Response({"error": "company_id query parameters are required."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    already_exists = False
+        return Response(
+            {"success": False, "error": "company_id query parameter is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response(
+            {"success": False, "error": "Company not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    def generate_formatted_staff_id(config_obj, numeric_value):
+        prefix = config_obj.staff_id_prefix or ""
+        suffix = config_obj.staff_id_suffix or ""
+        pad_length = max(3, len(str(config_obj.start_id)))
+        padded_num = str(numeric_value).zfill(pad_length)
+        return f"{prefix}{padded_num}{suffix}"
+
+    def extract_number_from_string(staff_id_str, config_obj=None):
+        clean_str = staff_id_str
+        if config_obj:
+            if config_obj.staff_id_prefix and clean_str.startswith(config_obj.staff_id_prefix):
+                clean_str = clean_str[len(config_obj.staff_id_prefix):]
+            if config_obj.staff_id_suffix and clean_str.endswith(config_obj.staff_id_suffix):
+                clean_str = clean_str[:-len(config_obj.staff_id_suffix)]
+        digits = re.findall(r'\d+', clean_str)
+        return int("".join(digits)) if digits else None
+
+    def get_next_biometric_id():
+        try:
+            last_user = (
+                CustomUser.objects.filter(company=company, biometric_id__regex=r"^\d+$")
+                .annotate(bio_int=Cast("biometric_id", IntegerField()))
+                .order_by("-bio_int")
+                .first()
+            )
+            last_id = last_user.bio_int if last_user else 0
+        except Exception:
+            last_id = 0
+        return str(last_id + 1)
+
+    def get_next_staff_id():
+        config = StaffIdConfig.objects.filter(company=company).first()
+        if config:
+            existing_ids = (
+                EmployeeProfile.objects.filter(user__parent_company=company)
+                .exclude(staff_id__isnull=True)
+                .exclude(staff_id="")
+                .values_list("staff_id", flat=True)
+            )
+            if existing_ids:
+                highest_num = max(
+                    (extract_number_from_string(sid, config) or 0 for sid in existing_ids),
+                    default=config.start_id - 1,
+                )
+                next_num = highest_num + 1
+            else:
+                next_num = config.start_id
+            return generate_formatted_staff_id(config, next_num)
+        else:
+            fallback_config = StaffIdConfig(staff_id_prefix="EMP-", start_id=1)
+            existing_ids = EmployeeProfile.objects.filter(
+                user__parent_company=company, staff_id__startswith="EMP-"
+            ).values_list("staff_id", flat=True)
+            if existing_ids:
+                highest_num = max(
+                    (extract_number_from_string(sid, fallback_config) or 0 for sid in existing_ids),
+                    default=0,
+                )
+                next_num = highest_num + 1
+            else:
+                next_num = 1
+            return generate_formatted_staff_id(fallback_config, next_num)
+
+    response_data = {"success": True}
 
     if biometric_id:
-        already_exists = CustomUser.objects.filter( biometric_id=biometric_id, company__id=company_id).exists()
-    elif staff_id:
-        already_exists = EmployeeProfile.objects.filter(staff_id=staff_id, user__company__id=company_id).exists()
-    else:
-        return Response({"error": "Either biometric_id or staff_id query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    is_available = not already_exists
-    
-    return Response({"available": is_available}, status=status.HTTP_200_OK)
+        exists = CustomUser.objects.filter(biometric_id=biometric_id, company=company).exists()
+        response_data["biometric_id_available"] = not exists
+        response_data["next_suggested_biometric_id"] = get_next_biometric_id()
+
+    if staff_id:
+        exists = EmployeeProfile.objects.filter(staff_id=staff_id, user__company=company).exists()
+        response_data["staff_id_available"] = not exists
+        response_data["next_suggested_staff_id"] = get_next_staff_id()
+
+    if not biometric_id and not staff_id:
+        response_data["next_suggested_biometric_id"] = get_next_biometric_id()
+        response_data["next_suggested_staff_id"] = get_next_staff_id()
+
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 def calculate_total_experience(queryset):
