@@ -1035,6 +1035,7 @@ def getAllUsers(request, page):
     roles = request.data.get('roles', [])
     groups = request.data.get('groups', [])
     search = request.data.get('search', '').strip()
+    include_self = request.data.get('include_self', False)
 
     try:
         company = Company.objects.get(id=company_id)
@@ -1044,7 +1045,10 @@ def getAllUsers(request, page):
     avg_interval = company.work_summary_interval
     
     # Base filter: exclude requesting user; is_active defaults to True unless explicitly overridden
-    filters = Q(company__id=company_id) & ~Q(id=request.user.id)
+    filters = Q(company__id=company_id)
+
+    if not include_self:
+        filters &= ~Q(id=request.user.id)
 
     if is_active is not None:
         filters &= Q(is_active=is_active)

@@ -484,19 +484,33 @@ def addCompanyGroup(request):
 def getCompanyGroups(request, id):
     if request.method == 'GET':    
         if id:
-            groups = CompanyGroup.objects.filter(company__id=id).values('id', 'group', 'short_name')
+            groups = CompanyGroup.objects.filter(company__id=id)
         else:
-             groups = CompanyGroup.objects.values('id', 'group', 'short_name')
+             groups = CompanyGroup.objects.all()
+        
+        data = []
+
+        for group in groups:
+            team_lead_user = CustomUser.objects.filter(company=group.company,group=group,team_lead=True,is_active=True).first()
+            team_lead = None
+            if team_lead_user:
+                team_lead = {'id': team_lead_user.id,'name': f'{team_lead_user.first_name} {team_lead_user.last_name}'.strip(),}
+            data.append({
+            'id': group.id,
+            'group': group.group,
+            'short_name': group.short_name,
+            'team_lead': team_lead,})
 
         return Response({
             'status': status.HTTP_200_OK,
             'success': True,
-            'data': list(groups)
+            'data': data
         })
     
     elif request.method == 'PUT':
         new_group = request.data.get('new_group')
         short_name = request.data.get('short_name')
+        team_lead_id = request.data.get('team_lead_id')
 
 
         id = request.data.get('id')
@@ -518,6 +532,23 @@ def getCompanyGroups(request, id):
                     'success': False,
                     'message': 'Unauthorized access. Admin privileges required.',
                 }, status=status.HTTP_403_FORBIDDEN)
+            if team_lead_id:
+                team_lead_user = CustomUser.objects.filter(id=team_lead_id,company=group_obj.company,group=group_obj,is_active=True).first()
+            if not team_lead_user:
+                return Response({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'success': False,
+                'message': 'Selected team lead must be a member of this group',}, status=status.HTTP_400_BAD_REQUEST)
+
+            if team_lead_id:
+                CustomUser.objects.filter(
+                company=group_obj.company,
+                group=group_obj,
+                team_lead=True
+                ).update(team_lead=False)
+
+                team_lead_user.team_lead = True
+                team_lead_user.save()
 
             group_obj.group = new_group
             group_obj.short_name = short_name
@@ -527,6 +558,15 @@ def getCompanyGroups(request, id):
             return Response({
                 'status': status.HTTP_200_OK,
                 'success': True,
+                'data': {
+                'id': group_obj.id,
+                'group': group_obj.group,
+                'short_name': group_obj.short_name,
+                'team_lead': {
+                    'id': team_lead_user.id,
+                    'name': f'{team_lead_user.first_name} {team_lead_user.last_name}'.strip(),
+                } if team_lead_id else None
+            }
               
             })
         except CompanyGroup.DoesNotExist:

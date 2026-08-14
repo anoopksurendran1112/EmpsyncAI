@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     const is_active = body.is_active;
     const groups = body.groups || [];
     const avg_hour_filter = body.avg_hour_filter;
+    const include_self = body.include_self;
     const single_employee = body.single_employee; // ✅ NEW: Flag for single employee request
 
     if (!company_id) {
@@ -128,7 +129,8 @@ export async function POST(req: Request) {
     // Build request payload
     const requestPayload: any = {
       company_id: company_id,
-      limit: limit
+      limit: limit,
+      include_self: include_self
     };
 
     // Add filters

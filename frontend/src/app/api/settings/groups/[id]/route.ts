@@ -82,7 +82,7 @@ export async function PUT(
     }
 
     // Validate required fields
-    const { new_group, short_name, groupId } = body;
+    const { new_group, short_name, groupId, team_lead_id } = body;
     
     if (!groupId) {
       console.warn("⚠️ Missing group ID in request body");
@@ -104,7 +104,8 @@ export async function PUT(
     const putData = {
       id: groupId,
       new_group: new_group,
-      short_name: short_name || "" // Handle optional short_name
+      short_name: short_name || "" , // Handle optional short_name
+      team_lead_id
     };
 
     const requestUrl = `https://empsyncai.kochi.digital/api/group/${id}`;
