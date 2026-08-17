@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+const BASE_URL = process.env.API_URL;
+
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { id } =await  params;
+  const { id } = await params;
 
   // 🔐 grab token from cookies (optional for GET since backend allows public access)
   const cookieStore = await cookies();
@@ -20,7 +22,7 @@ export async function GET(
     }
 
     const res = await fetch(
-      `https://empsyncai.kochi.digital/api/group/${id}`, // hit backend
+      `${BASE_URL}/group/${id}`,
       {
         method: "GET",
         headers,
@@ -48,7 +50,7 @@ export async function PUT(
 
   try {
     const { id } = await params;
-    
+
     if (!id) {
       console.warn("⚠️ Missing company ID in URL");
       return NextResponse.json(
@@ -83,7 +85,7 @@ export async function PUT(
 
     // Validate required fields
     const { new_group, short_name, groupId, team_lead_id } = body;
-    
+
     if (!groupId) {
       console.warn("⚠️ Missing group ID in request body");
       return NextResponse.json(
@@ -104,11 +106,11 @@ export async function PUT(
     const putData = {
       id: groupId,
       new_group: new_group,
-      short_name: short_name || "" , // Handle optional short_name
+      short_name: short_name || "", // Handle optional short_name
       team_lead_id
     };
 
-    const requestUrl = `https://empsyncai.kochi.digital/api/group/${id}`;
+    const requestUrl = `${BASE_URL}/group/${id}`;
     console.log("🌍 Sending PUT request to:", requestUrl);
     console.log("📦 PUT data:", putData);
 
@@ -199,7 +201,7 @@ export async function DELETE(
       console.warn("⚠️ No body provided or invalid JSON:", err);
     }
 
-    const requestUrl = `https://empsyncai.kochi.digital/api/group/${id}`;
+    const requestUrl = `${BASE_URL}/group/${id}`;
     console.log("🌍 Sending DELETE request to:", requestUrl);
 
     const res = await fetch(requestUrl, {
