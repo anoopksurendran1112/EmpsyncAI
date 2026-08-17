@@ -59,7 +59,8 @@ def _resolve_step_user_id(leave, step):
             return None
         if user_id == applicant.id:
             return None
-        return user_id if CustomUser.objects.filter(id=user_id).exists() else None
+        candidate = CustomUser.objects.filter(id=user_id, company=company).first()
+        return candidate.id if candidate else None
 
     return None
 

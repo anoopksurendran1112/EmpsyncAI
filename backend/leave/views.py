@@ -1526,7 +1526,9 @@ def add_past_leave(request):
             # Map frontend value to model choice
             status=status_val,
             custom_reason=custom_reason,
-            days_taken=leave_days
+            days_taken=leave_days,
+            current_level=0, 
+            current_approver=None,
         )
         
         if leave_choice == 'half_day':
