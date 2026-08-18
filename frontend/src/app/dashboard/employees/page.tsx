@@ -273,7 +273,7 @@ function PunchSessions({
 
 function EmployeesList({ companyId }: { companyId: number }) {
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 12;
   const router = useRouter();
 
   // State for filters
