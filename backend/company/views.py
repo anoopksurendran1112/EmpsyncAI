@@ -621,7 +621,99 @@ def getCompanyGroups(request, id):
                 'message': 'Cannot delete group. It is assigned to users.',
                 'success': False,
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+@api_view(['GET', 'PUT'])
+def company_head(request, id):
+    try:
+        company = Company.objects.get(id=id)
+    except Company.DoesNotExist:
+        return Response({
+            'status': status.HTTP_404_NOT_FOUND,
+            'success': False,
+            'message': 'Company not found',
+        }, status=status.HTTP_404_NOT_FOUND)
 
+    if request.method == 'GET':
+        company_head_user = CustomUser.objects.filter(
+            company=company,
+            company_head=True,
+            is_active=True
+        ).first()
+
+        company_head_data = None
+
+        if company_head_user:
+            company_head_data = {
+                'id': company_head_user.id,
+                'name': f'{company_head_user.first_name} {company_head_user.last_name}'.strip(),
+            }
+
+        return Response({
+            'status': status.HTTP_200_OK,
+            'success': True,
+            'data': {
+                'company_head': company_head_data
+            }
+        }, status=status.HTTP_200_OK)
+
+    elif request.method == 'PUT':
+        is_admin = CompanyUser.objects.filter(
+            user=request.user,
+            company=company,
+            is_admin=True
+        ).exists()
+
+        is_superuser = getattr(request.user, 'is_superuser', False)
+
+        if not (is_admin or is_superuser):
+            return Response({
+                'status': status.HTTP_403_FORBIDDEN,
+                'success': False,
+                'message': 'Unauthorized access. Admin privileges required.',
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        company_head_id = request.data.get('company_head_id')
+
+        if not company_head_id:
+            return Response({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'success': False,
+                'message': 'company_head_id is required',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        company_head_user = CustomUser.objects.filter(
+            id=company_head_id,
+            company=company,
+            is_active=True
+        ).first()
+
+        if not company_head_user:
+            return Response({
+                'status': status.HTTP_400_BAD_REQUEST,
+                'success': False,
+                'message': 'Selected company head must be an active employee of this company',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            CustomUser.objects.filter(
+                company=company,
+                company_head=True
+            ).exclude(id=company_head_user.id).update(company_head=False)
+
+            company_head_user.company_head = True
+            company_head_user.save(update_fields=['company_head'])
+
+        return Response({
+            'status': status.HTTP_200_OK,
+            'success': True,
+            'message': 'Company head updated successfully',
+            'data': {
+                'company_head': {
+                    'id': company_head_user.id,
+                    'name': f'{company_head_user.first_name} {company_head_user.last_name}'.strip(),
+                }
+            }
+        }, status=status.HTTP_200_OK)
 
 @extend_schema(
     request={
