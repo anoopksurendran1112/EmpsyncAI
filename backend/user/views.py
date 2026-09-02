@@ -2394,8 +2394,13 @@ def employee_with_profile(request):
                             errors["permanent_address"] = "Permanent address is required."
                         continue
 
-                    value = source.get(field_name)
-
+                    if field_name == "present_address_line":
+                        value = present_address_data.get("address_line_1") if present_address_data else None
+                    elif field_name == "qualification":
+                        value = qualifications
+                    else:
+                        value = source.get(field_name)
+                        
                     if value in [None, "", [], {}]:
                         errors[field_name] = f"{field_name.replace('_', ' ').title()} is required."
 
