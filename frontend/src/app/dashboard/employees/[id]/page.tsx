@@ -647,6 +647,7 @@ export default function EmployeeDetailsPage() {
 
   
   const handleSave = async (sectionOverride?: string) => {
+    console.log("🔥 HANDLE SAVE CALLED", sectionOverride);
     if (!formData || !company) return;
 
     const activeSection = sectionOverride ?? editingSection;
@@ -889,7 +890,10 @@ export default function EmployeeDetailsPage() {
 
         editExperiences.forEach((exp: ExperienceItem, index: number) => {
           if (exp.experience_letter instanceof File) {
-            formDataPayload.append(`experience_letter_${index}`, exp.experience_letter);
+            formDataPayload.append(
+              `experiences[${index}][experience_letter]`,
+              exp.experience_letter
+            );
           }
         });
       }
@@ -957,7 +961,12 @@ export default function EmployeeDetailsPage() {
           formDataPayload.append('prof_img', imageFile);
         }
       }
+      console.log("🔥 SECTION:", activeSection);
+      console.log("🔥 FORM DATA BEING SENT:");
 
+      for (const [key, value] of formDataPayload.entries()) {
+        console.log(key, value);
+      }
       const response = await fetch("/api/employee-with-profile/", {
         method: "PUT",
         headers: { "x-company-id": company.id.toString() },
@@ -965,6 +974,11 @@ export default function EmployeeDetailsPage() {
       });
 
       const result = await response.json();
+      console.log("🔥 UPDATE RESPONSE:", result);
+      console.log("🔥 RESPONSE PROFILE:", result?.data?.profile);
+      console.log("🔥 RESPONSE BANK:", result?.data?.bank_details);
+      console.log("🔥 EDIT PROFILE DATA:", editProfileData);
+      console.log("🔥 EDIT BANK DETAILS:", editBankDetails);
       if (!response.ok || !result.success) {
         let errorMsg = result.message || "Failed to update employee";
         if (result.errors && typeof result.errors === 'string') {
@@ -2037,7 +2051,7 @@ export default function EmployeeDetailsPage() {
             </div>
             <DialogFooter className="p-8 bg-slate-50 flex gap-4">
               <Button variant="ghost" onClick={handleCancel} className="font-bold rounded-xl h-12">Discard</Button>
-              <Button onClick={handleSave} disabled={isSaving} className="bg-blue-600 font-black rounded-xl h-12 flex-1 shadow-lg shadow-blue-100">{isSaving ? "Syncing..." : "Update Professional Profile"}</Button>
+              <Button onClick={() => handleSave("professional")} disabled={isSaving} className="bg-blue-600 font-black rounded-xl h-12 flex-1 shadow-lg shadow-blue-100">{isSaving ? "Syncing..." : "Update Professional Profile"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2078,7 +2092,7 @@ export default function EmployeeDetailsPage() {
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50">
-              <Button onClick={handleSave} className="bg-green-600 w-full h-12 font-black rounded-xl shadow-lg shadow-green-100">{isSaving ? "Saving..." : "Apply Transformations"}</Button>
+              <Button onClick={() => handleSave("contact")} className="bg-green-600 w-full h-12 font-black rounded-xl shadow-lg shadow-green-100">{isSaving ? "Saving..." : "Apply Transformations"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2154,7 +2168,7 @@ export default function EmployeeDetailsPage() {
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50 mt-4">
-              <Button onClick={handleSave} className="bg-purple-600 w-full h-12 font-black rounded-xl shadow-lg shadow-purple-100">Update Identity</Button>
+              <Button onClick={() => handleSave("personal")} className="bg-purple-600 w-full h-12 font-black rounded-xl shadow-lg shadow-purple-100">Update Identity</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2202,7 +2216,7 @@ export default function EmployeeDetailsPage() {
                 )}
               </div>
               <DialogFooter className="p-8 bg-slate-50">
-                <Button onClick={handleSave} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
+                <Button onClick={() => handleSave("legal")} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -2245,7 +2259,7 @@ export default function EmployeeDetailsPage() {
                   </div>
                 )}
               </div>
-              <DialogFooter className="p-8 bg-slate-50"><Button onClick={handleSave} className="bg-slate-900 w-full h-12 font-black rounded-xl">Commit Physical Data</Button></DialogFooter>
+              <DialogFooter className="p-8 bg-slate-50"><Button onClick={() => handleSave("address")} className="bg-slate-900 w-full h-12 font-black rounded-xl">Commit Physical Data</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -2426,7 +2440,7 @@ export default function EmployeeDetailsPage() {
                   Cancel
                 </Button>
                 <Button 
-                  onClick={handleSave} 
+                  onClick={() => handleSave("family")} 
                   disabled={isSaving} 
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
@@ -2658,7 +2672,7 @@ export default function EmployeeDetailsPage() {
                 </Button>
                 <Button 
                   type="button" 
-                  onClick={handleSave} 
+                  onClick={() => handleSave("education")} 
                   disabled={isSaving} 
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
@@ -3077,7 +3091,7 @@ export default function EmployeeDetailsPage() {
                 </Button>
                 <Button 
                   type="button"
-                  onClick={handleSave} 
+                  onClick={() => handleSave("experience")} 
                   disabled={isSaving} 
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
@@ -3296,7 +3310,7 @@ export default function EmployeeDetailsPage() {
                 </Button>
                 <Button 
                   type="button"
-                  onClick={handleSave} 
+                  onClick={() => handleSave("bank")} 
                   disabled={isSaving} 
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
@@ -3329,7 +3343,7 @@ export default function EmployeeDetailsPage() {
                 </div>
               ))}
             </div>
-            <DialogFooter className="p-8 bg-slate-50"><Button type="button" onClick={handleSave} className="bg-slate-900 w-full h-12 font-black rounded-xl text-white">Sync Preferences</Button></DialogFooter>
+            <DialogFooter className="p-8 bg-slate-50"><Button type="button" onClick={() => handleSave("preferences")} className="bg-slate-900 w-full h-12 font-black rounded-xl text-white">Sync Preferences</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 

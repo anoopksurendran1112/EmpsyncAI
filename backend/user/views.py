@@ -2809,9 +2809,16 @@ def employee_with_profile(request):
                 if permanent_address_data:
                     profile_data['permanent_address'] = permanent_addr_obj.id if permanent_addr_obj else None
 
-                for id_key, model_key in [('religion_id', 'religion'), ('caste_id', 'caste'),
-                                           ('staff_type_id', 'staff_type'), ('staff_category_id', 'staff_category')]:
-                    val = extract_profile_val(id_key, is_id=True)
+                for model_key in ['religion', 'caste', 'staff_type', 'staff_category']:
+                    # Accept both formats:
+                    # religion_id / caste_id / staff_type_id / staff_category_id
+                    # and religion / caste / staff_type / staff_category
+
+                    val = extract_profile_val(f'{model_key}_id', is_id=True)
+
+                    if val is None and profile_payload and model_key in profile_payload:
+                        val = _parse_int(profile_payload.get(model_key))
+
                     if val is not None:
                         profile_data[model_key] = val
 
