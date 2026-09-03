@@ -62,7 +62,7 @@ const CONFIGURABLE_FIELDS = {
   },
 
   address_settings: {
-    fields: ['present_address_line', 'permanent_address_line'],
+    fields: ['present_address', 'permanent_address'],
     label: "Address Settings",
     description: "Employee address information"
   },
@@ -105,8 +105,8 @@ const getDefaultMandatory = (section: string, field: string): boolean => {
     },
 
     address_settings: {
-      present_address_line: true,
-      permanent_address_line: false
+      present_address: true,
+      permanent_address: false
     },
     qualifications: {
       qualification: true

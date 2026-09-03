@@ -438,20 +438,23 @@ export default function AddEmployeePage() {
       }
 
       const alternateEmail = profileData.alternate_email.trim();
-      if (alternateEmail) {
 
+      if (
+        isFieldVisible("personal_information", "alternate_email") &&
+        isFieldMandatory("personal_information", "alternate_email") &&
+        !alternateEmail
+      ) {
+        newErrors.alternate_email = "Alternate Email is mandatory";
+      } else if (alternateEmail) {
         if (alternateEmail.includes(" ")) {
           newErrors.alternate_email =
             "Alternate Email cannot contain spaces";
-
         } else if (alternateEmail.length > 254) {
           newErrors.alternate_email =
             "Alternate Email cannot exceed 254 characters";
-
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(alternateEmail)) {
           newErrors.alternate_email =
             "Enter a valid alternate email address";
-
         } else if (
           alternateEmail.toLowerCase() === email.toLowerCase()
         ) {
@@ -461,31 +464,108 @@ export default function AddEmployeePage() {
       }
 
       const alternateMobile = profileData.alternate_mobile.trim();
-      if (alternateMobile) {
 
+      if (
+        isFieldVisible("personal_information", "alternate_mobile") &&
+        isFieldMandatory("personal_information", "alternate_mobile") &&
+        !alternateMobile
+      ) {
+        newErrors.alternate_mobile = "Alternate Mobile Number is mandatory";
+      } else if (alternateMobile) {
         if (!/^\d+$/.test(alternateMobile)) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number must contain only digits";
-
         } else if (alternateMobile.startsWith("0")) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number cannot start with 0";
-
         } else if (alternateMobile.length !== 10) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number must be exactly 10 digits";
-
         } else if (alternateMobile === mobile) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number cannot be the same as Primary Mobile Number";
         }
-
       }
 
-      if (!profileData.dob) {
-        newErrors.dob = "Date of Birth is required";
-      } else {
+      const religion = profileData.religion_id.trim();
 
+      if (
+        isFieldVisible("personal_information", "religion") &&
+        isFieldMandatory("personal_information", "religion") &&
+        !religion
+      ) {
+        newErrors.religion_id = "Religion is mandatory";
+      }
+
+      const caste = profileData.caste_id.trim();
+
+      if (
+        isFieldVisible("personal_information", "caste") &&
+        isFieldMandatory("personal_information", "caste") &&
+        !caste
+      ) {
+        newErrors.caste_id = "Caste is mandatory";
+      }
+
+      const bloodGroup = profileData.blood_group.trim();
+
+      if (
+        isFieldVisible("personal_information", "blood_group") &&
+        isFieldMandatory("personal_information", "blood_group") &&
+        !bloodGroup
+      ) {
+        newErrors.blood_group = "Blood Group is mandatory";
+      }
+
+      const guardianName = profileData.guardian_name.trim();
+
+      if (
+        isFieldVisible("family", "guardians") &&
+        isFieldMandatory("family", "guardians") &&
+        !guardianName
+      ) {
+        newErrors.guardian_name = "Guardian Name is mandatory";
+      } else if (guardianName) {
+        if (!/^[A-Za-z ]+$/.test(guardianName)) {
+          newErrors.guardian_name =
+            "Guardian Name can contain only alphabets and spaces";
+        } else if (guardianName.length < 2) {
+          newErrors.guardian_name =
+            "Guardian Name must contain at least 2 characters";
+        } else if (guardianName.length > 50) {
+          newErrors.guardian_name =
+            "Guardian Name cannot exceed 50 characters";
+        }
+      }
+
+      const guardianPhone = profileData.guardian_phone.trim();
+
+      if (
+        isFieldVisible("family", "guardians") &&
+        isFieldMandatory("family", "guardians") &&
+        !guardianPhone
+      ) {
+        newErrors.guardian_phone = "Guardian Phone is mandatory";
+      } else if (guardianPhone) {
+        if (!/^\d+$/.test(guardianPhone)) {
+          newErrors.guardian_phone =
+            "Guardian Phone must contain only digits";
+        } else if (guardianPhone.startsWith("0")) {
+          newErrors.guardian_phone =
+            "Guardian Phone cannot start with 0";
+        } else if (guardianPhone.length !== 10) {
+          newErrors.guardian_phone =
+            "Guardian Phone must be exactly 10 digits";
+        }
+      }
+
+      if (
+        isFieldVisible("personal_information", "dob") &&
+        isFieldMandatory("personal_information", "dob") &&
+        !profileData.dob
+      ) {
+        newErrors.dob = "Date of Birth is required";
+      } else if (profileData.dob) {
         const dob = new Date(profileData.dob);
         const today = new Date();
 
@@ -510,8 +590,12 @@ export default function AddEmployeePage() {
 
         }
       }
-      if (!formData.gender) {
-        newErrors.gender = "Please select Gender";
+      if (
+        isFieldVisible("personal_information", "gender") &&
+        isFieldMandatory("personal_information", "gender") &&
+        !formData.gender
+      ) {
+        newErrors.gender = "Gender is mandatory";
       }
 
       // Profile Photo Validation
@@ -534,60 +618,94 @@ export default function AddEmployeePage() {
     else if (step === 2) {
 
 
-      if (!profileData.present_address.address_line_1?.trim()) {
-        newErrors.present_addr_1 = "Required";
-      }
-      else if (profileData.present_address.address_line_1.trim().length < 3) {
-        newErrors.present_addr_1 = "Minimum 3 characters required";
-      }
-
       if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.address_line_1?.trim()) {
+          newErrors.present_addr_1 = "Required";
+        } else if (profileData.present_address.address_line_1.trim().length < 3) {
+          newErrors.present_addr_1 = "Minimum 3 characters required";
+        }
+      }
+      if (
+        isFieldVisible("address_settings", "present_address") &&
         profileData.present_address.address_line_2 &&
         !profileData.present_address.address_line_2.trim()
       ) {
         newErrors.present_addr_2 = "Address Line 2 cannot contain only spaces";
       }
 
-      if (!profileData.present_address.city?.trim()) {
-        newErrors.present_city = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.city.trim())) {
-        newErrors.present_city = "Only alphabets and spaces are allowed";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.city?.trim()) {
+          newErrors.present_city = "Required";
+        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.city.trim())) {
+          newErrors.present_city = "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.present_address.district?.trim()) {
-        newErrors.present_district = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.district.trim())) {
-        newErrors.present_district = "Only alphabets and spaces are allowed";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.district?.trim()) {
+          newErrors.present_district = "Required";
+        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.district.trim())) {
+          newErrors.present_district = "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.present_address.state?.trim()) {
-        newErrors.present_state = "Required";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.state?.trim()) {
+          newErrors.present_state = "Required";
+        }
       }
 
-      if (!profileData.present_address.country?.trim()) {
-        newErrors.present_country = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
-        newErrors.present_country = "Only alphabets and spaces are allowed";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.country?.trim()) {
+          newErrors.present_country = "Required";
+        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
+          newErrors.present_country = "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.present_address.pincode?.trim()) {
-        newErrors.present_pincode = "Required";
-      } else if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
-        newErrors.present_pincode = "Only digits are allowed";
-      } else if (profileData.present_address.pincode.trim().length !== 6) {
-        newErrors.present_pincode = "Pincode must be exactly 6 digits";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.pincode?.trim()) {
+          newErrors.present_pincode = "Required";
+        } else if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
+          newErrors.present_pincode = "Only digits are allowed";
+        } else if (profileData.present_address.pincode.trim().length !== 6) {
+          newErrors.present_pincode = "Pincode must be exactly 6 digits";
+        }
       }
 
       // Permanent Address
 
-      if (!profileData.permanent_address.address_line_1?.trim()) {
-        newErrors.permanent_addr_1 = "Required";
-      }
-      else if (profileData.present_address.address_line_1.trim().length < 3) {
-        newErrors.present_addr_1 = "Minimum 3 characters required";
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
+      ) {
+        if (!profileData.permanent_address.address_line_1?.trim()) {
+          newErrors.permanent_addr_1 = "Required";
+        } else if (profileData.permanent_address.address_line_1.trim().length < 3) {
+          newErrors.permanent_addr_1 = "Minimum 3 characters required";
+        }
       }
 
       if (
+        isFieldVisible("address_settings", "permanent_address") &&
         profileData.permanent_address.address_line_2 &&
         !profileData.permanent_address.address_line_2.trim()
       ) {
@@ -595,53 +713,78 @@ export default function AddEmployeePage() {
           "Address Line 2 cannot contain only spaces";
       }
 
-      if (!profileData.permanent_address.city?.trim()) {
-        newErrors.permanent_city = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_city =
-          "Only alphabets and spaces are allowed";
+        if (!profileData.permanent_address.city?.trim()) {
+          newErrors.permanent_city = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())
+        ) {
+          newErrors.permanent_city =
+            "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.permanent_address.district?.trim()) {
-        newErrors.permanent_district = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.district.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_district =
-          "Only alphabets and spaces are allowed";
+        if (!profileData.permanent_address.district?.trim()) {
+          newErrors.permanent_district = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.district.trim())
+        ) {
+          newErrors.permanent_district =
+            "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.permanent_address.state?.trim()) {
-        newErrors.permanent_state = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.state.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_state =
-          "Only alphabets and spaces are allowed";
+        if (!profileData.permanent_address.state?.trim()) {
+          newErrors.permanent_state = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.state.trim())
+        ) {
+          newErrors.permanent_state =
+            "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.permanent_address.country?.trim()) {
-        newErrors.permanent_country = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_country =
-          "Only alphabets and spaces are allowed";
+        if (!profileData.permanent_address.country?.trim()) {
+          newErrors.permanent_country = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())
+        ) {
+          newErrors.permanent_country =
+            "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.permanent_address.pincode?.trim()) {
-        newErrors.permanent_pincode = "Required";
-      } else if (
-        !/^\d+$/.test(profileData.permanent_address.pincode.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_pincode = "Only digits are allowed";
-      } else if (
-        profileData.permanent_address.pincode.trim().length !== 6
-      ) {
-        newErrors.permanent_pincode =
-          "Pincode must be exactly 6 digits";
+        if (!profileData.permanent_address.pincode?.trim()) {
+          newErrors.permanent_pincode = "Required";
+        } else if (
+          !/^\d+$/.test(profileData.permanent_address.pincode.trim())
+        ) {
+          newErrors.permanent_pincode = "Only digits are allowed";
+        } else if (
+          profileData.permanent_address.pincode.trim().length !== 6
+        ) {
+          newErrors.permanent_pincode =
+            "Pincode must be exactly 6 digits";
+        }
       }
 
     }
@@ -1275,111 +1418,189 @@ export default function AddEmployeePage() {
             {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
           </div>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Email</Label>
-            <Input
-              name="alternate_email"
-              value={profileData.alternate_email}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.alternate_email && (
-              <p className="text-red-500 text-xs mt-1">
-                {errors.alternate_email}
-              </p>
-            )}
-          </div>
+          {isFieldVisible('personal_information', 'alternate_email') && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Alternate Email
+                {isFieldMandatory('personal_information', 'alternate_email') && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Mobile</Label>
-            <Input
-              name="alternate_mobile"
-              value={profileData.alternate_mobile}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.alternate_mobile && (
-              <p className="text-red-500 text-xs mt-1">
-                {errors.alternate_mobile}
-              </p>
-            )}
-          </div>
+              <Input
+                name="alternate_email"
+                value={profileData.alternate_email}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Date of Birth <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              type="date"
-              name="dob"
-              value={profileData.dob}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.dob && <p className="text-xs text-red-500 mt-1">{errors.dob}</p>}
-          </div>
+              {errors.alternate_email && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.alternate_email}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Gender <span className="text-[#c9962a] ml-1">*</span></Label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select Gender</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-              <option value="O">Other</option>
-              <option value="N">Prefer not to say</option>
-            </select>
-            {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
-          </div>
+          {isFieldVisible('personal_information', 'alternate_mobile') && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Alternate Mobile
+                {isFieldMandatory('personal_information', 'alternate_mobile') && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Religion</Label>
-            <select
-              name="religion_id"
-              value={profileData.religion_id}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select</option>
-              {religions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-          </div>
+              <Input
+                name="alternate_mobile"
+                value={profileData.alternate_mobile}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Caste</Label>
-            <select
-              name="caste_id"
-              value={profileData.caste_id}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-              disabled={!profileData.religion_id}
-            >
-              <option value="">Select</option>
-              {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+              {errors.alternate_mobile && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.alternate_mobile}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Blood Group</Label>
-            <select
-              name="blood_group"
-              value={profileData.blood_group}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select</option>
-              <option value="A+">A+</option>
-              <option value="B+">B+</option>
-              <option value="O+">O+</option>
-              <option value="AB+">AB+</option>
-              <option value="A-">A-</option>
-              <option value="B-">B-</option>
-              <option value="O-">O-</option>
-              <option value="AB-">AB-</option>
-            </select>
-          </div>
+          {isFieldVisible("personal_information", "dob") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Date of Birth
+                {isFieldMandatory("personal_information", "dob") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+
+              <Input
+                type="date"
+                name="dob"
+                value={profileData.dob}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
+
+              {errors.dob && (
+                <p className="text-xs text-red-500 mt-1">{errors.dob}</p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "gender") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Gender
+                {isFieldMandatory("personal_information", "gender") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select Gender</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
+                <option value="N">Prefer not to say</option>
+              </select>
+
+              {errors.gender && (
+                <p className="text-xs text-red-500 mt-1">{errors.gender}</p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "religion") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Religion
+                {isFieldMandatory("personal_information", "religion") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="religion_id"
+                value={profileData.religion_id}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select</option>
+                {religions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              {errors.religion_id && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.religion_id}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "caste") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Caste
+                {isFieldMandatory("personal_information", "caste") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="caste_id"
+                value={profileData.caste_id}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                disabled={!profileData.religion_id}
+              >
+                <option value="">Select</option>
+                {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {errors.caste_id && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.caste_id}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "blood_group") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Blood Group
+                {isFieldMandatory("personal_information", "blood_group") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="blood_group"
+                value={profileData.blood_group}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select</option>
+                <option value="A+">A+</option>
+                <option value="B+">B+</option>
+                <option value="O+">O+</option>
+                <option value="AB+">AB+</option>
+                <option value="A-">A-</option>
+                <option value="B-">B-</option>
+                <option value="O-">O-</option>
+                <option value="AB-">AB-</option>
+              </select>
+
+
+              {errors.blood_group && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.blood_group}
+                </p>
+              )}
+            </div>
+          )}
 
           {isFieldVisible('family', 'guardians') && (
             <>
@@ -1397,6 +1618,11 @@ export default function AddEmployeePage() {
                   onChange={handleProfileChange}
                   className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
                 />
+                {errors.guardian_name && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.guardian_name}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1413,6 +1639,11 @@ export default function AddEmployeePage() {
                   onChange={handleProfileChange}
                   className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
                 />
+                {errors.guardian_phone && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.guardian_phone}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -1557,377 +1788,420 @@ export default function AddEmployeePage() {
   const renderStep2 = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
       <div className="grid md:grid-cols-2 gap-8">
+
         {/* Present Address Column */}
-        <div className="space-y-4">
-          <h4 className="font-semibold text-base text-[#0f2744] flex items-center gap-2 pb-1 border-b border-[#dde3ec]">
-            Present Address
-          </h4>
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Address Line 1 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.present_address.address_line_1}
-              onChange={e => handleAddressChange("present_address", "address_line_1", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.present_addr_1 && <p className="text-xs text-red-500 mt-1">{errors.present_addr_1}</p>}
-          </div>
+        {isFieldVisible("address_settings", "present_address") && (
+          <div className="space-y-4">
+            <h4 className="font-semibold text-base text-[#0f2744] flex items-center gap-2 pb-1 border-b border-[#dde3ec]">
+              Present Address
+            </h4>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2</Label>
-            <Input
-              value={profileData.present_address.address_line_2}
-              onChange={e => handleAddressChange("present_address", "address_line_2", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.present_addr_2 && (
-              <p className="text-xs text-red-500 mt-1">{errors.present_addr_2}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-
-            {/* City */}
             <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                City <span className="text-[#c9962a] ml-1">*</span>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Address Line 1
+                {isFieldMandatory("address_settings", "present_address_line") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
               </Label>
 
               <Input
-                value={profileData.present_address.city}
-                onChange={(e) =>
+                value={profileData.present_address.address_line_1}
+                onChange={e =>
                   handleAddressChange(
                     "present_address",
-                    "city",
+                    "address_line_1",
                     e.target.value
                   )
                 }
                 className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
               />
 
-              {errors.present_city && (
+              {errors.present_addr_1 && (
                 <p className="text-xs text-red-500 mt-1">
-                  {errors.present_city}
+                  {errors.present_addr_1}
                 </p>
               )}
             </div>
 
-            {/* State */}
             <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                State <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
-              <select
-                value={profileData.present_address.state}
-                onChange={(e) => {
-                  const selectedState = e.target.value;
-
-                  setProfileData((prev) => ({
-                    ...prev,
-                    present_address: {
-                      ...prev.present_address,
-                      state: selectedState,
-                      district: "",
-                    },
-                  }));
-                }}
-                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-              >
-                <option value="">Select State</option>
-
-                {indiaStatesDistricts.states.map((item) => (
-                  <option key={item.state} value={item.state}>
-                    {item.state}
-                  </option>
-                ))}
-              </select>
-
-              {errors.present_state && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.present_state}
-                </p>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2</Label>
+              <Input
+                value={profileData.present_address.address_line_2}
+                onChange={e => handleAddressChange("present_address", "address_line_2", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.present_addr_2 && (
+                <p className="text-xs text-red-500 mt-1">{errors.present_addr_2}</p>
               )}
             </div>
 
-            {/* District */}
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* City */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  City {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.present_address.city}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "city",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.present_city && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_city}
+                  </p>
+                )}
+              </div>
+
+              {/* State */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  State {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.present_address.state}
+                  onChange={(e) => {
+                    const selectedState = e.target.value;
+
+                    setProfileData((prev) => ({
+                      ...prev,
+                      present_address: {
+                        ...prev.present_address,
+                        state: selectedState,
+                        district: "",
+                      },
+                    }));
+                  }}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+                >
+                  <option value="">Select State</option>
+
+                  {indiaStatesDistricts.states.map((item) => (
+                    <option key={item.state} value={item.state}>
+                      {item.state}
+                    </option>
+                  ))}
+                </select>
+
+                {errors.present_state && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_state}
+                  </p>
+                )}
+              </div>
+
+              {/* District */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  District {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.present_address.district}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "district",
+                      e.target.value
+                    )
+                  }
+                  disabled={!profileData.present_address.state}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select District</option>
+
+                  {profileData.present_address.state &&
+                    indiaStatesDistricts.states
+                      .find(
+                        (item) => item.state === profileData.present_address.state
+                      )
+                      ?.districts.map((district) => (
+                        <option key={district} value={district}>
+                          {district}
+                        </option>
+                      ))}
+                </select>
+
+                {errors.present_district && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_district}
+                  </p>
+                )}
+              </div>
+
+              {/* Pincode */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  Pincode {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.present_address.pincode}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "pincode",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.present_pincode && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_pincode}
+                  </p>
+                )}
+              </div>
+            </div>
+
+
+            {/* Country */}
             <div>
               <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                District <span className="text-[#c9962a] ml-1">*</span>
+                Country {isFieldMandatory("address_settings", "present_address") && (
+                  <span className="text-[#c9962a] ml-1">*</span>)}
               </Label>
 
-              <select
-                value={profileData.present_address.district}
+              <Input
+                value={profileData.present_address.country}
                 onChange={(e) =>
                   handleAddressChange(
                     "present_address",
-                    "district",
+                    "country",
                     e.target.value
                   )
                 }
-                disabled={!profileData.present_address.state}
-                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Select District</option>
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
 
-                {profileData.present_address.state &&
-                  indiaStatesDistricts.states
+              {errors.present_country && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.present_country}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Permanent Address Column */}
+        {isFieldVisible("address_settings", "permanent_address") && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-[#dde3ec]">
+              <h4 className="font-semibold text-base text-[#0f2744]">Permanent Address</h4>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setProfileData(p => ({ ...p, permanent_address: { ...p.present_address } }))}
+                className="text-xs h-7 border-[#dde3ec] text-[#445069] pb-1 bg-[#f4f7fb] hover:bg-[#f4f7fb] hover:text-[#0f2744] transition-all"
+              >
+                Copy Present
+              </Button>
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 1 {isFieldMandatory("address_settings", "permanent_address") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}</Label>
+              <Input
+                value={profileData.permanent_address.address_line_1}
+                onChange={e => handleAddressChange("permanent_address", "address_line_1", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.permanent_addr_1 && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_addr_1}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2 </Label>
+              <Input
+                value={profileData.permanent_address.address_line_2}
+                onChange={e => handleAddressChange("permanent_address", "address_line_2", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.permanent_addr_2 && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_addr_2}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* City */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  City {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.permanent_address.city}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "city",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.permanent_city && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_city}
+                  </p>
+                )}
+              </div>
+
+              {/* State */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  State {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.permanent_address.state}
+                  onChange={(e) => {
+                    const selectedState = e.target.value;
+
+                    setProfileData((prev) => ({
+                      ...prev,
+                      permanent_address: {
+                        ...prev.permanent_address,
+                        state: selectedState,
+                        district: "",
+                      },
+                    }));
+                  }}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+                >
+                  <option value="">Select State</option>
+
+                  {indiaStatesDistricts.states.map((item) => (
+                    <option key={item.state} value={item.state}>
+                      {item.state}
+                    </option>
+                  ))}
+                </select>
+
+                {errors.permanent_state && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_state}
+                  </p>
+                )}
+              </div>
+
+              {/* District */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  District {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.permanent_address.district}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "district",
+                      e.target.value
+                    )
+                  }
+                  disabled={!profileData.permanent_address.state}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select District</option>
+
+                  {indiaStatesDistricts.states
                     .find(
-                      (item) => item.state === profileData.present_address.state
+                      (item) => item.state === profileData.permanent_address.state
                     )
                     ?.districts.map((district) => (
                       <option key={district} value={district}>
                         {district}
                       </option>
                     ))}
-              </select>
+                </select>
 
-              {errors.present_district && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.present_district}
-                </p>
-              )}
+                {errors.permanent_district && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_district}
+                  </p>
+                )}
+              </div>
+
+              {/* Pincode */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  Pincode {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.permanent_address.pincode}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "pincode",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.permanent_pincode && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_pincode}
+                  </p>
+                )}
+              </div>
+
             </div>
 
-            {/* Pincode */}
             <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                Pincode <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Country {isFieldMandatory("address_settings", "permanent_address") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}</Label>
               <Input
-                value={profileData.present_address.pincode}
-                onChange={(e) =>
-                  handleAddressChange(
-                    "present_address",
-                    "pincode",
-                    e.target.value
-                  )
-                }
+                value={profileData.permanent_address.country}
+                onChange={e => handleAddressChange("permanent_address", "country", e.target.value)}
                 className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
               />
-
-              {errors.present_pincode && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.present_pincode}
+              {errors.permanent_country && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_country}
                 </p>
               )}
             </div>
-
           </div>
-
-
-          {/* Country */}
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">
-              Country <span className="text-[#c9962a] ml-1">*</span>
-            </Label>
-
-            <Input
-              value={profileData.present_address.country}
-              onChange={(e) =>
-                handleAddressChange(
-                  "present_address",
-                  "country",
-                  e.target.value
-                )
-              }
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-
-            {errors.present_country && (
-              <p className="text-xs text-red-500 mt-1">
-                {errors.present_country}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Permanent Address Column */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center border-b border-[#dde3ec]">
-            <h4 className="font-semibold text-base text-[#0f2744]">Permanent Address</h4>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setProfileData(p => ({ ...p, permanent_address: { ...p.present_address } }))}
-              className="text-xs h-7 border-[#dde3ec] text-[#445069] pb-1 bg-[#f4f7fb] hover:bg-[#f4f7fb] hover:text-[#0f2744] transition-all"
-            >
-              Copy Present
-            </Button>
-          </div>
-
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 1 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.address_line_1}
-              onChange={e => handleAddressChange("permanent_address", "address_line_1", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_addr_1 && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_addr_1}
-              </p>
-            )}
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.address_line_2}
-              onChange={e => handleAddressChange("permanent_address", "address_line_2", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_addr_2 && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_addr_2}
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-
-            {/* City */}
-            <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                City <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
-              <Input
-                value={profileData.permanent_address.city}
-                onChange={(e) =>
-                  handleAddressChange(
-                    "permanent_address",
-                    "city",
-                    e.target.value
-                  )
-                }
-                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-              />
-
-              {errors.permanent_city && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.permanent_city}
-                </p>
-              )}
-            </div>
-
-            {/* State */}
-            <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                State <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
-              <select
-                value={profileData.permanent_address.state}
-                onChange={(e) => {
-                  const selectedState = e.target.value;
-
-                  setProfileData((prev) => ({
-                    ...prev,
-                    permanent_address: {
-                      ...prev.permanent_address,
-                      state: selectedState,
-                      district: "",
-                    },
-                  }));
-                }}
-                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-              >
-                <option value="">Select State</option>
-
-                {indiaStatesDistricts.states.map((item) => (
-                  <option key={item.state} value={item.state}>
-                    {item.state}
-                  </option>
-                ))}
-              </select>
-
-              {errors.permanent_state && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.permanent_state}
-                </p>
-              )}
-            </div>
-
-            {/* District */}
-            <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                District <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
-              <select
-                value={profileData.permanent_address.district}
-                onChange={(e) =>
-                  handleAddressChange(
-                    "permanent_address",
-                    "district",
-                    e.target.value
-                  )
-                }
-                disabled={!profileData.permanent_address.state}
-                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Select District</option>
-
-                {indiaStatesDistricts.states
-                  .find(
-                    (item) => item.state === profileData.permanent_address.state
-                  )
-                  ?.districts.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
-                    </option>
-                  ))}
-              </select>
-
-              {errors.permanent_district && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.permanent_district}
-                </p>
-              )}
-            </div>
-
-            {/* Pincode */}
-            <div>
-              <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                Pincode <span className="text-[#c9962a] ml-1">*</span>
-              </Label>
-
-              <Input
-                value={profileData.permanent_address.pincode}
-                onChange={(e) =>
-                  handleAddressChange(
-                    "permanent_address",
-                    "pincode",
-                    e.target.value
-                  )
-                }
-                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-              />
-
-              {errors.permanent_pincode && (
-                <p className="text-xs text-red-500 mt-1">
-                  {errors.permanent_pincode}
-                </p>
-              )}
-            </div>
-
-          </div>
-
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Country <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.country}
-              onChange={e => handleAddressChange("permanent_address", "country", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_country && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_country}
-              </p>
-            )}
-          </div>
-        </div>
+        )}
       </div>
 
       <Separator className="bg-[#dde3ec]" />
