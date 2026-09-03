@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Save, Upload, X, Plus, Trash2, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useFieldSettings } from "@/hooks/useFieldSettings";
 import indiaStatesDistricts from "@/data/indiaStatesDistricts.json";
 import {
   Select,
@@ -29,6 +30,7 @@ export default function AddEmployeePage() {
   const { company } = useAuth();
   const companyId = company?.id || "";
   const queryClient = useQueryClient();
+  const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(company?.id || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Stepper State
@@ -1378,6 +1380,42 @@ export default function AddEmployeePage() {
               <option value="AB-">AB-</option>
             </select>
           </div>
+
+          {isFieldVisible('family', 'guardians') && (
+            <>
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                  Guardian Name
+                  {isFieldMandatory('family', 'guardians') && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  name="guardian_name"
+                  value={profileData.guardian_name}
+                  onChange={handleProfileChange}
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                  Guardian Phone
+                  {isFieldMandatory('family', 'guardians') && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  name="guardian_phone"
+                  value={profileData.guardian_phone}
+                  onChange={handleProfileChange}
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1548,160 +1586,160 @@ export default function AddEmployeePage() {
 
           <div className="grid grid-cols-2 gap-3">
 
-                {/* City */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    City <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <Input
-                    value={profileData.present_address.city}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "city",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-
-                  {errors.present_city && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_city}
-                    </p>
-                  )}
-                </div>
-
-                {/* State */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    State <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <select
-                    value={profileData.present_address.state}
-                    onChange={(e) => {
-                      const selectedState = e.target.value;
-
-                      setProfileData((prev) => ({
-                        ...prev,
-                        present_address: {
-                          ...prev.present_address,
-                          state: selectedState,
-                          district: "",
-                        },
-                      }));
-                    }}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-                  >
-                    <option value="">Select State</option>
-
-                      {indiaStatesDistricts.states.map((item) => (
-                       <option key={item.state} value={item.state}>
-                          {item.state}
-                        </option>
-                      ))}
-                  </select>
-
-                  {errors.present_state && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_state}
-                    </p>
-                  )}
-                </div>
-
-                {/* District */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    District <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <select
-                    value={profileData.present_address.district}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "district",
-                        e.target.value
-                      )
-                    }
-                    disabled={!profileData.present_address.state}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select District</option>
-
-                    {profileData.present_address.state &&
-                      indiaStatesDistricts.states
-                        .find(
-                          (item) => item.state === profileData.present_address.state
-                        )
-                        ?.districts.map((district) => (
-                          <option key={district} value={district}>
-                            {district}
-                          </option>
-                        ))}
-                  </select>
-
-                  {errors.present_district && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_district}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pincode */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    Pincode <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <Input
-                    value={profileData.present_address.pincode}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "pincode",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-
-                  {errors.present_pincode && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_pincode}
-                    </p>
-                  )}
-                </div>
-
-              </div>
-
-
-            {/* Country */}
+            {/* City */}
             <div>
               <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                Country <span className="text-[#c9962a] ml-1">*</span>
+                City <span className="text-[#c9962a] ml-1">*</span>
               </Label>
 
               <Input
-                value={profileData.present_address.country}
+                value={profileData.present_address.city}
                 onChange={(e) =>
                   handleAddressChange(
                     "present_address",
-                    "country",
+                    "city",
                     e.target.value
                   )
                 }
                 className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
               />
 
-              {errors.present_country && (
+              {errors.present_city && (
                 <p className="text-xs text-red-500 mt-1">
-                  {errors.present_country}
+                  {errors.present_city}
                 </p>
               )}
             </div>
+
+            {/* State */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                State <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
+
+              <select
+                value={profileData.present_address.state}
+                onChange={(e) => {
+                  const selectedState = e.target.value;
+
+                  setProfileData((prev) => ({
+                    ...prev,
+                    present_address: {
+                      ...prev.present_address,
+                      state: selectedState,
+                      district: "",
+                    },
+                  }));
+                }}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+              >
+                <option value="">Select State</option>
+
+                {indiaStatesDistricts.states.map((item) => (
+                  <option key={item.state} value={item.state}>
+                    {item.state}
+                  </option>
+                ))}
+              </select>
+
+              {errors.present_state && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.present_state}
+                </p>
+              )}
+            </div>
+
+            {/* District */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                District <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
+
+              <select
+                value={profileData.present_address.district}
+                onChange={(e) =>
+                  handleAddressChange(
+                    "present_address",
+                    "district",
+                    e.target.value
+                  )
+                }
+                disabled={!profileData.present_address.state}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Select District</option>
+
+                {profileData.present_address.state &&
+                  indiaStatesDistricts.states
+                    .find(
+                      (item) => item.state === profileData.present_address.state
+                    )
+                    ?.districts.map((district) => (
+                      <option key={district} value={district}>
+                        {district}
+                      </option>
+                    ))}
+              </select>
+
+              {errors.present_district && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.present_district}
+                </p>
+              )}
+            </div>
+
+            {/* Pincode */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                Pincode <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
+
+              <Input
+                value={profileData.present_address.pincode}
+                onChange={(e) =>
+                  handleAddressChange(
+                    "present_address",
+                    "pincode",
+                    e.target.value
+                  )
+                }
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+
+              {errors.present_pincode && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.present_pincode}
+                </p>
+              )}
+            </div>
+
+          </div>
+
+
+          {/* Country */}
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5">
+              Country <span className="text-[#c9962a] ml-1">*</span>
+            </Label>
+
+            <Input
+              value={profileData.present_address.country}
+              onChange={(e) =>
+                handleAddressChange(
+                  "present_address",
+                  "country",
+                  e.target.value
+                )
+              }
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+            />
+
+            {errors.present_country && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.present_country}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Permanent Address Column */}
@@ -1746,135 +1784,135 @@ export default function AddEmployeePage() {
             )}
           </div>
 
-           <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3">
 
-                {/* City */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    City <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+            {/* City */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                City <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
 
-                  <Input
-                    value={profileData.permanent_address.city}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "city",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
+              <Input
+                value={profileData.permanent_address.city}
+                onChange={(e) =>
+                  handleAddressChange(
+                    "permanent_address",
+                    "city",
+                    e.target.value
+                  )
+                }
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
 
-                  {errors.permanent_city && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_city}
-                    </p>
-                  )}
-                </div>
+              {errors.permanent_city && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.permanent_city}
+                </p>
+              )}
+            </div>
 
-                {/* State */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    State <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+            {/* State */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                State <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
 
-                  <select
-                    value={profileData.permanent_address.state}
-                    onChange={(e) => {
-                      const selectedState = e.target.value;
+              <select
+                value={profileData.permanent_address.state}
+                onChange={(e) => {
+                  const selectedState = e.target.value;
 
-                      setProfileData((prev) => ({
-                        ...prev,
-                        permanent_address: {
-                          ...prev.permanent_address,
-                          state: selectedState,
-                          district: "",
-                        },
-                      }));
-                    }}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-                  >
-                    <option value="">Select State</option>
+                  setProfileData((prev) => ({
+                    ...prev,
+                    permanent_address: {
+                      ...prev.permanent_address,
+                      state: selectedState,
+                      district: "",
+                    },
+                  }));
+                }}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+              >
+                <option value="">Select State</option>
 
-                    {indiaStatesDistricts.states.map((item) => (
-                      <option key={item.state} value={item.state}>
-                        {item.state}
-                      </option>
-                    ))}
-                  </select>
+                {indiaStatesDistricts.states.map((item) => (
+                  <option key={item.state} value={item.state}>
+                    {item.state}
+                  </option>
+                ))}
+              </select>
 
-                  {errors.permanent_state && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_state}
-                    </p>
-                  )}
-                </div>
+              {errors.permanent_state && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.permanent_state}
+                </p>
+              )}
+            </div>
 
-                {/* District */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    District <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+            {/* District */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                District <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
 
-                  <select
-                    value={profileData.permanent_address.district}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "district",
-                        e.target.value
-                      )
-                    }
-                    disabled={!profileData.permanent_address.state}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select District</option>
+              <select
+                value={profileData.permanent_address.district}
+                onChange={(e) =>
+                  handleAddressChange(
+                    "permanent_address",
+                    "district",
+                    e.target.value
+                  )
+                }
+                disabled={!profileData.permanent_address.state}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">Select District</option>
 
-                    {indiaStatesDistricts.states
-                        .find(
-                          (item) => item.state === profileData.permanent_address.state
-                        )
-                        ?.districts.map((district) => (
-                          <option key={district} value={district}>
-                            {district}
-                          </option>
-                        ))}
-                  </select>
+                {indiaStatesDistricts.states
+                  .find(
+                    (item) => item.state === profileData.permanent_address.state
+                  )
+                  ?.districts.map((district) => (
+                    <option key={district} value={district}>
+                      {district}
+                    </option>
+                  ))}
+              </select>
 
-                  {errors.permanent_district && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_district}
-                    </p>
-                  )}
-                </div>
+              {errors.permanent_district && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.permanent_district}
+                </p>
+              )}
+            </div>
 
-                {/* Pincode */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    Pincode <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+            {/* Pincode */}
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                Pincode <span className="text-[#c9962a] ml-1">*</span>
+              </Label>
 
-                  <Input
-                    value={profileData.permanent_address.pincode}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "pincode",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
+              <Input
+                value={profileData.permanent_address.pincode}
+                onChange={(e) =>
+                  handleAddressChange(
+                    "permanent_address",
+                    "pincode",
+                    e.target.value
+                  )
+                }
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
 
-                  {errors.permanent_pincode && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_pincode}
-                    </p>
-                  )}
-                </div>
+              {errors.permanent_pincode && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.permanent_pincode}
+                </p>
+              )}
+            </div>
 
-              </div>
+          </div>
 
           <div>
             <Label className="text-xs font-medium text-[#445069] mb-1.5">Country <span className="text-[#c9962a] ml-1">*</span></Label>
@@ -2524,7 +2562,7 @@ export default function AddEmployeePage() {
             <Button type="button" variant="outline" onClick={handlePrev} disabled={currentStep === 0 || loading} className="w-32 gap-2 border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb]">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
-            
+
             <Button type="button" variant="outline" onClick={() => saveDraft(currentStep, true)} disabled={loading} className="border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb] gap-2">
               <Save className="w-4 h-4" /> Save Draft
             </Button>
