@@ -788,71 +788,121 @@ export default function AddEmployeePage() {
       }
 
     }
-
     else if (step === 3) {
-      if (qualifications.length === 0) {
+      const qualificationsMandatory = isFieldMandatory(
+        "qualifications",
+        "qualification"
+      );
+      if (
+        isFieldVisible("qualifications", "qualification") &&
+        isFieldMandatory("qualifications", "qualification") &&
+        qualifications.length === 0
+      ) {
         newErrors.general = "At least one qualification is required.";
       }
 
       qualifications.forEach((q, i) => {
         // Academic Level
-        if (!q.qualification_level || q.qualification_level === "Select Level") {
+        if (
+          qualificationsMandatory &&
+          (!q.qualification_level || q.qualification_level === "Select Level")
+        ) {
           newErrors[`qual_${i}_level`] = "Required";
         }
 
         // Specialization
-        if (!q.specialization?.trim()) {
+        if (qualificationsMandatory && !q.specialization?.trim()) {
           newErrors[`qual_${i}_specialization`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.specialization.trim())) {
+        } else if (
+          q.specialization?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.specialization.trim())
+        ) {
           newErrors[`qual_${i}_specialization`] = "Numbers are not allowed";
-        } else if (q.specialization.trim().length < 3) {
+        } else if (
+          q.specialization?.trim() &&
+          q.specialization.trim().length < 3
+        ) {
           newErrors[`qual_${i}_specialization`] = "Minimum 3 characters required";
-        } else if (q.specialization.trim().length > 100) {
+        } else if (
+          q.specialization?.trim() &&
+          q.specialization.trim().length > 100
+        ) {
           newErrors[`qual_${i}_specialization`] = "Maximum 100 characters allowed";
         }
 
         // Institution
-        if (!q.institution_name?.trim()) {
+        if (qualificationsMandatory && !q.institution_name?.trim()) {
           newErrors[`qual_${i}_inst`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.institution_name.trim())) {
+        } else if (
+          q.institution_name?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.institution_name.trim())
+        ) {
           newErrors[`qual_${i}_inst`] = "Numbers are not allowed";
-        } else if (q.institution_name.trim().length < 3) {
+        } else if (
+          q.institution_name?.trim() &&
+          q.institution_name.trim().length < 3
+        ) {
           newErrors[`qual_${i}_inst`] = "Minimum 3 characters required";
-        } else if (q.institution_name.trim().length > 100) {
+        } else if (
+          q.institution_name?.trim() &&
+          q.institution_name.trim().length > 100
+        ) {
           newErrors[`qual_${i}_inst`] = "Maximum 100 characters allowed";
         }
 
         // University / Board
-        if (!q.university?.trim()) {
+        if (qualificationsMandatory && !q.university?.trim()) {
           newErrors[`qual_${i}_university`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.university.trim())) {
+        } else if (
+          q.university?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.university.trim())
+        ) {
           newErrors[`qual_${i}_university`] = "Numbers are not allowed";
-        } else if (q.university.trim().length < 3) {
+        } else if (
+          q.university?.trim() &&
+          q.university.trim().length < 3
+        ) {
           newErrors[`qual_${i}_university`] = "Minimum 3 characters required";
-        } else if (q.university.trim().length > 100) {
+        } else if (
+          q.university?.trim() &&
+          q.university.trim().length > 100
+        ) {
           newErrors[`qual_${i}_university`] = "Maximum 100 characters allowed";
         }
 
         // Location
-        if (!q.location?.trim()) {
+        if (qualificationsMandatory && !q.location?.trim()) {
           newErrors[`qual_${i}_location`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(q.location.trim())) {
-          newErrors[`qual_${i}_location`] = "Only letters, spaces, commas and hyphens are allowed";
-        } else if (q.location.trim().length < 3) {
+        } else if (
+          q.location?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(q.location.trim())
+        ) {
+          newErrors[`qual_${i}_location`] =
+            "Only letters, spaces, commas and hyphens are allowed";
+        } else if (
+          q.location?.trim() &&
+          q.location.trim().length < 3
+        ) {
           newErrors[`qual_${i}_location`] = "Minimum 3 characters required";
-        } else if (q.location.trim().length > 25) {
+        } else if (
+          q.location?.trim() &&
+          q.location.trim().length > 25
+        ) {
           newErrors[`qual_${i}_location`] = "Maximum 25 characters allowed";
         }
 
         // Percentage / CGPA
-        if (!q.percentage?.toString().trim()) {
+
+        if (qualificationsMandatory && !q.percentage?.toString().trim()) {
           newErrors[`qual_${i}_percentage`] = "Required";
-        } else if (!/^-?\d+(\.\d+)?$/.test(q.percentage.toString().trim())) {
+        } else if (
+          q.percentage?.toString().trim() &&
+          !/^-?\d+(\.\d+)?$/.test(q.percentage.toString().trim())
+        ) {
           newErrors[`qual_${i}_percentage`] =
             "Only numeric values are allowed";
-        } else {
+        } else if (q.percentage?.toString().trim()) {
           const value = parseFloat(q.percentage);
-
           if (value < 1 || value > 100) {
             newErrors[`qual_${i}_percentage`] =
               "Value must be between 1 and 100";
@@ -860,9 +910,9 @@ export default function AddEmployeePage() {
         }
 
         // Start Date
-        if (!q.start_year) {
+        if (qualificationsMandatory && !q.start_year) {
           newErrors[`qual_${i}_start`] = "Required";
-        } else {
+        } else if (q.start_year) {
           const startDate = new Date(q.start_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -874,9 +924,9 @@ export default function AddEmployeePage() {
         }
 
         // Pass Date
-        if (!q.passing_year) {
+        if (qualificationsMandatory && !q.passing_year) {
           newErrors[`qual_${i}_pass`] = "Required";
-        } else {
+        } else if (q.passing_year) {
           const passDate = new Date(q.passing_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -897,7 +947,11 @@ export default function AddEmployeePage() {
         }
 
         // Certificate
-        if (!q.certificate && !q.certificate_base64) {
+        if (
+          qualificationsMandatory &&
+          !q.certificate &&
+          !q.certificate_base64
+        ) {
           newErrors[`qual_${i}_certificate`] =
             "Certificate is required";
         }
@@ -2223,164 +2277,201 @@ export default function AddEmployeePage() {
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Academic Qualifications</h3>
-        <Button
-          type="button"
-          onClick={addQual}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Qualification
-        </Button>
-      </div>
+  const renderStep3 = () => {
+    const qualificationsMandatory = isFieldMandatory(
+      "qualifications",
+      "qualification"
+    );
 
-      {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
-
-      <div className="space-y-6">
-        {qualifications.map((q, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+    return (
+      isFieldVisible("qualifications", "qualification") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+            <h3 className="font-semibold text-base text-[#0f2744]">Academic Qualifications</h3>
             <Button
               type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeQual(idx)}
+              onClick={addQual}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
             >
-              <Trash2 className="w-4 h-4" />
+              <Plus className="w-4 h-4" /> Add Qualification
             </Button>
+          </div>
 
-            <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Academic Level <span className="text-[#c9962a] ml-1">*</span></Label>
-                <select
-                  value={q.qualification_level}
-                  onChange={e => updateQual(idx, 'qualification_level', e.target.value)}
-                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+          {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
+
+          <div className="space-y-6">
+            {qualifications.map((q, idx) => (
+              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                  onClick={() => removeQual(idx)}
                 >
-                  <option value="">Select Level</option>
-                  <option value="UG">Undergraduate (UG)</option>
-                  <option value="PG">Postgraduate (PG)</option>
-                  <option value="MPHIL">M.Phil.</option>
-                  <option value="PHD">Ph.D.</option>
-                  <option value="POSTDOC">Post Doctoral (Post.Doc)</option>
-                  <option value="RESEARCH_OTHERS">Research (Others)</option>
-                  <option value="OTHERS">Others</option>
-                </select>
-                {errors[`qual_${idx}_level`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_level`]}</p>}
-              </div>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Specialization <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.specialization}
-                  onChange={e => updateQual(idx, 'specialization', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_specialization`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_specialization`]}</p>}
-              </div>
+                <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Academic Level{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>                  <select
+                      value={q.qualification_level}
+                      onChange={e => updateQual(idx, 'qualification_level', e.target.value)}
+                      className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+                    >
+                      <option value="">Select Level</option>
+                      <option value="UG">Undergraduate (UG)</option>
+                      <option value="PG">Postgraduate (PG)</option>
+                      <option value="MPHIL">M.Phil.</option>
+                      <option value="PHD">Ph.D.</option>
+                      <option value="POSTDOC">Post Doctoral (Post.Doc)</option>
+                      <option value="RESEARCH_OTHERS">Research (Others)</option>
+                      <option value="OTHERS">Others</option>
+                    </select>
+                    {errors[`qual_${idx}_level`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_level`]}</p>}
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Institution <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.institution_name}
-                  onChange={e => updateQual(idx, 'institution_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_inst`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_inst`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">University / Board <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.university}
-                  onChange={e => updateQual(idx, 'university', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_university`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_university`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  placeholder="e.g. Kochi, Kerala"
-                  value={q.location}
-                  onChange={e => updateQual(idx, 'location', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_location`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={q.percentage}
-                  onChange={e => updateQual(idx, 'percentage', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="date"
-                  value={q.start_year}
-                  onChange={e => updateQual(idx, 'start_year', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_start`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Pass Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="date"
-                  value={q.passing_year}
-                  onChange={e => updateQual(idx, 'passing_year', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
-              </div>
-
-              <div className="col-span-1 md:col-span-3">
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Certificate <span className="text-[#c9962a] ml-1">*</span></Label>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
-                    <Upload className="w-4 h-4" />
-                    <span>{q.certificate ? (q.certificate as File).name : q.certificate_name ? q.certificate_name : "Upload Certificate"}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; handleQualFileChange(idx, f); }}
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Specialization{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.specialization}
+                      onChange={e => updateQual(idx, 'specialization', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                     />
-                  </label>
-                  {(q.certificate || q.certificate_base64) && (
-                    <button type="button" onClick={() => handleQualFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                {errors[`qual_${idx}_certificate`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_certificate`]}</p>}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    {errors[`qual_${idx}_specialization`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_specialization`]}</p>}
+                  </div>
 
-      {qualifications.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No qualifications added yet. Please add at least one.
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Institution{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.institution_name}
+                      onChange={e => updateQual(idx, 'institution_name', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_inst`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_inst`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">University / Board{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.university}
+                      onChange={e => updateQual(idx, 'university', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_university`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_university`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      placeholder="e.g. Kochi, Kerala"
+                      value={q.location}
+                      onChange={e => updateQual(idx, 'location', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_location`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={q.percentage}
+                      onChange={e => updateQual(idx, 'percentage', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="date"
+                      value={q.start_year}
+                      onChange={e => updateQual(idx, 'start_year', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_start`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Pass Date{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="date"
+                      value={q.passing_year}
+                      onChange={e => updateQual(idx, 'passing_year', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
+                  </div>
+
+                  <div className="col-span-1 md:col-span-3">
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Certificate{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
+                        <Upload className="w-4 h-4" />
+                        <span>{q.certificate ? (q.certificate as File).name : q.certificate_name ? q.certificate_name : "Upload Certificate"}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0] || null; handleQualFileChange(idx, f); }}
+                        />
+                      </label>
+                      {(q.certificate || q.certificate_base64) && (
+                        <button type="button" onClick={() => handleQualFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {errors[`qual_${idx}_certificate`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_certificate`]}</p>}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {qualifications.length === 0 && (
+            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+              No qualifications added yet. Please add at least one.
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      )
+    );
+  };
 
   const renderStep4 = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
