@@ -607,6 +607,22 @@ export default function AddEmployeePage() {
 
 
     else if (step === 1) {
+      const ktuMandatory = isFieldMandatory(
+        "identity_bank",
+        "ktu_id"
+      );
+      if (ktuMandatory && !profileData.ktu_id?.trim()) {
+        newErrors.ktu_id = "KTU ID is required";
+      }
+
+      const aicteMandatory = isFieldMandatory(
+        "identity_bank",
+        "aicte_id"
+      );
+      if (aicteMandatory && !profileData.aicte_id?.trim()) {
+        newErrors.aicte_id = "AICTE ID is required";
+      }
+
       if (!formData.role_id) newErrors.role_id = "Required";
       if (!formData.biometric_id.trim()) newErrors.biometric_id = "Required";
       if (!profileData.staff_id?.trim()) newErrors.staff_id = "Required";
@@ -1847,25 +1863,49 @@ export default function AddEmployeePage() {
           {errors.staff_category_id && <p className="text-xs text-red-500 mt-1">{errors.staff_category_id}</p>}
         </div>
 
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">KTU ID</Label>
-          <Input
-            name="ktu_id"
-            value={profileData.ktu_id}
-            onChange={handleProfileChange}
-            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-          />
-        </div>
+        {isFieldVisible("identity_bank", "ktu_id") && (
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+              KTU ID{" "}
+              {isFieldMandatory("identity_bank", "ktu_id") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}
+            </Label>
+            <Input
+              name="ktu_id"
+              value={profileData.ktu_id}
+              onChange={handleProfileChange}
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+            {errors.ktu_id && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.ktu_id}
+              </p>
+            )}
+          </div>
+        )}
 
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">AICTE ID</Label>
-          <Input
-            name="aicte_id"
-            value={profileData.aicte_id}
-            onChange={handleProfileChange}
-            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-          />
-        </div>
+        {isFieldVisible("identity_bank", "aicte_id") && (
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+              AICTE ID{" "}
+              {isFieldMandatory("identity_bank", "aicte_id") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}
+            </Label>
+            <Input
+              name="aicte_id"
+              value={profileData.aicte_id}
+              onChange={handleProfileChange}
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+            {errors.aicte_id && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.aicte_id}
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Biometric ID <span className="text-[#c9962a] ml-1">*</span></Label>
@@ -2872,7 +2912,6 @@ export default function AddEmployeePage() {
       "identity_bank",
       "bank_details"
     );
-    
 
     return (
       isFieldVisible("identity_bank", "aadhar_no") && (
