@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { useEmployees } from "@/hooks/employees/useGetEmployees"
 import { toast } from "sonner"
 import {
   Building2, MapPin, Clock, Gauge, Shield, Calendar, Users, Settings,
@@ -41,7 +42,7 @@ import {
 
 const CORE_MANDATORY_FIELDS = [
   'first_name',
-  'last_name', 
+  'last_name',
   'primary_mobile',
   'primary_email',
   'staff_id',
@@ -59,7 +60,7 @@ const CONFIGURABLE_FIELDS = {
     label: "Family & Emergency",
     description: "Family and emergency contact details"
   },
- 
+
   address_settings: {
     fields: ['present_address_line', 'permanent_address_line'],
     label: "Address Settings",
@@ -77,11 +78,11 @@ const CONFIGURABLE_FIELDS = {
   },
   identity_bank: {
     fields: [
-      'aadhar_no',     
-      'pan_no',         
-      'ktu_id',         
-      'aicte_id',      
-      'bank_details'    
+      'aadhar_no',
+      'pan_no',
+      'ktu_id',
+      'aicte_id',
+      'bank_details'
     ],
     label: "Identity & Bank Details",
     description: "Identity and banking information"
@@ -102,7 +103,7 @@ const getDefaultMandatory = (section: string, field: string): boolean => {
     family: {
       guardians: true
     },
-   
+
     address_settings: {
       present_address_line: true,
       permanent_address_line: false
@@ -114,11 +115,11 @@ const getDefaultMandatory = (section: string, field: string): boolean => {
       experience: false
     },
     identity_bank: {
-      aadhar_no: true,      
-      pan_no: true,         
-      ktu_id: false,        
-      aicte_id: false,      
-      bank_details: true    
+      aadhar_no: true,
+      pan_no: true,
+      ktu_id: false,
+      aicte_id: false,
+      bank_details: true
     }
   }
   return defaultMandatory[section]?.[field] || false
@@ -141,6 +142,11 @@ const getDefaultSettings = () => {
 export default function CompanyProfilePage() {
   const { company, isAdmin } = useAuth()
   const router = useRouter()
+  const { data: employeesData, isLoading: isCompanyHeadEmployeesLoading } =
+    useEmployees(company?.id || 0, 1, 1000)
+
+  const companyEmployees =
+    employeesData?.employees?.filter((employee: any) => employee.is_active) || []
 
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [formData, setFormData] = useState<any>(null)
@@ -148,6 +154,11 @@ export default function CompanyProfilePage() {
   const [imageError, setImageError] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [activeEmployeeCount, setActiveEmployeeCount] = useState<number | null>(0)
+  const [companyHead, setCompanyHead] = useState<{ id: number; name: string } | null>(null)
+  const [companyHeadLoading, setCompanyHeadLoading] = useState(false)
+  const [companyHeadEditOpen, setCompanyHeadEditOpen] = useState(false)
+  const [selectedCompanyHeadId, setSelectedCompanyHeadId] = useState("")
+  const [companyHeadSaving, setCompanyHeadSaving] = useState(false)
 
   const [profileData, setProfileData] = useState<any>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -188,21 +199,80 @@ export default function CompanyProfilePage() {
       setProfileLoading(false)
     }
   }
+  const fetchCompanyHead = async () => {
+    if (!company?.id) return
+
+    setCompanyHeadLoading(true)
+
+    try {
+      const res = await fetch(`/api/company-head/${company.id}`)
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch company head")
+      }
+
+      const data = await res.json()
+      setCompanyHead(data?.data?.company_head || null)
+    } catch (error) {
+      console.error("Error fetching company head:", error)
+      setCompanyHead(null)
+    } finally {
+      setCompanyHeadLoading(false)
+    }
+  }
+
+  const handleCompanyHeadUpdate = async () => {
+    if (!company?.id || !selectedCompanyHeadId) {
+      toast.error("Please select a company head")
+      return
+    }
+
+    setCompanyHeadSaving(true)
+
+    try {
+      const res = await fetch(`/api/company-head/${company.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          company_head_id: Number(selectedCompanyHeadId),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        toast.error(data.message || "Failed to update company head")
+        return
+      }
+
+      setCompanyHead(data.data.company_head)
+      setCompanyHeadEditOpen(false)
+      toast.success("Company head updated successfully")
+    } catch (error) {
+      console.error("Error updating company head:", error)
+      toast.error("Failed to update company head")
+    } finally {
+      setCompanyHeadSaving(false)
+    }
+  }
+
 
   const fetchFieldSettings = async () => {
     if (!company?.id) return
     setFieldSettingsLoading(true)
     setFieldSettingsError(null)
-    
+
     try {
       console.log(" Fetching field settings for company:", company.id)
       const res = await fetch(`/api/company-field-setting/?company_id=${company.id}`)
-      
+
       console.log(" Response status:", res.status)
-      
+
       const responseText = await res.text()
       console.log(" Raw response (first 200 chars):", responseText.substring(0, 200))
-      
+
       let data
       try {
         data = responseText ? JSON.parse(responseText) : {}
@@ -212,25 +282,25 @@ export default function CompanyProfilePage() {
         setFieldSettingsLoading(false)
         return
       }
-      
-      
+
+
       if (data.success && data.data) {
         const configData = data.data.config || {}
         console.log(" Settings config:", configData)
-        
+
         const settings: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
-        
+
         Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
           settings[section] = {}
           fields.forEach(field => {
-            
+
             if (configData[section]?.[field] !== undefined) {
               settings[section][field] = {
                 visible: configData[section][field].visible || false,
                 mandatory: configData[section][field].mandatory || false
               }
             } else {
-             
+
               settings[section][field] = {
                 visible: false,
                 mandatory: getDefaultMandatory(section, field)
@@ -238,14 +308,14 @@ export default function CompanyProfilePage() {
             }
           })
         })
-        
+
         setFieldSettings(settings)
         setFieldSettingsError(null)
       } else {
         console.log("No config in response - using defaults")
         setFieldSettings(getDefaultSettings())
       }
-      
+
     } catch (err) {
       console.error(' Error fetching field settings:', err)
       setFieldSettings(getDefaultSettings())
@@ -255,141 +325,141 @@ export default function CompanyProfilePage() {
   }
 
   const handleSaveFieldSettings = async () => {
-  if (!company) return
-  setIsSavingFieldSettings(true)
-  setFieldSettingsError(null)
-  
-  try {
-    const config: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
-    
-    Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
-      const sectionConfig: Record<string, { visible: boolean; mandatory: boolean }> = {}
-      
-      fields.forEach(field => {
-       
-        const currentSettings = fieldSettings[section]?.[field]
-        
-        if (currentSettings) {
-          sectionConfig[field] = {
-            visible: currentSettings.visible,
-            mandatory: currentSettings.mandatory
+    if (!company) return
+    setIsSavingFieldSettings(true)
+    setFieldSettingsError(null)
+
+    try {
+      const config: Record<string, Record<string, { visible: boolean; mandatory: boolean }>> = {}
+
+      Object.entries(CONFIGURABLE_FIELDS).forEach(([section, { fields }]) => {
+        const sectionConfig: Record<string, { visible: boolean; mandatory: boolean }> = {}
+
+        fields.forEach(field => {
+
+          const currentSettings = fieldSettings[section]?.[field]
+
+          if (currentSettings) {
+            sectionConfig[field] = {
+              visible: currentSettings.visible,
+              mandatory: currentSettings.mandatory
+            }
+          } else {
+
+            sectionConfig[field] = {
+              visible: false,
+              mandatory: getDefaultMandatory(section, field)
+            }
           }
-        } else {
-        
-          sectionConfig[field] = {
-            visible: false,
-            mandatory: getDefaultMandatory(section, field)
-          }
-        }
+        })
+
+        config[section] = sectionConfig
       })
-      
-      config[section] = sectionConfig
-    })
 
-    
-    const payload = {
-      company_id: company.id,
-      config: config
-    }
 
-    console.log("Sending payload:", JSON.stringify(payload, null, 2))
+      const payload = {
+        company_id: company.id,
+        config: config
+      }
 
-    let response = await fetch('/api/company-field-setting/', {
-      method: 'POST',
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
+      console.log("Sending payload:", JSON.stringify(payload, null, 2))
 
-    if (response.status === 400 || response.status === 405) {
-      console.log("POST failed, trying PUT...")
-      response = await fetch('/api/company-field-setting/', {
-        method: 'PUT',
+      let response = await fetch('/api/company-field-setting/', {
+        method: 'POST',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       })
-    }
 
-    const responseText = await response.text()
-    console.log("Raw response:", responseText)
-
-    let responseData: any = {}
-    try {
-      if (responseText && responseText.trim()) {
-        responseData = JSON.parse(responseText)
+      if (response.status === 400 || response.status === 405) {
+        console.log("POST failed, trying PUT...")
+        response = await fetch('/api/company-field-setting/', {
+          method: 'PUT',
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
       }
-    } catch (parseErr) {
-      console.error("Failed to parse response:", parseErr)
-    }
 
-    if (!response.ok || responseData?.success === false) {
-      const errorMsg = responseData?.message || "Failed to update field settings."
-      throw new Error(errorMsg)
-    }
+      const responseText = await response.text()
+      console.log("Raw response:", responseText)
 
-    toast.success("Field settings updated successfully!")
-    await fetchFieldSettings()
-    setShowFieldSettingsDialog(false)
-    
-  } catch (err: any) {
-    console.error('Error saving field settings:', err)
-    toast.error(err.message || "Failed to save field settings")
-  } finally {
-    setIsSavingFieldSettings(false)
+      let responseData: any = {}
+      try {
+        if (responseText && responseText.trim()) {
+          responseData = JSON.parse(responseText)
+        }
+      } catch (parseErr) {
+        console.error("Failed to parse response:", parseErr)
+      }
+
+      if (!response.ok || responseData?.success === false) {
+        const errorMsg = responseData?.message || "Failed to update field settings."
+        throw new Error(errorMsg)
+      }
+
+      toast.success("Field settings updated successfully!")
+      await fetchFieldSettings()
+      setShowFieldSettingsDialog(false)
+
+    } catch (err: any) {
+      console.error('Error saving field settings:', err)
+      toast.error(err.message || "Failed to save field settings")
+    } finally {
+      setIsSavingFieldSettings(false)
+    }
   }
-}
 
   const toggleFieldVisibility = useCallback((section: string, field: string) => {
     setFieldSettings(prev => {
-     
+
       const newSettings = JSON.parse(JSON.stringify(prev))
-      
-      
+
+
       if (!newSettings[section]) {
         newSettings[section] = {}
       }
-      
-     
+
+
       const current = newSettings[section][field] || {
         visible: false,
         mandatory: getDefaultMandatory(section, field)
       }
-      
- 
+
+
       newSettings[section][field] = {
         ...current,
         visible: !current.visible
       }
-      
+
       console.log(` Toggled visibility for ${section}.${field}:`, newSettings[section][field])
       return newSettings
     })
   }, [])
 
-  
+
   const toggleMandatory = useCallback((section: string, field: string) => {
     setFieldSettings(prev => {
-      
+
       const newSettings = JSON.parse(JSON.stringify(prev))
-      
+
       const current = newSettings[section]?.[field]
-      
-      
+
+
       if (!current) {
         toast.warning("Please make the field visible first")
         return prev
       }
-      
+
       if (!current.visible) {
         toast.warning("Please make the field visible first")
         return prev
       }
-      
-      
+
+
       newSettings[section][field] = {
         ...current,
         mandatory: !current.mandatory
       }
-      
+
       console.log(` Toggled mandatory for ${section}.${field}:`, newSettings[section][field])
       return newSettings
     })
@@ -432,6 +502,10 @@ export default function CompanyProfilePage() {
 
   useEffect(() => {
     fetchProfile()
+  }, [company])
+
+  useEffect(() => {
+    fetchCompanyHead()
   }, [company])
 
   useEffect(() => {
@@ -522,7 +596,7 @@ export default function CompanyProfilePage() {
   }
 
   const getSectionLabel = (section: string) => {
-    return CONFIGURABLE_FIELDS[section as keyof typeof CONFIGURABLE_FIELDS]?.label || 
+    return CONFIGURABLE_FIELDS[section as keyof typeof CONFIGURABLE_FIELDS]?.label ||
       section.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
   }
 
@@ -725,15 +799,55 @@ export default function CompanyProfilePage() {
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600 flex-shrink-0">
-                <Zap className="h-4 w-4" />
+            <div className="mt-4 flex items-center gap-8 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600 flex-shrink-0">
+                  <Zap className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5 tracking-wide">
+                    Punch Mode
+                  </p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {company.punch_mode === "S" ? "Single Punch" : "Multi Punch"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5 tracking-wide">Punch Mode</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {company.punch_mode === "S" ? "Single Punch" : "Multi Punch"}
-                </p>
+
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600 flex-shrink-0">
+                  <UserCog className="h-4 w-4" />
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-gray-400 leading-none mb-0.5 tracking-wide">
+                    Company Head
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-800">
+                      {companyHeadLoading
+                        ? "Loading..."
+                        : companyHead?.name || "Not assigned"}
+                    </p>
+
+                    {isAdmin && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-teal-600 hover:text-teal-700"
+                        onClick={() => {
+                          setSelectedCompanyHeadId(companyHead?.id?.toString() || "")
+                          setCompanyHeadEditOpen(true)
+                        }}
+                      >
+                        <Edit3 className="h-3.5 w-3.5 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -916,6 +1030,75 @@ export default function CompanyProfilePage() {
         </div>
       </div>
 
+      {/* Company Head Edit Dialog */}
+      <Dialog open={companyHeadEditOpen} onOpenChange={setCompanyHeadEditOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">
+              Edit Company Head
+            </DialogTitle>
+            <DialogDescription>
+              Select an employee to assign as the company head.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <label
+              htmlFor="companyHead"
+              className="block text-sm font-medium"
+            >
+              Company Head
+            </label>
+
+            <select
+              id="companyHead"
+              value={selectedCompanyHeadId}
+              onChange={(e) => setSelectedCompanyHeadId(e.target.value)}
+              className="w-full px-3 py-2 border rounded-md"
+              disabled={isCompanyHeadEmployeesLoading}
+            >
+              <option value="">
+                {isCompanyHeadEmployeesLoading
+                  ? "Loading employees..."
+                  : "Select Company Head"}
+              </option>
+
+              {companyEmployees.map((employee: any) => (
+                <option
+                  key={employee.id}
+                  value={employee.id.toString()}
+                >
+                  {employee.first_name} {employee.last_name || ""}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCompanyHeadEditOpen(false)}
+              disabled={companyHeadSaving}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={handleCompanyHeadUpdate}
+              disabled={
+                companyHeadSaving ||
+                isCompanyHeadEmployeesLoading ||
+                !selectedCompanyHeadId
+              }
+            >
+              {companyHeadSaving ? "Updating..." : "Update Company Head"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       {/* Field Settings Dialog */}
       <Dialog open={showFieldSettingsDialog} onOpenChange={setShowFieldSettingsDialog}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -948,7 +1131,7 @@ export default function CompanyProfilePage() {
               <Accordion type="single" collapsible className="w-full">
                 {Object.entries(CONFIGURABLE_FIELDS).map(([section, { fields, label, description }]) => {
                   const visibleCount = getVisibleCount(section)
-                  
+
                   return (
                     <AccordionItem key={section} value={section}>
                       <AccordionTrigger className="text-sm font-semibold hover:no-underline">
@@ -967,10 +1150,10 @@ export default function CompanyProfilePage() {
                             const visible = isFieldVisible(section, field)
                             const mandatory = isFieldMandatory(section, field)
                             const defaultMandatory = getDefaultMandatory(section, field)
-                            
+
                             return (
-                              <div 
-                                key={field} 
+                              <div
+                                key={field}
                                 className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-white"
                               >
                                 <div className="flex-1">
