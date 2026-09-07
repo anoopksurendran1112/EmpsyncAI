@@ -44,6 +44,18 @@ export default function AddEmployeePage() {
     "Identity & Bank"
   ];
 
+  const visibleSteps = steps.filter((_, index) => {
+    if (index === 3) {
+      return isFieldVisible("qualifications", "qualification");
+    }
+
+    if (index === 4) {
+      return isFieldVisible("experience", "experience");
+    }
+
+    return true;
+  });
+
   // Dropdown states
   const [roles, setRoles] = useState<Role[]>([]);
   const [religions, setReligions] = useState<Religion[]>([]);
@@ -1331,13 +1343,34 @@ export default function AddEmployeePage() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      const nextStep = currentStep + 1;
+      let nextStep = currentStep + 1;
+
+      while (
+        nextStep < steps.length &&
+        !visibleSteps.includes(steps[nextStep])
+      ) {
+        nextStep++;
+      }
+
       setCurrentStep(nextStep);
       saveDraft(currentStep);
       setMessage("");
     }
   };
-  const handlePrev = () => { setCurrentStep(p => p - 1); setMessage(""); };
+
+  const handlePrev = () => {
+    let prevStep = currentStep - 1;
+
+    while (
+      prevStep >= 0 &&
+      !visibleSteps.includes(steps[prevStep])
+    ) {
+      prevStep--;
+    }
+
+    setCurrentStep(prevStep);
+    setMessage("");
+  };
 
   // ---------- Submit ----------
   const handleSubmit = async () => {
@@ -2956,137 +2989,141 @@ export default function AddEmployeePage() {
             </div>
           </div>
 
-          <Separator className="bg-[#dde3ec]" />
+          {isFieldVisible("identity_bank", "bank_details") && (
+            <>
+              <Separator className="bg-[#dde3ec]" />
 
-          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-            <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
-            <Button
-              type="button"
-              onClick={addBank}
-              size="sm"
-              variant="outline"
-              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-            >
-              <Plus className="w-4 h-4" /> Add Bank
-            </Button>
-          </div>
-
-          {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
-
-          <div className="space-y-6">
-            {bankDetails.map((b, idx) => (
-              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+              <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+                <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
                 <Button
                   type="button"
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-                  onClick={() => removeBank(idx)}
+                  onClick={addBank}
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Plus className="w-4 h-4" /> Add Bank
                 </Button>
+              </div>
 
-                <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
-                      Bank Name{" "}
-                      {bankMandatory && (
-                        <span className="text-[#c9962a] ml-1">*</span>
-                      )}
-                    </Label>
-                    <Input
-                      value={b.bank_name}
-                      onChange={e => updateBank(idx, 'bank_name', e.target.value)}
-                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                    />
-                    {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
-                  </div>
+              {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
 
-                  <div>
-                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
-                      Account Number{" "}
-                      {bankMandatory && (
-                        <span className="text-[#c9962a] ml-1">*</span>
-                      )}
-                    </Label>
-                    <Input
-                      value={b.account_number}
-                      onChange={e => updateBank(idx, 'account_number', e.target.value)}
-                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                    />
-                    {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
-                  </div>
+              <div className="space-y-6">
+                {bankDetails.map((b, idx) => (
+                  <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                      onClick={() => removeBank(idx)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
 
-                  <div>
-                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
-                      IFSC Code{" "}
-                      {bankMandatory && (
-                        <span className="text-[#c9962a] ml-1">*</span>
-                      )}
-                    </Label>
-                    <Input
-                      value={b.ifsc_code}
-                      onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
-                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                    />
-                    {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
-                  </div>
+                    <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Bank Name{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.bank_name}
+                          onChange={e => updateBank(idx, 'bank_name', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
+                      </div>
 
-                  <div>
-                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
-                      Account Holder Name{" "}
-                      {bankMandatory && (
-                        <span className="text-[#c9962a] ml-1">*</span>
-                      )}
-                    </Label>
-                    <Input
-                      value={b.acc_holder_name}
-                      onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
-                      placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
-                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-                    />
-                    {errors[`bank_${idx}_holder`] && (
-                      <p className="text-xs text-red-500 mt-1">
-                        {errors[`bank_${idx}_holder`]}
-                      </p>
-                    )}
-                  </div>
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Account Number{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.account_number}
+                          onChange={e => updateBank(idx, 'account_number', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
+                      </div>
 
-                  <div>
-                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
-                      Branch{" "}
-                      {bankMandatory && (
-                        <span className="text-[#c9962a] ml-1">*</span>
-                      )}
-                    </Label>
-                    <Input
-                      value={b.branch_name}
-                      onChange={e => updateBank(idx, 'branch_name', e.target.value)}
-                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                    />
-                    {errors[`bank_${idx}_branch`] && (
-                      <p className="text-xs text-red-500 mt-1">
-                        {errors[`bank_${idx}_branch`]}
-                      </p>
-                    )}
-                  </div>
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          IFSC Code{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.ifsc_code}
+                          onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
+                      </div>
 
-                  <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
-                    <Switch
-                      checked={b.is_primary}
-                      onCheckedChange={v => updateBank(idx, 'is_primary', v)}
-                    />
-                    <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Account Holder Name{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.acc_holder_name}
+                          onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
+                          placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                        />
+                        {errors[`bank_${idx}_holder`] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errors[`bank_${idx}_holder`]}
+                          </p>
+                        )}
+                      </div>
 
-          {bankDetails.length === 0 && (
-            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-              No bank accounts added yet. Please add at least one.
-            </div>
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Branch{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.branch_name}
+                          onChange={e => updateBank(idx, 'branch_name', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_branch`] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errors[`bank_${idx}_branch`]}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
+                        <Switch
+                          checked={b.is_primary}
+                          onCheckedChange={v => updateBank(idx, 'is_primary', v)}
+                        />
+                        <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {bankDetails.length === 0 && (
+                <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+                  No bank accounts added yet. Please add at least one.
+                </div>
+              )}
+            </>
           )}
         </div>
       )
@@ -3130,8 +3167,8 @@ export default function AddEmployeePage() {
         <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(15,39,68,0.08)] p-6 mb-8 border border-[#dde3ec]">
           <div className="flex items-center justify-between relative px-4">
             <div className="absolute left-[5%] right-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#dde3ec] z-0 rounded-full"></div>
-            <div className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" style={{ width: `${(currentStep / (steps.length - 1)) * 90}%` }}></div>
-            {steps.map((label, idx) => (
+            <div className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" style={{ width: `${(visibleSteps.indexOf(steps[currentStep]) / (visibleSteps.length - 1)) * 90}%` }}></div>
+            {visibleSteps.map((label, idx) => (
               <div key={idx} className="relative z-10 flex flex-col items-center gap-2 group cursor-pointer w-24" onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}>
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${idx === currentStep ? 'bg-[#eff6ff] border-2 border-[#0f2744] text-[#0f2744] shadow-[0_0_0_4px_rgba(239,246,255,1)] scale-105' : idx < currentStep ? 'bg-[#0f2744] text-white' : 'bg-[#f4f7fb] text-[#7a8ba0] border-2 border-transparent'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
