@@ -11,21 +11,4 @@ class Migration(migrations.Migration):
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name="leave",
-            name="current_approver",
-            field=models.ForeignKey(
-                blank=True,
-                null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
-                related_name="approver_for_leaves",
-                to=settings.AUTH_USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name="leave",
-            name="current_level",
-            field=models.IntegerField(default=1),
-        ),
-    ]
+    operations = []

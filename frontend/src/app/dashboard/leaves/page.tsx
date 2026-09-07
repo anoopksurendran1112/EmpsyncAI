@@ -108,6 +108,10 @@ interface LeaveRequest {
   leave_type?: { name: string; leave_type?: string };
   leave_choice?: string;
   days?: number;
+  current_approver_detail?: { id: number; name: string } | null;
+  current_level?: number;
+  hierarchy_total_levels?: number;
+  approval_progress?: Array<{ level: number; criteria: string; status: string }>;
 }
 
 interface Holiday {
@@ -915,7 +919,7 @@ export default function LeavesPage() {
       console.log('📡 Status update response:', { status: res.status, data: result });
 
       if (res.ok && result.success) {
-        setStatusMessage({ type: "success", text: `Leave ${status === "A" ? "approved" : "rejected"} successfully!` });
+        setStatusMessage({ type: "success", text: result.message || `Leave ${status === "A" ? "approved" : "rejected"} successfully!` });
         fetchLeaveRequests(pagination.currentPage);
         // Clear message after 3 seconds
         setTimeout(() => setStatusMessage(null), 3000);
@@ -1403,6 +1407,11 @@ export default function LeavesPage() {
                                 <Calendar className="h-3.5 w-3.5" />
                                 {req.from_date} to {req.to_date}
                               </p>
+                              {req.status === 'P' && req.current_approver_detail && (
+                                <p className="text-xs text-amber-600 font-medium mt-1">
+                                  Pending: {req.current_approver_detail.name} {req.hierarchy_total_levels ? `(Level ${(req.current_level || 0) + 1} of ${req.hierarchy_total_levels})` : ''}
+                                </p>
+                              )}
                             </div>
                           </div>
 
