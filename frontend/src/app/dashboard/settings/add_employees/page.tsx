@@ -959,32 +959,53 @@ export default function AddEmployeePage() {
     }
 
     else if (step === 4) {
+      const experienceMandatory = isFieldMandatory(
+        "experience",
+        "experience"
+      );
       experiences.forEach((exp, i) => {
-
-        if (!exp.company_name?.trim()) {
+        if (experienceMandatory && !exp.company_name?.trim()) {
           newErrors[`exp_${i}_company`] = "Required";
-        } else if (!/^[A-Za-z\s&.,()-]+$/.test(exp.company_name.trim())) {
+        } else if (
+          exp.company_name?.trim() &&
+          !/^[A-Za-z\s&.,()-]+$/.test(exp.company_name.trim())
+        ) {
           newErrors[`exp_${i}_company`] = "Numbers are not allowed";
-        } else if (exp.company_name.trim().length < 3) {
+        } else if (
+          exp.company_name?.trim() &&
+          exp.company_name.trim().length < 3
+        ) {
           newErrors[`exp_${i}_company`] = "Minimum 3 characters required";
-        } else if (exp.company_name.trim().length > 100) {
+        } else if (
+          exp.company_name?.trim() &&
+          exp.company_name.trim().length > 100
+        ) {
           newErrors[`exp_${i}_company`] = "Maximum 100 characters allowed";
         }
 
-        if (!exp.location?.trim()) {
+        if (experienceMandatory && !exp.location?.trim()) {
           newErrors[`exp_${i}_location`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(exp.location.trim())) {
+        } else if (
+          exp.location?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(exp.location.trim())
+        ) {
           newErrors[`exp_${i}_location`] =
             "Only letters, spaces, commas and hyphens are allowed";
-        } else if (exp.location.trim().length < 3) {
+        } else if (
+          exp.location?.trim() &&
+          exp.location.trim().length < 3
+        ) {
           newErrors[`exp_${i}_location`] = "Minimum 3 characters required";
-        } else if (exp.location.trim().length > 25) {
+        } else if (
+          exp.location?.trim() &&
+          exp.location.trim().length > 25
+        ) {
           newErrors[`exp_${i}_location`] = "Maximum 25 characters allowed";
         }
 
-        if (!exp.start_year) {
+        if (experienceMandatory && !exp.start_year) {
           newErrors[`exp_${i}_start`] = "Required";
-        } else {
+        } else if (exp.start_year) {
           const startDate = new Date(exp.start_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -995,9 +1016,9 @@ export default function AddEmployeePage() {
           }
         }
 
-        if (!exp.end_year) {
+        if (experienceMandatory && !exp.end_year) {
           newErrors[`exp_${i}_end`] = "Required";
-        } else {
+        } else if (exp.end_year) {
           const endDate = new Date(exp.end_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -1025,38 +1046,48 @@ export default function AddEmployeePage() {
             "Maximum 500 characters allowed";
         }
 
-
-        if (!exp.experience_letter && !exp.experience_letter_base64) {
+        if (
+          experienceMandatory &&
+          !exp.experience_letter &&
+          !exp.experience_letter_base64
+        ) {
           newErrors[`exp_${i}_letter`] =
             "Experience letter is required";
         }
 
-        if (exp.designations.length === 0) {
+        if (experienceMandatory && exp.designations.length === 0) {
           newErrors[`exp_${i}_desig_empty`] =
             "At least one designation is required";
         }
 
-        exp.designations.forEach((des, d) => {
+        exp.designations.forEach((des: any, d: number) => {
 
-          if (!des.designation?.trim()) {
+          if (experienceMandatory && !des.designation?.trim()) {
             newErrors[`exp_${i}_des_${d}_title`] = "Required";
           } else if (
+            des.designation?.trim() &&
             !/^[A-Za-z\s&.,()-]+$/.test(des.designation.trim())
           ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Numbers are not allowed";
-          } else if (des.designation.trim().length < 3) {
+          } else if (
+            des.designation?.trim() &&
+            des.designation.trim().length < 3
+          ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Minimum 3 characters required";
-          } else if (des.designation.trim().length > 100) {
+          } else if (
+            des.designation?.trim() &&
+            des.designation.trim().length > 100
+          ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Maximum 100 characters allowed";
           }
 
 
-          if (!des.start_date) {
+          if (experienceMandatory && !des.start_date) {
             newErrors[`exp_${i}_des_${d}_start`] = "Required";
-          } else {
+          } else if (des.start_date) {
             const desStart = new Date(des.start_date);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -1086,9 +1117,9 @@ export default function AddEmployeePage() {
           }
 
 
-          if (!des.end_date) {
+          if (experienceMandatory && !des.end_date) {
             newErrors[`exp_${i}_des_${d}_end`] = "Required";
-          } else {
+          } else if (des.end_date) {
             const desEnd = new Date(des.end_date);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -1117,7 +1148,7 @@ export default function AddEmployeePage() {
             }
           }
 
-          if (!des.change_type) {
+          if (experienceMandatory && !des.change_type) {
             newErrors[`exp_${i}_des_${d}_type`] = "Required";
           }
 
@@ -1134,18 +1165,39 @@ export default function AddEmployeePage() {
       });
     }
 
-
     else if (step === 5) {
+      const identityMandatory = isFieldMandatory(
+        "identity_bank",
+        "aadhar_no"
+      );
 
-      if (!profileData.aadhar_no?.trim()) {
+      const panMandatory = isFieldMandatory(
+        "identity_bank",
+        "pan_no"
+      );
+
+      const bankMandatory = isFieldMandatory(
+        "identity_bank",
+        "bank_details"
+      );
+
+      if (identityMandatory && !profileData.aadhar_no?.trim()) {
         newErrors.aadhar_no = "Aadhar Number is required";
-      } else if (!/^\d+$/.test(profileData.aadhar_no.trim())) {
+      } else if (
+        profileData.aadhar_no?.trim() &&
+        !/^\d+$/.test(profileData.aadhar_no.trim())
+      ) {
         newErrors.aadhar_no = "Aadhar Number must contain only digits";
-      } else if (profileData.aadhar_no.trim().length !== 12) {
+      } else if (
+        profileData.aadhar_no?.trim() &&
+        profileData.aadhar_no.trim().length !== 12
+      ) {
         newErrors.aadhar_no = "Aadhar Number must be exactly 12 digits";
       }
 
-      if (profileData.pan_no?.trim()) {
+      if (panMandatory && !profileData.pan_no?.trim()) {
+        newErrors.pan_no = "PAN Number is required";
+      } else if (profileData.pan_no?.trim()) {
         const pan = profileData.pan_no.trim().toUpperCase();
 
         if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
@@ -1154,63 +1206,94 @@ export default function AddEmployeePage() {
       }
 
 
-      if (bankDetails.length === 0) {
+      if (bankMandatory && bankDetails.length === 0) {
         newErrors.general = "At least one bank account is required.";
       }
 
       bankDetails.forEach((b, i) => {
 
-        if (!b.bank_name?.trim()) {
+        if (bankMandatory && !b.bank_name?.trim()) {
           newErrors[`bank_${i}_name`] = "Required";
-        } else if (!/^[A-Za-z\s&.,()-]+$/.test(b.bank_name.trim())) {
+        } else if (
+          b.bank_name?.trim() &&
+          !/^[A-Za-z\s&.,()-]+$/.test(b.bank_name.trim())
+        ) {
           newErrors[`bank_${i}_name`] = "Numbers are not allowed";
-        } else if (b.bank_name.trim().length < 3) {
+        } else if (
+          b.bank_name?.trim() &&
+          b.bank_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_name`] = "Minimum 3 characters required";
-        } else if (b.bank_name.trim().length > 100) {
+        } else if (
+          b.bank_name?.trim() &&
+          b.bank_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_name`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.acc_holder_name?.trim()) {
+        if (bankMandatory && !b.acc_holder_name?.trim()) {
           newErrors[`bank_${i}_holder`] = "Required";
-        } else if (!/^[A-Za-z\s.]+$/.test(b.acc_holder_name.trim())) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          !/^[A-Za-z\s.]+$/.test(b.acc_holder_name.trim())
+        ) {
           newErrors[`bank_${i}_holder`] = "Numbers are not allowed";
-        } else if (b.acc_holder_name.trim().length < 3) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          b.acc_holder_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_holder`] = "Minimum 3 characters required";
-        } else if (b.acc_holder_name.trim().length > 100) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          b.acc_holder_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_holder`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.branch_name?.trim()) {
+        if (bankMandatory && !b.branch_name?.trim()) {
           newErrors[`bank_${i}_branch`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(b.branch_name.trim())) {
+        } else if (
+          b.branch_name?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(b.branch_name.trim())
+        ) {
           newErrors[`bank_${i}_branch`] =
             "Only letters, spaces, commas and hyphens are allowed";
-        } else if (b.branch_name.trim().length < 3) {
+        } else if (
+          b.branch_name?.trim() &&
+          b.branch_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_branch`] = "Minimum 3 characters required";
-        } else if (b.branch_name.trim().length > 100) {
+        } else if (
+          b.branch_name?.trim() &&
+          b.branch_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_branch`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.account_number?.trim()) {
+        if (bankMandatory && !b.account_number?.trim()) {
           newErrors[`bank_${i}_acc`] = "Required";
-        } else if (!/^\d+$/.test(b.account_number.trim())) {
+        } else if (
+          b.account_number?.trim() &&
+          !/^\d+$/.test(b.account_number.trim())
+        ) {
           newErrors[`bank_${i}_acc`] =
             "Account Number must contain only digits";
         } else if (
-          b.account_number.trim().length < 9 ||
-          b.account_number.trim().length > 18
+          b.account_number?.trim() &&
+          (b.account_number.trim().length < 9 ||
+            b.account_number.trim().length > 18)
         ) {
           newErrors[`bank_${i}_acc`] =
             "Account Number must be between 9 and 18 digits";
         }
 
 
-        if (!b.ifsc_code?.trim()) {
+        if (bankMandatory && !b.ifsc_code?.trim()) {
           newErrors[`bank_${i}_ifsc`] = "Required";
-        } else {
+        } else if (b.ifsc_code?.trim()) {
           const ifsc = b.ifsc_code.trim().toUpperCase();
 
           if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
@@ -2473,388 +2556,503 @@ export default function AddEmployeePage() {
     );
   };
 
-  const renderStep4 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Work Experience</h3>
-        <Button
-          type="button"
-          onClick={addExp}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Experience
-        </Button>
-      </div>
+  const renderStep4 = () => {
+    const experienceMandatory = isFieldMandatory(
+      "experience",
+      "experience"
+    );
 
-      <div className="space-y-6">
-        {experiences.map((exp, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible mb-6">
+    return (
+      isFieldVisible("experience", "experience") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+            <h3 className="font-semibold text-base text-[#0f2744]">Work Experience</h3>
             <Button
               type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeExp(idx)}
+              onClick={addExp}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
             >
-              <Trash2 className="w-4 h-4" />
+              <Plus className="w-4 h-4" /> Add Experience
             </Button>
+          </div>
 
-            <CardContent className="p-0 space-y-4">
-              <div className="flex items-center gap-3 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60 w-fit">
-                <Switch checked={exp.is_internal} onCheckedChange={v => updateExp(idx, 'is_internal', v)} />
-                <div>
-                  <Label className="text-sm font-medium text-[#445069] cursor-pointer">Internal Experience</Label>
-                  <p className="text-[10px] text-[#7a8ba0] mt-0.5">Check if this was an internal position within our company</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Company Name {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
-                  <Input
-                    value={exp.company_name}
-                    onChange={e => updateExp(idx, 'company_name', e.target.value)}
-                    disabled={exp.is_internal}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-                  />
-                  {errors[`exp_${idx}_company`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
-                  <Input
-                    value={exp.location}
-                    onChange={e => updateExp(idx, 'location', e.target.value)}
-                    disabled={exp.is_internal}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-                  />
-                  {errors[`exp_${idx}_location`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={exp.start_year}
-                    onChange={e => updateExp(idx, 'start_year', e.target.value)}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-                  {errors[`exp_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_start`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={exp.end_year}
-                    onChange={e => updateExp(idx, 'end_year', e.target.value)}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-                  {errors[`exp_${idx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_end`]}</p>}
-                </div>
-              </div>
+          <div className="space-y-6">
+            {experiences.map((exp, idx) => (
+              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible mb-6">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                  onClick={() => removeExp(idx)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
-                <textarea
-                  rows={2}
-                  value={exp.description}
-                  onChange={e => updateExp(idx, 'description', e.target.value)}
-                  placeholder="Brief description of role or responsibilities (optional)..."
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Experience Letter <span className="text-[#c9962a] ml-1">*</span></Label>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
-                    <Upload className="w-4 h-4" />
-                    <span>{exp.experience_letter ? (exp.experience_letter as File).name : exp.experience_letter_name ? exp.experience_letter_name : "Upload Experience Letter"}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; handleExpFileChange(idx, f); }}
-                    />
-                  </label>
-                  {(exp.experience_letter || exp.experience_letter_base64) && (
-                    <button type="button" onClick={() => handleExpFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                {errors[`exp_${idx}_letter`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_letter`]}</p>}
-              </div>
-
-              <div className="bg-white p-5 rounded-lg border border-[#dde3ec] space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]/60">
-                  <h5 className="font-semibold text-xs text-[#0f2744] uppercase tracking-wider">Designations</h5>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addDesig(idx)}
-                    className="h-8 px-2.5 text-xs text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] gap-1 flex items-center transition-all font-medium border border-transparent hover:border-[#dde3ec]"
-                  >
-                    <Plus className="w-3 h-3" /> Add Designation
-                  </Button>
-                </div>
-                {errors[`exp_${idx}_desig_empty`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desig_empty`]}</p>}
-
-                {exp.designations.map((des: any, didx: number) => (
-                  <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
-                    <div className="w-full">
-                      {exp.is_internal ? (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Role <span className="text-[#c9962a] ml-1">*</span></Label>
-                            <select
-                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
-                              value={des.company_role_id || ""}
-                              onChange={e => updateDesig(idx, didx, 'company_role_id', e.target.value)}
-                            >
-                              <option value="">Select Role</option>
-                              {roles.map(r => <option key={r.id} value={r.id}>{r.role || r.name}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Group <span className="text-[#c9962a] ml-1">*</span></Label>
-                            <select
-                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
-                              value={des.company_group_id || ""}
-                              onChange={e => updateDesig(idx, didx, 'company_group_id', e.target.value)}
-                            >
-                              <option value="">Select Group</option>
-                              {groups.map(g => <option key={g.id} value={g.id}>{g.group}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Title <span className="text-[#c9962a] ml-1">*</span></Label>
-                          <Input
-                            className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                            value={des.designation}
-                            onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
-                          />
-                          {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <Input
-                          type="date"
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          value={des.start_date}
-                          onChange={e => updateDesig(idx, didx, 'start_date', e.target.value)}
-                        />
-                        {errors[`exp_${idx}_des_${didx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_start`]}</p>}
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <Input
-                          type="date"
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          value={des.end_date}
-                          onChange={e => updateDesig(idx, didx, 'end_date', e.target.value)}
-                        />
-                        {errors[`exp_${idx}_des_${didx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_end`]}</p>}
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Type <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <select
-                          className="h-8 text-xs w-full border border-[#dde3ec] bg-white rounded-md px-2 focus:outline-none cursor-pointer"
-                          value={des.change_type}
-                          onChange={e => updateDesig(idx, didx, 'change_type', e.target.value)}
-                        >
-                          <option value="Joined">Joined</option>
-                          <option value="Promotion">Promotion</option>
-                          <option value="Demotion">Demotion</option>
-                          <option value="Re-designation">Re-designation</option>
-                        </select>
-                        {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Description (optional)</Label>
-                        <Input
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          placeholder="Notes about this change (optional)..."
-                          value={des.description}
-                          onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded shrink-0"
-                        onClick={() => removeDesig(idx, didx)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                <CardContent className="p-0 space-y-4">
+                  <div className="flex items-center gap-3 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60 w-fit">
+                    <Switch checked={exp.is_internal} onCheckedChange={v => updateExp(idx, 'is_internal', v)} />
+                    <div>
+                      <Label className="text-sm font-medium text-[#445069] cursor-pointer">Internal Experience</Label>
+                      <p className="text-[10px] text-[#7a8ba0] mt-0.5">Check if this was an internal position within our company</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Company Name{" "}
+                        {experienceMandatory && !exp.is_internal && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={exp.company_name}
+                        onChange={e => updateExp(idx, 'company_name', e.target.value)}
+                        disabled={exp.is_internal}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                      />
+                      {errors[`exp_${idx}_company`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Location{" "}
+                        {experienceMandatory && !exp.is_internal && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={exp.location}
+                        onChange={e => updateExp(idx, 'location', e.target.value)}
+                        disabled={exp.is_internal}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                      />
+                      {errors[`exp_${idx}_location`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Start Date{" "}
+                        {experienceMandatory && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        type="date"
+                        value={exp.start_year}
+                        onChange={e => updateExp(idx, 'start_year', e.target.value)}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                      />
+                      {errors[`exp_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_start`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        End Date{" "}
+                        {experienceMandatory && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        type="date"
+                        value={exp.end_year}
+                        onChange={e => updateExp(idx, 'end_year', e.target.value)}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                      />
+                      {errors[`exp_${idx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_end`]}</p>}
+                    </div>
+                  </div>
 
-      {experiences.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No experience records added yet.
-        </div>
-      )}
-    </div>
-  );
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
+                    <textarea
+                      rows={2}
+                      value={exp.description}
+                      onChange={e => updateExp(idx, 'description', e.target.value)}
+                      placeholder="Brief description of role or responsibilities (optional)..."
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
+                    />
+                  </div>
 
-  const renderStep5 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Aadhar Number <span className="text-[#c9962a] ml-1">*</span></Label>
-          <Input
-            value={profileData.aadhar_no}
-            onChange={handleProfileChange}
-            name="aadhar_no"
-            placeholder="xxxx xxxx xxxx xxxx"
-            className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-          />
-          {errors.aadhar_no && <p className="text-xs text-red-500 mt-1">{errors.aadhar_no}</p>}
-        </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Experience Letter{" "}
+                      {experienceMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
+                        <Upload className="w-4 h-4" />
+                        <span>{exp.experience_letter ? (exp.experience_letter as File).name : exp.experience_letter_name ? exp.experience_letter_name : "Upload Experience Letter"}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0] || null; handleExpFileChange(idx, f); }}
+                        />
+                      </label>
+                      {(exp.experience_letter || exp.experience_letter_base64) && (
+                        <button type="button" onClick={() => handleExpFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {errors[`exp_${idx}_letter`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_letter`]}</p>}
+                  </div>
 
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">PAN Number</Label>
-          <Input
-            value={profileData.pan_no}
-            onChange={handleProfileChange}
-            name="pan_no"
-            placeholder="ABCDE1234F"
-            className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all uppercase"
-          />
-          {errors.pan_no && (
-            <p className="text-xs text-red-500 mt-1">
-              {errors.pan_no}
-            </p>
+                  <div className="bg-white p-5 rounded-lg border border-[#dde3ec] space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]/60">
+                      <h5 className="font-semibold text-xs text-[#0f2744] uppercase tracking-wider">Designations</h5>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => addDesig(idx)}
+                        className="h-8 px-2.5 text-xs text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] gap-1 flex items-center transition-all font-medium border border-transparent hover:border-[#dde3ec]"
+                      >
+                        <Plus className="w-3 h-3" /> Add Designation
+                      </Button>
+                    </div>
+                    {errors[`exp_${idx}_desig_empty`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desig_empty`]}</p>}
+
+                    {exp.designations.map((des: any, didx: number) => (
+                      <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
+                        <div className="w-full">
+                          {exp.is_internal ? (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Role{" "}
+                                  {experienceMandatory && (
+                                    <span className="text-[#c9962a] ml-1">*</span>
+                                  )}</Label>
+                                <select
+                                  className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
+                                  value={des.company_role_id || ""}
+                                  onChange={e => updateDesig(idx, didx, 'company_role_id', e.target.value)}
+                                >
+                                  <option value="">Select Role</option>
+                                  {roles.map(r => <option key={r.id} value={r.id}>{r.role || r.name}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Group{" "}
+                                  {experienceMandatory && (
+                                    <span className="text-[#c9962a] ml-1">*</span>
+                                  )}</Label>
+                                <select
+                                  className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
+                                  value={des.company_group_id || ""}
+                                  onChange={e => updateDesig(idx, didx, 'company_group_id', e.target.value)}
+                                >
+                                  <option value="">Select Group</option>
+                                  {groups.map(g => <option key={g.id} value={g.id}>{g.group}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                                Title{" "}
+                                {experienceMandatory && (
+                                  <span className="text-[#c9962a] ml-1">*</span>
+                                )}
+                              </Label>
+                              <Input
+                                className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                                value={des.designation}
+                                onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
+                              />
+                              {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              Start Date{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <Input
+                              type="date"
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              value={des.start_date}
+                              onChange={e => updateDesig(idx, didx, 'start_date', e.target.value)}
+                            />
+                            {errors[`exp_${idx}_des_${didx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_start`]}</p>}
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              End Date{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <Input
+                              type="date"
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              value={des.end_date}
+                              onChange={e => updateDesig(idx, didx, 'end_date', e.target.value)}
+                            />
+                            {errors[`exp_${idx}_des_${didx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_end`]}</p>}
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              Type{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <select
+                              className="h-8 text-xs w-full border border-[#dde3ec] bg-white rounded-md px-2 focus:outline-none cursor-pointer"
+                              value={des.change_type}
+                              onChange={e => updateDesig(idx, didx, 'change_type', e.target.value)}
+                            >
+                              <option value="Joined">Joined</option>
+                              <option value="Promotion">Promotion</option>
+                              <option value="Demotion">Demotion</option>
+                              <option value="Re-designation">Re-designation</option>
+                            </select>
+                            {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-end gap-3">
+                          <div className="flex-1">
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block">Description (optional)</Label>
+                            <Input
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              placeholder="Notes about this change (optional)..."
+                              value={des.description}
+                              onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded shrink-0"
+                            onClick={() => removeDesig(idx, didx)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {experiences.length === 0 && (
+            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+              No experience records added yet.
+            </div>
           )}
         </div>
-      </div>
+      )
+    );
+  };
 
-      <Separator className="bg-[#dde3ec]" />
+  const renderStep5 = () => {
+    const identityMandatory = isFieldMandatory(
+      "identity",
+      "identity"
+    );
 
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
-        <Button
-          type="button"
-          onClick={addBank}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Bank
-        </Button>
-      </div>
+    const panMandatory = isFieldMandatory(
+      "identity_bank",
+      "pan_no"
+    );
 
-      {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
+    const bankMandatory = isFieldMandatory(
+      "identity_bank",
+      "bank_details"
+    );
+    
 
-      <div className="space-y-6">
-        {bankDetails.map((b, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+    return (
+      isFieldVisible("identity_bank", "aadhar_no") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Aadhar Number{" "}
+                {isFieldMandatory("identity_bank", "aadhar_no") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <Input
+                value={profileData.aadhar_no}
+                onChange={handleProfileChange}
+                name="aadhar_no"
+                placeholder="xxxx xxxx xxxx xxxx"
+                className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.aadhar_no && <p className="text-xs text-red-500 mt-1">{errors.aadhar_no}</p>}
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                PAN Number{" "}
+                {panMandatory && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <Input
+                value={profileData.pan_no}
+                onChange={handleProfileChange}
+                name="pan_no"
+                placeholder="ABCDE1234F"
+                className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all uppercase"
+              />
+              {errors.pan_no && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.pan_no}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <Separator className="bg-[#dde3ec]" />
+
+          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+            <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
             <Button
               type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeBank(idx)}
+              onClick={addBank}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
             >
-              <Trash2 className="w-4 h-4" />
+              <Plus className="w-4 h-4" /> Add Bank
             </Button>
+          </div>
 
-            <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Bank Name <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.bank_name}
-                  onChange={e => updateBank(idx, 'bank_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
-              </div>
+          {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Account Number <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.account_number}
-                  onChange={e => updateBank(idx, 'account_number', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
-              </div>
+          <div className="space-y-6">
+            {bankDetails.map((b, idx) => (
+              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                  onClick={() => removeBank(idx)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">IFSC Code <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.ifsc_code}
-                  onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
-              </div>
+                <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Bank Name{" "}
+                      {bankMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      value={b.bank_name}
+                      onChange={e => updateBank(idx, 'bank_name', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Account Holder Name <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.acc_holder_name}
-                  onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
-                  placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-                />
-                {errors[`bank_${idx}_holder`] && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors[`bank_${idx}_holder`]}
-                  </p>
-                )}
-              </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Account Number{" "}
+                      {bankMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      value={b.account_number}
+                      onChange={e => updateBank(idx, 'account_number', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Branch <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.branch_name}
-                  onChange={e => updateBank(idx, 'branch_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_branch`] && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors[`bank_${idx}_branch`]}
-                  </p>
-                )}
-              </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      IFSC Code{" "}
+                      {bankMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      value={b.ifsc_code}
+                      onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
+                  </div>
 
-              <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
-                <Switch
-                  checked={b.is_primary}
-                  onCheckedChange={v => updateBank(idx, 'is_primary', v)}
-                />
-                <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Account Holder Name{" "}
+                      {bankMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      value={b.acc_holder_name}
+                      onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
+                      placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                    />
+                    {errors[`bank_${idx}_holder`] && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {errors[`bank_${idx}_holder`]}
+                      </p>
+                    )}
+                  </div>
 
-      {bankDetails.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No bank accounts added yet. Please add at least one.
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Branch{" "}
+                      {bankMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      value={b.branch_name}
+                      onChange={e => updateBank(idx, 'branch_name', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`bank_${idx}_branch`] && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {errors[`bank_${idx}_branch`]}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
+                    <Switch
+                      checked={b.is_primary}
+                      onCheckedChange={v => updateBank(idx, 'is_primary', v)}
+                    />
+                    <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {bankDetails.length === 0 && (
+            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+              No bank accounts added yet. Please add at least one.
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      )
+    );
+  };
 
   // ---------- Main Return ----------
   return (
