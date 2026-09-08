@@ -2228,9 +2228,24 @@ def employee_with_profile(request):
     def clean_optional_id(key):
         return _parse_int(request.data.get(key))
 
+    
     def save_address(address_data, label, existing_address=None):
         if not address_data:
             return existing_address
+
+        if isinstance(address_data, dict):
+            address_fields = [
+            'address_line_1',
+            'address_line_2',
+            'city',
+            'district',
+            'state',
+            'pincode'
+            ]
+
+            if not any(str(address_data.get(field, '')).strip()for field in address_fields):
+                return existing_address
+            
         if existing_address:
             addr_serializer = EmployeeAddressSerializer(existing_address, data=address_data, partial=True)
         else:
@@ -2394,8 +2409,13 @@ def employee_with_profile(request):
                             errors["permanent_address"] = "Permanent address is required."
                         continue
 
-                    value = source.get(field_name)
-
+                    if field_name == "present_address_line":
+                        value = present_address_data.get("address_line_1") if present_address_data else None
+                    elif field_name == "qualification":
+                        value = qualifications
+                    else:
+                        value = source.get(field_name)
+                        
                     if value in [None, "", [], {}]:
                         errors[field_name] = f"{field_name.replace('_', ' ').title()} is required."
 
@@ -2596,6 +2616,16 @@ def employee_with_profile(request):
                     final_experiences_response = []
 
                     for idx, e_data in enumerate(experiences):
+                        if (
+                            not e_data.get('company_name', '').strip()
+                            and not e_data.get('location', '').strip()
+                            and not e_data.get('start_year')
+                            and not e_data.get('end_year')
+                            and not e_data.get('experience_letter_base64')
+                            and not e_data.get('experience_letter')
+                            and not e_data.get('designations')
+                        ):
+                            continue
                         e_data['user'] = user.id
 
                         if 'is_internal' in e_data:
@@ -2627,6 +2657,7 @@ def employee_with_profile(request):
                                 logger.error(f"Error decoding experiences[{idx}] letter base64: {e}")
                         designations = e_data.pop('designations', [])
 
+                        print("EXPERIENCE DATA BEFORE SERIALIZER:", e_data)
                         e_serializer = EmployeeExperienceSerializer(data=e_data)
 
                         if not e_serializer.is_valid():
@@ -2786,6 +2817,14 @@ def employee_with_profile(request):
 
                 # ---- 3. Upsert addresses ----
                 profile_instance = EmployeeProfile.objects.filter(user=user).first()
+
+                if isinstance(present_address_data, dict):
+                    present_address_data = {key: value for key, value in present_address_data.items()
+                                            if str(value).strip()
+                    }
+
+                    if not present_address_data:
+                        present_address_data = None
 
                 present_addr_obj = save_address(
                     present_address_data, 'present address',
@@ -3378,6 +3417,18 @@ def manageEmployeeProfile(request):
                 def save_address(address_data, label):
                     if not address_data:
                         return None
+
+                    # Treat an address containing only blank values as not provided
+                    if isinstance(address_data, dict):
+                        address_data = {key: value for key, value in address_data.items() if str(value).strip()
+                        }
+
+                        if not address_data:
+                            return None
+
+                    print("DEBUG ADDRESS DATA:", repr(address_data))
+                    print("DEBUG ADDRESS LABEL:", label)
+
                     serializer = EmployeeAddressSerializer(data=address_data)
                     if serializer.is_valid():
                         return serializer.save()
@@ -3436,6 +3487,7 @@ def manageEmployeeProfile(request):
                             )
 
                     profile = serializer.save()
+                
                     response_data = serializer.data
 
                     try:
@@ -3519,7 +3571,7 @@ def manageEmployeeProfile(request):
                 'message': 'Internal Server Error',
                 'debug_error': str(e)  # This will tell you EXACTLY what failed
             }, status=500)
-    
+
     elif request.method == 'PUT':
         employee_id = request.data.get('employee_id') or request.query_params.get('employee_id')
         

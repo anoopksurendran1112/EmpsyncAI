@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Save, Upload, X, Plus, Trash2, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useFieldSettings } from "@/hooks/useFieldSettings";
 import indiaStatesDistricts from "@/data/indiaStatesDistricts.json";
 import {
   Select,
@@ -29,6 +30,7 @@ export default function AddEmployeePage() {
   const { company } = useAuth();
   const companyId = company?.id || "";
   const queryClient = useQueryClient();
+  const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(company?.id || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Stepper State
@@ -41,6 +43,18 @@ export default function AddEmployeePage() {
     "Experience",
     "Identity & Bank"
   ];
+
+  const visibleSteps = steps.filter((_, index) => {
+    if (index === 3) {
+      return isFieldVisible("qualifications", "qualification");
+    }
+
+    if (index === 4) {
+      return isFieldVisible("experience", "experience");
+    }
+
+    return true;
+  });
 
   // Dropdown states
   const [roles, setRoles] = useState<Role[]>([]);
@@ -436,20 +450,23 @@ export default function AddEmployeePage() {
       }
 
       const alternateEmail = profileData.alternate_email.trim();
-      if (alternateEmail) {
 
+      if (
+        isFieldVisible("personal_information", "alternate_email") &&
+        isFieldMandatory("personal_information", "alternate_email") &&
+        !alternateEmail
+      ) {
+        newErrors.alternate_email = "Alternate Email is mandatory";
+      } else if (alternateEmail) {
         if (alternateEmail.includes(" ")) {
           newErrors.alternate_email =
             "Alternate Email cannot contain spaces";
-
         } else if (alternateEmail.length > 254) {
           newErrors.alternate_email =
             "Alternate Email cannot exceed 254 characters";
-
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(alternateEmail)) {
           newErrors.alternate_email =
             "Enter a valid alternate email address";
-
         } else if (
           alternateEmail.toLowerCase() === email.toLowerCase()
         ) {
@@ -459,31 +476,108 @@ export default function AddEmployeePage() {
       }
 
       const alternateMobile = profileData.alternate_mobile.trim();
-      if (alternateMobile) {
 
+      if (
+        isFieldVisible("personal_information", "alternate_mobile") &&
+        isFieldMandatory("personal_information", "alternate_mobile") &&
+        !alternateMobile
+      ) {
+        newErrors.alternate_mobile = "Alternate Mobile Number is mandatory";
+      } else if (alternateMobile) {
         if (!/^\d+$/.test(alternateMobile)) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number must contain only digits";
-
         } else if (alternateMobile.startsWith("0")) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number cannot start with 0";
-
         } else if (alternateMobile.length !== 10) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number must be exactly 10 digits";
-
         } else if (alternateMobile === mobile) {
           newErrors.alternate_mobile =
             "Alternate Mobile Number cannot be the same as Primary Mobile Number";
         }
-
       }
 
-      if (!profileData.dob) {
-        newErrors.dob = "Date of Birth is required";
-      } else {
+      const religion = profileData.religion_id.trim();
 
+      if (
+        isFieldVisible("personal_information", "religion") &&
+        isFieldMandatory("personal_information", "religion") &&
+        !religion
+      ) {
+        newErrors.religion_id = "Religion is mandatory";
+      }
+
+      const caste = profileData.caste_id.trim();
+
+      if (
+        isFieldVisible("personal_information", "caste") &&
+        isFieldMandatory("personal_information", "caste") &&
+        !caste
+      ) {
+        newErrors.caste_id = "Caste is mandatory";
+      }
+
+      const bloodGroup = profileData.blood_group.trim();
+
+      if (
+        isFieldVisible("personal_information", "blood_group") &&
+        isFieldMandatory("personal_information", "blood_group") &&
+        !bloodGroup
+      ) {
+        newErrors.blood_group = "Blood Group is mandatory";
+      }
+
+      const guardianName = profileData.guardian_name.trim();
+
+      if (
+        isFieldVisible("family", "guardians") &&
+        isFieldMandatory("family", "guardians") &&
+        !guardianName
+      ) {
+        newErrors.guardian_name = "Guardian Name is mandatory";
+      } else if (guardianName) {
+        if (!/^[A-Za-z ]+$/.test(guardianName)) {
+          newErrors.guardian_name =
+            "Guardian Name can contain only alphabets and spaces";
+        } else if (guardianName.length < 2) {
+          newErrors.guardian_name =
+            "Guardian Name must contain at least 2 characters";
+        } else if (guardianName.length > 50) {
+          newErrors.guardian_name =
+            "Guardian Name cannot exceed 50 characters";
+        }
+      }
+
+      const guardianPhone = profileData.guardian_phone.trim();
+
+      if (
+        isFieldVisible("family", "guardians") &&
+        isFieldMandatory("family", "guardians") &&
+        !guardianPhone
+      ) {
+        newErrors.guardian_phone = "Guardian Phone is mandatory";
+      } else if (guardianPhone) {
+        if (!/^\d+$/.test(guardianPhone)) {
+          newErrors.guardian_phone =
+            "Guardian Phone must contain only digits";
+        } else if (guardianPhone.startsWith("0")) {
+          newErrors.guardian_phone =
+            "Guardian Phone cannot start with 0";
+        } else if (guardianPhone.length !== 10) {
+          newErrors.guardian_phone =
+            "Guardian Phone must be exactly 10 digits";
+        }
+      }
+
+      if (
+        isFieldVisible("personal_information", "dob") &&
+        isFieldMandatory("personal_information", "dob") &&
+        !profileData.dob
+      ) {
+        newErrors.dob = "Date of Birth is required";
+      } else if (profileData.dob) {
         const dob = new Date(profileData.dob);
         const today = new Date();
 
@@ -508,8 +602,12 @@ export default function AddEmployeePage() {
 
         }
       }
-      if (!formData.gender) {
-        newErrors.gender = "Please select Gender";
+      if (
+        isFieldVisible("personal_information", "gender") &&
+        isFieldMandatory("personal_information", "gender") &&
+        !formData.gender
+      ) {
+        newErrors.gender = "Gender is mandatory";
       }
 
       // Profile Photo Validation
@@ -521,6 +619,22 @@ export default function AddEmployeePage() {
 
 
     else if (step === 1) {
+      const ktuMandatory = isFieldMandatory(
+        "identity_bank",
+        "ktu_id"
+      );
+      if (ktuMandatory && !profileData.ktu_id?.trim()) {
+        newErrors.ktu_id = "KTU ID is required";
+      }
+
+      const aicteMandatory = isFieldMandatory(
+        "identity_bank",
+        "aicte_id"
+      );
+      if (aicteMandatory && !profileData.aicte_id?.trim()) {
+        newErrors.aicte_id = "AICTE ID is required";
+      }
+
       if (!formData.role_id) newErrors.role_id = "Required";
       if (!formData.biometric_id.trim()) newErrors.biometric_id = "Required";
       if (!profileData.staff_id?.trim()) newErrors.staff_id = "Required";
@@ -531,61 +645,139 @@ export default function AddEmployeePage() {
 
     else if (step === 2) {
 
-
-      if (!profileData.present_address.address_line_1?.trim()) {
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.address_line_1?.trim()
+      ) {
         newErrors.present_addr_1 = "Required";
-      }
-      else if (profileData.present_address.address_line_1.trim().length < 3) {
-        newErrors.present_addr_1 = "Minimum 3 characters required";
       }
 
       if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.address_line_1?.trim()
+      ) {
+        if (profileData.present_address.address_line_1.trim().length < 3) {
+          newErrors.present_addr_1 = "Minimum 3 characters required";
+        } else if (
+          profileData.present_address.address_line_1.trim().length > 100
+        ) {
+          newErrors.present_addr_1 = "Maximum 100 characters allowed";
+        }
+      }
+
+
+      if (
+        isFieldVisible("address_settings", "present_address") &&
         profileData.present_address.address_line_2 &&
         !profileData.present_address.address_line_2.trim()
       ) {
         newErrors.present_addr_2 = "Address Line 2 cannot contain only spaces";
       }
 
-      if (!profileData.present_address.city?.trim()) {
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.city?.trim()
+      ) {
         newErrors.present_city = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.city.trim())) {
-        newErrors.present_city = "Only alphabets and spaces are allowed";
       }
 
-      if (!profileData.present_address.district?.trim()) {
-        newErrors.present_district = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.district.trim())) {
-        newErrors.present_district = "Only alphabets and spaces are allowed";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.city?.trim()
+      ) {
+        if (profileData.present_address.city.trim().length < 3) {
+          newErrors.present_city = "Minimum 3 characters required";
+        } else if (profileData.present_address.city.trim().length > 100) {
+          newErrors.present_city = "Maximum 100 characters allowed";
+        }
       }
 
-      if (!profileData.present_address.state?.trim()) {
-        newErrors.present_state = "Required";
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.district?.trim()) {
+          newErrors.present_district = "Required";
+        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.district.trim())) {
+          newErrors.present_district = "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.present_address.country?.trim()) {
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address")
+      ) {
+        if (!profileData.present_address.state?.trim()) {
+          newErrors.present_state = "Required";
+        }
+      }
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.country?.trim()
+      ) {
         newErrors.present_country = "Required";
-      } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
-        newErrors.present_country = "Only alphabets and spaces are allowed";
       }
 
-      if (!profileData.present_address.pincode?.trim()) {
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.country?.trim()
+      ) {
+        if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
+          newErrors.present_country = "Only alphabets and spaces are allowed";
+        } else if (profileData.present_address.country.trim().length < 3) {
+          newErrors.present_country = "Minimum 3 characters required";
+        } else if (profileData.present_address.country.trim().length > 100) {
+          newErrors.present_country = "Maximum 100 characters allowed";
+        }
+      }
+
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.pincode?.trim()
+      ) {
         newErrors.present_pincode = "Required";
-      } else if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
-        newErrors.present_pincode = "Only digits are allowed";
-      } else if (profileData.present_address.pincode.trim().length !== 6) {
-        newErrors.present_pincode = "Pincode must be exactly 6 digits";
+      }
+
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.pincode?.trim()
+      ) {
+        if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
+          newErrors.present_pincode = "Only digits are allowed";
+        } else if (profileData.present_address.pincode.trim().length !== 6) {
+          newErrors.present_pincode = "Pincode must be exactly 6 digits";
+        }
       }
 
       // Permanent Address
 
-      if (!profileData.permanent_address.address_line_1?.trim()) {
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.address_line_1?.trim()
+      ) {
         newErrors.permanent_addr_1 = "Required";
-      }
-      else if (profileData.present_address.address_line_1.trim().length < 3) {
-        newErrors.present_addr_1 = "Minimum 3 characters required";
       }
 
       if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.address_line_1?.trim()
+      ) {
+        if (profileData.permanent_address.address_line_1.trim().length < 3) {
+          newErrors.permanent_addr_1 = "Minimum 3 characters required";
+        } else if (
+          profileData.permanent_address.address_line_1.trim().length > 100
+        ) {
+          newErrors.permanent_addr_1 = "Maximum 100 characters allowed";
+        }
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
         profileData.permanent_address.address_line_2 &&
         !profileData.permanent_address.address_line_2.trim()
       ) {
@@ -593,121 +785,213 @@ export default function AddEmployeePage() {
           "Address Line 2 cannot contain only spaces";
       }
 
-      if (!profileData.permanent_address.city?.trim()) {
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.city?.trim()
+      ) {
         newErrors.permanent_city = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())
-      ) {
-        newErrors.permanent_city =
-          "Only alphabets and spaces are allowed";
       }
 
-      if (!profileData.permanent_address.district?.trim()) {
-        newErrors.permanent_district = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.district.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.city?.trim()
       ) {
-        newErrors.permanent_district =
-          "Only alphabets and spaces are allowed";
+        if (!/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())) {
+          newErrors.permanent_city = "Only alphabets and spaces are allowed";
+        } else if (profileData.permanent_address.city.trim().length < 3) {
+          newErrors.permanent_city = "Minimum 3 characters required";
+        } else if (profileData.permanent_address.city.trim().length > 100) {
+          newErrors.permanent_city = "Maximum 100 characters allowed";
+        }
       }
 
-      if (!profileData.permanent_address.state?.trim()) {
-        newErrors.permanent_state = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.state.trim())
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
       ) {
-        newErrors.permanent_state =
-          "Only alphabets and spaces are allowed";
+        if (!profileData.permanent_address.district?.trim()) {
+          newErrors.permanent_district = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.district.trim())
+        ) {
+          newErrors.permanent_district =
+            "Only alphabets and spaces are allowed";
+        }
       }
 
-      if (!profileData.permanent_address.country?.trim()) {
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address")
+      ) {
+        if (!profileData.permanent_address.state?.trim()) {
+          newErrors.permanent_state = "Required";
+        } else if (
+          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.state.trim())
+        ) {
+          newErrors.permanent_state =
+            "Only alphabets and spaces are allowed";
+        }
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.country?.trim()
+      ) {
         newErrors.permanent_country = "Required";
-      } else if (
-        !/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())
-      ) {
-        newErrors.permanent_country =
-          "Only alphabets and spaces are allowed";
       }
 
-      if (!profileData.permanent_address.pincode?.trim()) {
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.country?.trim()
+      ) {
+        if (!/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())) {
+          newErrors.permanent_country = "Only alphabets and spaces are allowed";
+        } else if (profileData.permanent_address.country.trim().length < 3) {
+          newErrors.permanent_country = "Minimum 3 characters required";
+        } else if (profileData.permanent_address.country.trim().length > 100) {
+          newErrors.permanent_country = "Maximum 100 characters allowed";
+        }
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.pincode?.trim()
+      ) {
         newErrors.permanent_pincode = "Required";
-      } else if (
-        !/^\d+$/.test(profileData.permanent_address.pincode.trim())
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.pincode?.trim()
       ) {
-        newErrors.permanent_pincode = "Only digits are allowed";
-      } else if (
-        profileData.permanent_address.pincode.trim().length !== 6
-      ) {
-        newErrors.permanent_pincode =
-          "Pincode must be exactly 6 digits";
+        if (!/^\d+$/.test(profileData.permanent_address.pincode.trim())) {
+          newErrors.permanent_pincode = "Only digits are allowed";
+        } else if (
+          profileData.permanent_address.pincode.trim().length !== 6
+        ) {
+          newErrors.permanent_pincode = "Pincode must be exactly 6 digits";
+        }
       }
 
     }
-
     else if (step === 3) {
-      if (qualifications.length === 0) {
+      const qualificationsMandatory = isFieldMandatory(
+        "qualifications",
+        "qualification"
+      );
+      if (
+        isFieldVisible("qualifications", "qualification") &&
+        isFieldMandatory("qualifications", "qualification") &&
+        qualifications.length === 0
+      ) {
         newErrors.general = "At least one qualification is required.";
       }
 
       qualifications.forEach((q, i) => {
         // Academic Level
-        if (!q.qualification_level || q.qualification_level === "Select Level") {
+        if (
+          qualificationsMandatory &&
+          (!q.qualification_level || q.qualification_level === "Select Level")
+        ) {
           newErrors[`qual_${i}_level`] = "Required";
         }
 
         // Specialization
-        if (!q.specialization?.trim()) {
+        if (qualificationsMandatory && !q.specialization?.trim()) {
           newErrors[`qual_${i}_specialization`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.specialization.trim())) {
+        } else if (
+          q.specialization?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.specialization.trim())
+        ) {
           newErrors[`qual_${i}_specialization`] = "Numbers are not allowed";
-        } else if (q.specialization.trim().length < 3) {
+        } else if (
+          q.specialization?.trim() &&
+          q.specialization.trim().length < 3
+        ) {
           newErrors[`qual_${i}_specialization`] = "Minimum 3 characters required";
-        } else if (q.specialization.trim().length > 100) {
+        } else if (
+          q.specialization?.trim() &&
+          q.specialization.trim().length > 100
+        ) {
           newErrors[`qual_${i}_specialization`] = "Maximum 100 characters allowed";
         }
 
         // Institution
-        if (!q.institution_name?.trim()) {
+        if (qualificationsMandatory && !q.institution_name?.trim()) {
           newErrors[`qual_${i}_inst`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.institution_name.trim())) {
+        } else if (
+          q.institution_name?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.institution_name.trim())
+        ) {
           newErrors[`qual_${i}_inst`] = "Numbers are not allowed";
-        } else if (q.institution_name.trim().length < 3) {
+        } else if (
+          q.institution_name?.trim() &&
+          q.institution_name.trim().length < 3
+        ) {
           newErrors[`qual_${i}_inst`] = "Minimum 3 characters required";
-        } else if (q.institution_name.trim().length > 100) {
+        } else if (
+          q.institution_name?.trim() &&
+          q.institution_name.trim().length > 100
+        ) {
           newErrors[`qual_${i}_inst`] = "Maximum 100 characters allowed";
         }
 
         // University / Board
-        if (!q.university?.trim()) {
+        if (qualificationsMandatory && !q.university?.trim()) {
           newErrors[`qual_${i}_university`] = "Required";
-        } else if (!/^[A-Za-z\s,&()-]+$/.test(q.university.trim())) {
+        } else if (
+          q.university?.trim() &&
+          !/^[A-Za-z\s,&()-]+$/.test(q.university.trim())
+        ) {
           newErrors[`qual_${i}_university`] = "Numbers are not allowed";
-        } else if (q.university.trim().length < 3) {
+        } else if (
+          q.university?.trim() &&
+          q.university.trim().length < 3
+        ) {
           newErrors[`qual_${i}_university`] = "Minimum 3 characters required";
-        } else if (q.university.trim().length > 100) {
+        } else if (
+          q.university?.trim() &&
+          q.university.trim().length > 100
+        ) {
           newErrors[`qual_${i}_university`] = "Maximum 100 characters allowed";
         }
 
         // Location
-        if (!q.location?.trim()) {
+        if (qualificationsMandatory && !q.location?.trim()) {
           newErrors[`qual_${i}_location`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(q.location.trim())) {
-          newErrors[`qual_${i}_location`] = "Only letters, spaces, commas and hyphens are allowed";
-        } else if (q.location.trim().length < 3) {
+        } else if (
+          q.location?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(q.location.trim())
+        ) {
+          newErrors[`qual_${i}_location`] =
+            "Only letters, spaces, commas and hyphens are allowed";
+        } else if (
+          q.location?.trim() &&
+          q.location.trim().length < 3
+        ) {
           newErrors[`qual_${i}_location`] = "Minimum 3 characters required";
-        } else if (q.location.trim().length > 25) {
+        } else if (
+          q.location?.trim() &&
+          q.location.trim().length > 25
+        ) {
           newErrors[`qual_${i}_location`] = "Maximum 25 characters allowed";
         }
 
         // Percentage / CGPA
-        if (!q.percentage?.toString().trim()) {
+
+        if (qualificationsMandatory && !q.percentage?.toString().trim()) {
           newErrors[`qual_${i}_percentage`] = "Required";
-        } else if (!/^-?\d+(\.\d+)?$/.test(q.percentage.toString().trim())) {
+        } else if (
+          q.percentage?.toString().trim() &&
+          !/^-?\d+(\.\d+)?$/.test(q.percentage.toString().trim())
+        ) {
           newErrors[`qual_${i}_percentage`] =
             "Only numeric values are allowed";
-        } else {
+        } else if (q.percentage?.toString().trim()) {
           const value = parseFloat(q.percentage);
-
           if (value < 1 || value > 100) {
             newErrors[`qual_${i}_percentage`] =
               "Value must be between 1 and 100";
@@ -715,9 +999,9 @@ export default function AddEmployeePage() {
         }
 
         // Start Date
-        if (!q.start_year) {
+        if (qualificationsMandatory && !q.start_year) {
           newErrors[`qual_${i}_start`] = "Required";
-        } else {
+        } else if (q.start_year) {
           const startDate = new Date(q.start_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -729,9 +1013,9 @@ export default function AddEmployeePage() {
         }
 
         // Pass Date
-        if (!q.passing_year) {
+        if (qualificationsMandatory && !q.passing_year) {
           newErrors[`qual_${i}_pass`] = "Required";
-        } else {
+        } else if (q.passing_year) {
           const passDate = new Date(q.passing_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -752,7 +1036,11 @@ export default function AddEmployeePage() {
         }
 
         // Certificate
-        if (!q.certificate && !q.certificate_base64) {
+        if (
+          qualificationsMandatory &&
+          !q.certificate &&
+          !q.certificate_base64
+        ) {
           newErrors[`qual_${i}_certificate`] =
             "Certificate is required";
         }
@@ -760,32 +1048,53 @@ export default function AddEmployeePage() {
     }
 
     else if (step === 4) {
+      const experienceMandatory = isFieldMandatory(
+        "experience",
+        "experience"
+      );
       experiences.forEach((exp, i) => {
-
-        if (!exp.company_name?.trim()) {
+        if (experienceMandatory && !exp.company_name?.trim()) {
           newErrors[`exp_${i}_company`] = "Required";
-        } else if (!/^[A-Za-z\s&.,()-]+$/.test(exp.company_name.trim())) {
+        } else if (
+          exp.company_name?.trim() &&
+          !/^[A-Za-z\s&.,()-]+$/.test(exp.company_name.trim())
+        ) {
           newErrors[`exp_${i}_company`] = "Numbers are not allowed";
-        } else if (exp.company_name.trim().length < 3) {
+        } else if (
+          exp.company_name?.trim() &&
+          exp.company_name.trim().length < 3
+        ) {
           newErrors[`exp_${i}_company`] = "Minimum 3 characters required";
-        } else if (exp.company_name.trim().length > 100) {
+        } else if (
+          exp.company_name?.trim() &&
+          exp.company_name.trim().length > 100
+        ) {
           newErrors[`exp_${i}_company`] = "Maximum 100 characters allowed";
         }
 
-        if (!exp.location?.trim()) {
+        if (experienceMandatory && !exp.location?.trim()) {
           newErrors[`exp_${i}_location`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(exp.location.trim())) {
+        } else if (
+          exp.location?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(exp.location.trim())
+        ) {
           newErrors[`exp_${i}_location`] =
             "Only letters, spaces, commas and hyphens are allowed";
-        } else if (exp.location.trim().length < 3) {
+        } else if (
+          exp.location?.trim() &&
+          exp.location.trim().length < 3
+        ) {
           newErrors[`exp_${i}_location`] = "Minimum 3 characters required";
-        } else if (exp.location.trim().length > 25) {
+        } else if (
+          exp.location?.trim() &&
+          exp.location.trim().length > 25
+        ) {
           newErrors[`exp_${i}_location`] = "Maximum 25 characters allowed";
         }
 
-        if (!exp.start_year) {
+        if (experienceMandatory && !exp.start_year) {
           newErrors[`exp_${i}_start`] = "Required";
-        } else {
+        } else if (exp.start_year) {
           const startDate = new Date(exp.start_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -796,9 +1105,9 @@ export default function AddEmployeePage() {
           }
         }
 
-        if (!exp.end_year) {
+        if (experienceMandatory && !exp.end_year) {
           newErrors[`exp_${i}_end`] = "Required";
-        } else {
+        } else if (exp.end_year) {
           const endDate = new Date(exp.end_year);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -826,38 +1135,57 @@ export default function AddEmployeePage() {
             "Maximum 500 characters allowed";
         }
 
-
-        if (!exp.experience_letter && !exp.experience_letter_base64) {
+        if (
+          experienceMandatory &&
+          !exp.experience_letter &&
+          !exp.experience_letter_base64
+        ) {
           newErrors[`exp_${i}_letter`] =
             "Experience letter is required";
         }
 
-        if (exp.designations.length === 0) {
+        if (
+          (experienceMandatory ||
+            exp.company_name?.trim() ||
+            exp.location?.trim() ||
+            exp.start_year ||
+            exp.end_year ||
+            exp.experience_letter ||
+            exp.experience_letter_base64) &&
+          exp.designations.length === 0
+        ) {
           newErrors[`exp_${i}_desig_empty`] =
             "At least one designation is required";
         }
 
-        exp.designations.forEach((des, d) => {
+        exp.designations.forEach((des: any, d: number) => {
 
-          if (!des.designation?.trim()) {
+          if (experienceMandatory && !des.designation?.trim()) {
             newErrors[`exp_${i}_des_${d}_title`] = "Required";
           } else if (
+            des.designation?.trim() &&
             !/^[A-Za-z\s&.,()-]+$/.test(des.designation.trim())
           ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Numbers are not allowed";
-          } else if (des.designation.trim().length < 3) {
+          } else if (
+            des.designation?.trim() &&
+            des.designation.trim().length < 3
+          ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Minimum 3 characters required";
-          } else if (des.designation.trim().length > 100) {
+          } else if (
+            des.designation?.trim() &&
+            des.designation.trim().length > 100
+          ) {
             newErrors[`exp_${i}_des_${d}_title`] =
               "Maximum 100 characters allowed";
           }
 
 
-          if (!des.start_date) {
+          if (experienceMandatory && !des.start_date) {
             newErrors[`exp_${i}_des_${d}_start`] = "Required";
-          } else {
+          } else if (des.start_date) {
             const desStart = new Date(des.start_date);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -887,9 +1215,9 @@ export default function AddEmployeePage() {
           }
 
 
-          if (!des.end_date) {
+          if (experienceMandatory && !des.end_date) {
             newErrors[`exp_${i}_des_${d}_end`] = "Required";
-          } else {
+          } else if (des.end_date) {
             const desEnd = new Date(des.end_date);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -918,7 +1246,7 @@ export default function AddEmployeePage() {
             }
           }
 
-          if (!des.change_type) {
+          if (experienceMandatory && !des.change_type) {
             newErrors[`exp_${i}_des_${d}_type`] = "Required";
           }
 
@@ -935,18 +1263,39 @@ export default function AddEmployeePage() {
       });
     }
 
-
     else if (step === 5) {
+      const identityMandatory = isFieldMandatory(
+        "identity_bank",
+        "aadhar_no"
+      );
 
-      if (!profileData.aadhar_no?.trim()) {
+      const panMandatory = isFieldMandatory(
+        "identity_bank",
+        "pan_no"
+      );
+
+      const bankMandatory = isFieldMandatory(
+        "identity_bank",
+        "bank_details"
+      );
+
+      if (identityMandatory && !profileData.aadhar_no?.trim()) {
         newErrors.aadhar_no = "Aadhar Number is required";
-      } else if (!/^\d+$/.test(profileData.aadhar_no.trim())) {
+      } else if (
+        profileData.aadhar_no?.trim() &&
+        !/^\d+$/.test(profileData.aadhar_no.trim())
+      ) {
         newErrors.aadhar_no = "Aadhar Number must contain only digits";
-      } else if (profileData.aadhar_no.trim().length !== 12) {
+      } else if (
+        profileData.aadhar_no?.trim() &&
+        profileData.aadhar_no.trim().length !== 12
+      ) {
         newErrors.aadhar_no = "Aadhar Number must be exactly 12 digits";
       }
 
-      if (profileData.pan_no?.trim()) {
+      if (panMandatory && !profileData.pan_no?.trim()) {
+        newErrors.pan_no = "PAN Number is required";
+      } else if (profileData.pan_no?.trim()) {
         const pan = profileData.pan_no.trim().toUpperCase();
 
         if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
@@ -955,63 +1304,94 @@ export default function AddEmployeePage() {
       }
 
 
-      if (bankDetails.length === 0) {
+      if (bankMandatory && bankDetails.length === 0) {
         newErrors.general = "At least one bank account is required.";
       }
 
       bankDetails.forEach((b, i) => {
 
-        if (!b.bank_name?.trim()) {
+        if (bankMandatory && !b.bank_name?.trim()) {
           newErrors[`bank_${i}_name`] = "Required";
-        } else if (!/^[A-Za-z\s&.,()-]+$/.test(b.bank_name.trim())) {
+        } else if (
+          b.bank_name?.trim() &&
+          !/^[A-Za-z\s&.,()-]+$/.test(b.bank_name.trim())
+        ) {
           newErrors[`bank_${i}_name`] = "Numbers are not allowed";
-        } else if (b.bank_name.trim().length < 3) {
+        } else if (
+          b.bank_name?.trim() &&
+          b.bank_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_name`] = "Minimum 3 characters required";
-        } else if (b.bank_name.trim().length > 100) {
+        } else if (
+          b.bank_name?.trim() &&
+          b.bank_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_name`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.acc_holder_name?.trim()) {
+        if (bankMandatory && !b.acc_holder_name?.trim()) {
           newErrors[`bank_${i}_holder`] = "Required";
-        } else if (!/^[A-Za-z\s.]+$/.test(b.acc_holder_name.trim())) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          !/^[A-Za-z\s.]+$/.test(b.acc_holder_name.trim())
+        ) {
           newErrors[`bank_${i}_holder`] = "Numbers are not allowed";
-        } else if (b.acc_holder_name.trim().length < 3) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          b.acc_holder_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_holder`] = "Minimum 3 characters required";
-        } else if (b.acc_holder_name.trim().length > 100) {
+        } else if (
+          b.acc_holder_name?.trim() &&
+          b.acc_holder_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_holder`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.branch_name?.trim()) {
+        if (bankMandatory && !b.branch_name?.trim()) {
           newErrors[`bank_${i}_branch`] = "Required";
-        } else if (!/^[A-Za-z\s,-]+$/.test(b.branch_name.trim())) {
+        } else if (
+          b.branch_name?.trim() &&
+          !/^[A-Za-z\s,-]+$/.test(b.branch_name.trim())
+        ) {
           newErrors[`bank_${i}_branch`] =
             "Only letters, spaces, commas and hyphens are allowed";
-        } else if (b.branch_name.trim().length < 3) {
+        } else if (
+          b.branch_name?.trim() &&
+          b.branch_name.trim().length < 3
+        ) {
           newErrors[`bank_${i}_branch`] = "Minimum 3 characters required";
-        } else if (b.branch_name.trim().length > 100) {
+        } else if (
+          b.branch_name?.trim() &&
+          b.branch_name.trim().length > 100
+        ) {
           newErrors[`bank_${i}_branch`] = "Maximum 100 characters allowed";
         }
 
 
-        if (!b.account_number?.trim()) {
+        if (bankMandatory && !b.account_number?.trim()) {
           newErrors[`bank_${i}_acc`] = "Required";
-        } else if (!/^\d+$/.test(b.account_number.trim())) {
+        } else if (
+          b.account_number?.trim() &&
+          !/^\d+$/.test(b.account_number.trim())
+        ) {
           newErrors[`bank_${i}_acc`] =
             "Account Number must contain only digits";
         } else if (
-          b.account_number.trim().length < 9 ||
-          b.account_number.trim().length > 18
+          b.account_number?.trim() &&
+          (b.account_number.trim().length < 9 ||
+            b.account_number.trim().length > 18)
         ) {
           newErrors[`bank_${i}_acc`] =
             "Account Number must be between 9 and 18 digits";
         }
 
 
-        if (!b.ifsc_code?.trim()) {
+        if (bankMandatory && !b.ifsc_code?.trim()) {
           newErrors[`bank_${i}_ifsc`] = "Required";
-        } else {
+        } else if (b.ifsc_code?.trim()) {
           const ifsc = b.ifsc_code.trim().toUpperCase();
 
           if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
@@ -1033,13 +1413,34 @@ export default function AddEmployeePage() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      const nextStep = currentStep + 1;
+      let nextStep = currentStep + 1;
+
+      while (
+        nextStep < steps.length &&
+        !visibleSteps.includes(steps[nextStep])
+      ) {
+        nextStep++;
+      }
+
       setCurrentStep(nextStep);
       saveDraft(currentStep);
       setMessage("");
     }
   };
-  const handlePrev = () => { setCurrentStep(p => p - 1); setMessage(""); };
+
+  const handlePrev = () => {
+    let prevStep = currentStep - 1;
+
+    while (
+      prevStep >= 0 &&
+      !visibleSteps.includes(steps[prevStep])
+    ) {
+      prevStep--;
+    }
+
+    setCurrentStep(prevStep);
+    setMessage("");
+  };
 
   // ---------- Submit ----------
   const handleSubmit = async () => {
@@ -1273,111 +1674,235 @@ export default function AddEmployeePage() {
             {errors.mobile && <p className="text-xs text-red-500 mt-1">{errors.mobile}</p>}
           </div>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Email</Label>
-            <Input
-              name="alternate_email"
-              value={profileData.alternate_email}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.alternate_email && (
-              <p className="text-red-500 text-xs mt-1">
-                {errors.alternate_email}
-              </p>
-            )}
-          </div>
+          {isFieldVisible('personal_information', 'alternate_email') && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Alternate Email
+                {isFieldMandatory('personal_information', 'alternate_email') && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Alternate Mobile</Label>
-            <Input
-              name="alternate_mobile"
-              value={profileData.alternate_mobile}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.alternate_mobile && (
-              <p className="text-red-500 text-xs mt-1">
-                {errors.alternate_mobile}
-              </p>
-            )}
-          </div>
+              <Input
+                name="alternate_email"
+                value={profileData.alternate_email}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Date of Birth <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              type="date"
-              name="dob"
-              value={profileData.dob}
-              onChange={handleProfileChange}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-            />
-            {errors.dob && <p className="text-xs text-red-500 mt-1">{errors.dob}</p>}
-          </div>
+              {errors.alternate_email && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.alternate_email}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Gender <span className="text-[#c9962a] ml-1">*</span></Label>
-            <select
-              name="gender"
-              value={formData.gender}
-              onChange={handleChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select Gender</option>
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-              <option value="O">Other</option>
-              <option value="N">Prefer not to say</option>
-            </select>
-            {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
-          </div>
+          {isFieldVisible('personal_information', 'alternate_mobile') && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Alternate Mobile
+                {isFieldMandatory('personal_information', 'alternate_mobile') && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Religion</Label>
-            <select
-              name="religion_id"
-              value={profileData.religion_id}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select</option>
-              {religions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-          </div>
+              <Input
+                name="alternate_mobile"
+                value={profileData.alternate_mobile}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Caste</Label>
-            <select
-              name="caste_id"
-              value={profileData.caste_id}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-              disabled={!profileData.religion_id}
-            >
-              <option value="">Select</option>
-              {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+              {errors.alternate_mobile && (
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.alternate_mobile}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Blood Group</Label>
-            <select
-              name="blood_group"
-              value={profileData.blood_group}
-              onChange={handleProfileChange}
-              className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
-            >
-              <option value="">Select</option>
-              <option value="A+">A+</option>
-              <option value="B+">B+</option>
-              <option value="O+">O+</option>
-              <option value="AB+">AB+</option>
-              <option value="A-">A-</option>
-              <option value="B-">B-</option>
-              <option value="O-">O-</option>
-              <option value="AB-">AB-</option>
-            </select>
-          </div>
+          {isFieldVisible("personal_information", "dob") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Date of Birth
+                {isFieldMandatory("personal_information", "dob") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+
+              <Input
+                type="date"
+                name="dob"
+                value={profileData.dob}
+                onChange={handleProfileChange}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+              />
+
+              {errors.dob && (
+                <p className="text-xs text-red-500 mt-1">{errors.dob}</p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "gender") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Gender
+                {isFieldMandatory("personal_information", "gender") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select Gender</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+                <option value="O">Other</option>
+                <option value="N">Prefer not to say</option>
+              </select>
+
+              {errors.gender && (
+                <p className="text-xs text-red-500 mt-1">{errors.gender}</p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "religion") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Religion
+                {isFieldMandatory("personal_information", "religion") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="religion_id"
+                value={profileData.religion_id}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select</option>
+                {religions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              {errors.religion_id && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.religion_id}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "caste") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Caste
+                {isFieldMandatory("personal_information", "caste") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="caste_id"
+                value={profileData.caste_id}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                disabled={!profileData.religion_id}
+              >
+                <option value="">Select</option>
+                {castes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              {errors.caste_id && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.caste_id}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible("personal_information", "blood_group") && (
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Blood Group
+                {isFieldMandatory("personal_information", "blood_group") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <select
+                name="blood_group"
+                value={profileData.blood_group}
+                onChange={handleProfileChange}
+                className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+              >
+                <option value="">Select</option>
+                <option value="A+">A+</option>
+                <option value="B+">B+</option>
+                <option value="O+">O+</option>
+                <option value="AB+">AB+</option>
+                <option value="A-">A-</option>
+                <option value="B-">B-</option>
+                <option value="O-">O-</option>
+                <option value="AB-">AB-</option>
+              </select>
+
+
+              {errors.blood_group && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.blood_group}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isFieldVisible('family', 'guardians') && (
+            <>
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                  Guardian Name
+                  {isFieldMandatory('family', 'guardians') && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  name="guardian_name"
+                  value={profileData.guardian_name}
+                  onChange={handleProfileChange}
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                />
+                {errors.guardian_name && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.guardian_name}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                  Guardian Phone
+                  {isFieldMandatory('family', 'guardians') && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  name="guardian_phone"
+                  value={profileData.guardian_phone}
+                  onChange={handleProfileChange}
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                />
+                {errors.guardian_phone && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.guardian_phone}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1441,25 +1966,49 @@ export default function AddEmployeePage() {
           {errors.staff_category_id && <p className="text-xs text-red-500 mt-1">{errors.staff_category_id}</p>}
         </div>
 
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">KTU ID</Label>
-          <Input
-            name="ktu_id"
-            value={profileData.ktu_id}
-            onChange={handleProfileChange}
-            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-          />
-        </div>
+        {isFieldVisible("identity_bank", "ktu_id") && (
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+              KTU ID{" "}
+              {isFieldMandatory("identity_bank", "ktu_id") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}
+            </Label>
+            <Input
+              name="ktu_id"
+              value={profileData.ktu_id}
+              onChange={handleProfileChange}
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+            {errors.ktu_id && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.ktu_id}
+              </p>
+            )}
+          </div>
+        )}
 
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">AICTE ID</Label>
-          <Input
-            name="aicte_id"
-            value={profileData.aicte_id}
-            onChange={handleProfileChange}
-            className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-          />
-        </div>
+        {isFieldVisible("identity_bank", "aicte_id") && (
+          <div>
+            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+              AICTE ID{" "}
+              {isFieldMandatory("identity_bank", "aicte_id") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}
+            </Label>
+            <Input
+              name="aicte_id"
+              value={profileData.aicte_id}
+              onChange={handleProfileChange}
+              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+            />
+            {errors.aicte_id && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.aicte_id}
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Biometric ID <span className="text-[#c9962a] ml-1">*</span></Label>
@@ -1519,169 +2068,197 @@ export default function AddEmployeePage() {
   const renderStep2 = () => (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
       <div className="grid md:grid-cols-2 gap-8">
+
         {/* Present Address Column */}
-        <div className="space-y-4">
-          <h4 className="font-semibold text-base text-[#0f2744] flex items-center gap-2 pb-1 border-b border-[#dde3ec]">
-            Present Address
-          </h4>
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Address Line 1 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.present_address.address_line_1}
-              onChange={e => handleAddressChange("present_address", "address_line_1", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.present_addr_1 && <p className="text-xs text-red-500 mt-1">{errors.present_addr_1}</p>}
-          </div>
+        {isFieldVisible("address_settings", "present_address") && (
+          <div className="space-y-4">
+            <h4 className="font-semibold text-base text-[#0f2744] flex items-center gap-2 pb-1 border-b border-[#dde3ec]">
+              Present Address
+            </h4>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2</Label>
-            <Input
-              value={profileData.present_address.address_line_2}
-              onChange={e => handleAddressChange("present_address", "address_line_2", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.present_addr_2 && (
-              <p className="text-xs text-red-500 mt-1">{errors.present_addr_2}</p>
-            )}
-          </div>
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Address Line 1
+                {isFieldMandatory("address_settings", "present_address_line") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
 
-          <div className="grid grid-cols-2 gap-3">
+              <Input
+                value={profileData.present_address.address_line_1}
+                onChange={e =>
+                  handleAddressChange(
+                    "present_address",
+                    "address_line_1",
+                    e.target.value
+                  )
+                }
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
 
-                {/* City */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    City <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+              {errors.present_addr_1 && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.present_addr_1}
+                </p>
+              )}
+            </div>
 
-                  <Input
-                    value={profileData.present_address.city}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "city",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2</Label>
+              <Input
+                value={profileData.present_address.address_line_2}
+                onChange={e => handleAddressChange("present_address", "address_line_2", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.present_addr_2 && (
+                <p className="text-xs text-red-500 mt-1">{errors.present_addr_2}</p>
+              )}
+            </div>
 
-                  {errors.present_city && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_city}
-                    </p>
+            <div className="grid grid-cols-2 gap-3">
+
+              {/* City */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  City {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
                   )}
-                </div>
+                </Label>
 
-                {/* State */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    State <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+                <Input
+                  value={profileData.present_address.city}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "city",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
 
-                  <select
-                    value={profileData.present_address.state}
-                    onChange={(e) => {
-                      const selectedState = e.target.value;
+                {errors.present_city && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_city}
+                  </p>
+                )}
+              </div>
 
-                      setProfileData((prev) => ({
-                        ...prev,
-                        present_address: {
-                          ...prev.present_address,
-                          state: selectedState,
-                          district: "",
-                        },
-                      }));
-                    }}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-                  >
-                    <option value="">Select State</option>
+              {/* State */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  State {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
 
-                      {indiaStatesDistricts.states.map((item) => (
-                       <option key={item.state} value={item.state}>
-                          {item.state}
+                <select
+                  value={profileData.present_address.state}
+                  onChange={(e) => {
+                    const selectedState = e.target.value;
+
+                    setProfileData((prev) => ({
+                      ...prev,
+                      present_address: {
+                        ...prev.present_address,
+                        state: selectedState,
+                        district: "",
+                      },
+                    }));
+                  }}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+                >
+                  <option value="">Select State</option>
+
+                  {indiaStatesDistricts.states.map((item) => (
+                    <option key={item.state} value={item.state}>
+                      {item.state}
+                    </option>
+                  ))}
+                </select>
+
+                {errors.present_state && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_state}
+                  </p>
+                )}
+              </div>
+
+              {/* District */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  District {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.present_address.district}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "district",
+                      e.target.value
+                    )
+                  }
+                  disabled={!profileData.present_address.state}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select District</option>
+
+                  {profileData.present_address.state &&
+                    indiaStatesDistricts.states
+                      .find(
+                        (item) => item.state === profileData.present_address.state
+                      )
+                      ?.districts.map((district) => (
+                        <option key={district} value={district}>
+                          {district}
                         </option>
                       ))}
-                  </select>
+                </select>
 
-                  {errors.present_state && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_state}
-                    </p>
-                  )}
-                </div>
-
-                {/* District */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    District <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <select
-                    value={profileData.present_address.district}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "district",
-                        e.target.value
-                      )
-                    }
-                    disabled={!profileData.present_address.state}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select District</option>
-
-                    {profileData.present_address.state &&
-                      indiaStatesDistricts.states
-                        .find(
-                          (item) => item.state === profileData.present_address.state
-                        )
-                        ?.districts.map((district) => (
-                          <option key={district} value={district}>
-                            {district}
-                          </option>
-                        ))}
-                  </select>
-
-                  {errors.present_district && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_district}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pincode */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    Pincode <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <Input
-                    value={profileData.present_address.pincode}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "present_address",
-                        "pincode",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-
-                  {errors.present_pincode && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.present_pincode}
-                    </p>
-                  )}
-                </div>
-
+                {errors.present_district && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_district}
+                  </p>
+                )}
               </div>
+
+              {/* Pincode */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  Pincode {isFieldMandatory("address_settings", "present_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.present_address.pincode}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "present_address",
+                      "pincode",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.present_pincode && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.present_pincode}
+                  </p>
+                )}
+              </div>
+            </div>
 
 
             {/* Country */}
             <div>
               <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                Country <span className="text-[#c9962a] ml-1">*</span>
+                Country {isFieldMandatory("address_settings", "present_address") && (
+                  <span className="text-[#c9962a] ml-1">*</span>)}
               </Label>
 
               <Input
@@ -1702,194 +2279,209 @@ export default function AddEmployeePage() {
                 </p>
               )}
             </div>
-        </div>
+          </div>
+        )}
 
         {/* Permanent Address Column */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center border-b border-[#dde3ec]">
-            <h4 className="font-semibold text-base text-[#0f2744]">Permanent Address</h4>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setProfileData(p => ({ ...p, permanent_address: { ...p.present_address } }))}
-              className="text-xs h-7 border-[#dde3ec] text-[#445069] pb-1 bg-[#f4f7fb] hover:bg-[#f4f7fb] hover:text-[#0f2744] transition-all"
-            >
-              Copy Present
-            </Button>
-          </div>
+        {isFieldVisible("address_settings", "permanent_address") && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-[#dde3ec]">
+              <h4 className="font-semibold text-base text-[#0f2744]">Permanent Address</h4>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setProfileData(p => ({ ...p, permanent_address: { ...p.present_address } }))}
+                className="text-xs h-7 border-[#dde3ec] text-[#445069] pb-1 bg-[#f4f7fb] hover:bg-[#f4f7fb] hover:text-[#0f2744] transition-all"
+              >
+                Copy Present
+              </Button>
+            </div>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 1 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.address_line_1}
-              onChange={e => handleAddressChange("permanent_address", "address_line_1", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_addr_1 && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_addr_1}
-              </p>
-            )}
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2 <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.address_line_2}
-              onChange={e => handleAddressChange("permanent_address", "address_line_2", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_addr_2 && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_addr_2}
-              </p>
-            )}
-          </div>
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 1 {isFieldMandatory("address_settings", "permanent_address") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}</Label>
+              <Input
+                value={profileData.permanent_address.address_line_1}
+                onChange={e => handleAddressChange("permanent_address", "address_line_1", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.permanent_addr_1 && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_addr_1}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Address Line 2 </Label>
+              <Input
+                value={profileData.permanent_address.address_line_2}
+                onChange={e => handleAddressChange("permanent_address", "address_line_2", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.permanent_addr_2 && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_addr_2}
+                </p>
+              )}
+            </div>
 
-           <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
 
-                {/* City */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    City <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <Input
-                    value={profileData.permanent_address.city}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "city",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-
-                  {errors.permanent_city && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_city}
-                    </p>
+              {/* City */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  City {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
                   )}
-                </div>
+                </Label>
 
-                {/* State */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    State <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
+                <Input
+                  value={profileData.permanent_address.city}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "city",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
 
-                  <select
-                    value={profileData.permanent_address.state}
-                    onChange={(e) => {
-                      const selectedState = e.target.value;
-
-                      setProfileData((prev) => ({
-                        ...prev,
-                        permanent_address: {
-                          ...prev.permanent_address,
-                          state: selectedState,
-                          district: "",
-                        },
-                      }));
-                    }}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
-                  >
-                    <option value="">Select State</option>
-
-                    {indiaStatesDistricts.states.map((item) => (
-                      <option key={item.state} value={item.state}>
-                        {item.state}
-                      </option>
-                    ))}
-                  </select>
-
-                  {errors.permanent_state && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_state}
-                    </p>
-                  )}
-                </div>
-
-                {/* District */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    District <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <select
-                    value={profileData.permanent_address.district}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "district",
-                        e.target.value
-                      )
-                    }
-                    disabled={!profileData.permanent_address.state}
-                    className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select District</option>
-
-                    {indiaStatesDistricts.states
-                        .find(
-                          (item) => item.state === profileData.permanent_address.state
-                        )
-                        ?.districts.map((district) => (
-                          <option key={district} value={district}>
-                            {district}
-                          </option>
-                        ))}
-                  </select>
-
-                  {errors.permanent_district && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_district}
-                    </p>
-                  )}
-                </div>
-
-                {/* Pincode */}
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5">
-                    Pincode <span className="text-[#c9962a] ml-1">*</span>
-                  </Label>
-
-                  <Input
-                    value={profileData.permanent_address.pincode}
-                    onChange={(e) =>
-                      handleAddressChange(
-                        "permanent_address",
-                        "pincode",
-                        e.target.value
-                      )
-                    }
-                    className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-
-                  {errors.permanent_pincode && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.permanent_pincode}
-                    </p>
-                  )}
-                </div>
-
+                {errors.permanent_city && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_city}
+                  </p>
+                )}
               </div>
 
-          <div>
-            <Label className="text-xs font-medium text-[#445069] mb-1.5">Country <span className="text-[#c9962a] ml-1">*</span></Label>
-            <Input
-              value={profileData.permanent_address.country}
-              onChange={e => handleAddressChange("permanent_address", "country", e.target.value)}
-              className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-            />
-            {errors.permanent_country && (
-              <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-                {errors.permanent_country}
-              </p>
-            )}
+              {/* State */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  State {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.permanent_address.state}
+                  onChange={(e) => {
+                    const selectedState = e.target.value;
+
+                    setProfileData((prev) => ({
+                      ...prev,
+                      permanent_address: {
+                        ...prev.permanent_address,
+                        state: selectedState,
+                        district: "",
+                      },
+                    }));
+                  }}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm"
+                >
+                  <option value="">Select State</option>
+
+                  {indiaStatesDistricts.states.map((item) => (
+                    <option key={item.state} value={item.state}>
+                      {item.state}
+                    </option>
+                  ))}
+                </select>
+
+                {errors.permanent_state && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_state}
+                  </p>
+                )}
+              </div>
+
+              {/* District */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  District {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <select
+                  value={profileData.permanent_address.district}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "district",
+                      e.target.value
+                    )
+                  }
+                  disabled={!profileData.permanent_address.state}
+                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select District</option>
+
+                  {indiaStatesDistricts.states
+                    .find(
+                      (item) => item.state === profileData.permanent_address.state
+                    )
+                    ?.districts.map((district) => (
+                      <option key={district} value={district}>
+                        {district}
+                      </option>
+                    ))}
+                </select>
+
+                {errors.permanent_district && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_district}
+                  </p>
+                )}
+              </div>
+
+              {/* Pincode */}
+              <div>
+                <Label className="text-xs font-medium text-[#445069] mb-1.5">
+                  Pincode {isFieldMandatory("address_settings", "permanent_address") && (
+                    <span className="text-[#c9962a] ml-1">*</span>
+                  )}
+                </Label>
+
+                <Input
+                  value={profileData.permanent_address.pincode}
+                  onChange={(e) =>
+                    handleAddressChange(
+                      "permanent_address",
+                      "pincode",
+                      e.target.value
+                    )
+                  }
+                  className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                />
+
+                {errors.permanent_pincode && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.permanent_pincode}
+                  </p>
+                )}
+              </div>
+
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5">Country {isFieldMandatory("address_settings", "permanent_address") && (
+                <span className="text-[#c9962a] ml-1">*</span>
+              )}</Label>
+              <Input
+                value={profileData.permanent_address.country}
+                onChange={e => handleAddressChange("permanent_address", "country", e.target.value)}
+                className="h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.permanent_country && (
+                <p style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+                  {errors.permanent_country}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <Separator className="bg-[#dde3ec]" />
@@ -1911,547 +2503,702 @@ export default function AddEmployeePage() {
     </div>
   );
 
-  const renderStep3 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Academic Qualifications</h3>
-        <Button
-          type="button"
-          onClick={addQual}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Qualification
-        </Button>
-      </div>
+  const renderStep3 = () => {
+    const qualificationsMandatory = isFieldMandatory(
+      "qualifications",
+      "qualification"
+    );
 
-      {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
-
-      <div className="space-y-6">
-        {qualifications.map((q, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+    return (
+      isFieldVisible("qualifications", "qualification") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+            <h3 className="font-semibold text-base text-[#0f2744]">Academic Qualifications</h3>
             <Button
               type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeQual(idx)}
+              onClick={addQual}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
             >
-              <Trash2 className="w-4 h-4" />
+              <Plus className="w-4 h-4" /> Add Qualification
             </Button>
+          </div>
 
-            <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Academic Level <span className="text-[#c9962a] ml-1">*</span></Label>
-                <select
-                  value={q.qualification_level}
-                  onChange={e => updateQual(idx, 'qualification_level', e.target.value)}
-                  className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+          {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
+
+          <div className="space-y-6">
+            {qualifications.map((q, idx) => (
+              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                  onClick={() => removeQual(idx)}
                 >
-                  <option value="">Select Level</option>
-                  <option value="UG">Undergraduate (UG)</option>
-                  <option value="PG">Postgraduate (PG)</option>
-                  <option value="MPHIL">M.Phil.</option>
-                  <option value="PHD">Ph.D.</option>
-                  <option value="POSTDOC">Post Doctoral (Post.Doc)</option>
-                  <option value="RESEARCH_OTHERS">Research (Others)</option>
-                  <option value="OTHERS">Others</option>
-                </select>
-                {errors[`qual_${idx}_level`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_level`]}</p>}
-              </div>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Specialization <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.specialization}
-                  onChange={e => updateQual(idx, 'specialization', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_specialization`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_specialization`]}</p>}
-              </div>
+                <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Academic Level{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>                  <select
+                      value={q.qualification_level}
+                      onChange={e => updateQual(idx, 'qualification_level', e.target.value)}
+                      className="w-full h-[38px] px-3 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all cursor-pointer"
+                    >
+                      <option value="">Select Level</option>
+                      <option value="UG">Undergraduate (UG)</option>
+                      <option value="PG">Postgraduate (PG)</option>
+                      <option value="MPHIL">M.Phil.</option>
+                      <option value="PHD">Ph.D.</option>
+                      <option value="POSTDOC">Post Doctoral (Post.Doc)</option>
+                      <option value="RESEARCH_OTHERS">Research (Others)</option>
+                      <option value="OTHERS">Others</option>
+                    </select>
+                    {errors[`qual_${idx}_level`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_level`]}</p>}
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Institution <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.institution_name}
-                  onChange={e => updateQual(idx, 'institution_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_inst`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_inst`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">University / Board <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={q.university}
-                  onChange={e => updateQual(idx, 'university', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_university`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_university`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  placeholder="e.g. Kochi, Kerala"
-                  value={q.location}
-                  onChange={e => updateQual(idx, 'location', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_location`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={q.percentage}
-                  onChange={e => updateQual(idx, 'percentage', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="date"
-                  value={q.start_year}
-                  onChange={e => updateQual(idx, 'start_year', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_start`]}</p>}
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Pass Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  type="date"
-                  value={q.passing_year}
-                  onChange={e => updateQual(idx, 'passing_year', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
-              </div>
-
-              <div className="col-span-1 md:col-span-3">
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Certificate <span className="text-[#c9962a] ml-1">*</span></Label>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
-                    <Upload className="w-4 h-4" />
-                    <span>{q.certificate ? (q.certificate as File).name : q.certificate_name ? q.certificate_name : "Upload Certificate"}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; handleQualFileChange(idx, f); }}
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Specialization{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.specialization}
+                      onChange={e => updateQual(idx, 'specialization', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                     />
-                  </label>
-                  {(q.certificate || q.certificate_base64) && (
-                    <button type="button" onClick={() => handleQualFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                {errors[`qual_${idx}_certificate`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_certificate`]}</p>}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    {errors[`qual_${idx}_specialization`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_specialization`]}</p>}
+                  </div>
 
-      {qualifications.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No qualifications added yet. Please add at least one.
-        </div>
-      )}
-    </div>
-  );
-
-  const renderStep4 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Work Experience</h3>
-        <Button
-          type="button"
-          onClick={addExp}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Experience
-        </Button>
-      </div>
-
-      <div className="space-y-6">
-        {experiences.map((exp, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible mb-6">
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeExp(idx)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-
-            <CardContent className="p-0 space-y-4">
-              <div className="flex items-center gap-3 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60 w-fit">
-                <Switch checked={exp.is_internal} onCheckedChange={v => updateExp(idx, 'is_internal', v)} />
-                <div>
-                  <Label className="text-sm font-medium text-[#445069] cursor-pointer">Internal Experience</Label>
-                  <p className="text-[10px] text-[#7a8ba0] mt-0.5">Check if this was an internal position within our company</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Company Name {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
-                  <Input
-                    value={exp.company_name}
-                    onChange={e => updateExp(idx, 'company_name', e.target.value)}
-                    disabled={exp.is_internal}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-                  />
-                  {errors[`exp_${idx}_company`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location {exp.is_internal ? '' : <span className="text-[#c9962a] ml-1">*</span>}</Label>
-                  <Input
-                    value={exp.location}
-                    onChange={e => updateExp(idx, 'location', e.target.value)}
-                    disabled={exp.is_internal}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
-                  />
-                  {errors[`exp_${idx}_location`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={exp.start_year}
-                    onChange={e => updateExp(idx, 'start_year', e.target.value)}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-                  {errors[`exp_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_start`]}</p>}
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                  <Input
-                    type="date"
-                    value={exp.end_year}
-                    onChange={e => updateExp(idx, 'end_year', e.target.value)}
-                    className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                  />
-                  {errors[`exp_${idx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_end`]}</p>}
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
-                <textarea
-                  rows={2}
-                  value={exp.description}
-                  onChange={e => updateExp(idx, 'description', e.target.value)}
-                  placeholder="Brief description of role or responsibilities (optional)..."
-                  className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Experience Letter <span className="text-[#c9962a] ml-1">*</span></Label>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
-                    <Upload className="w-4 h-4" />
-                    <span>{exp.experience_letter ? (exp.experience_letter as File).name : exp.experience_letter_name ? exp.experience_letter_name : "Upload Experience Letter"}</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={e => { const f = e.target.files?.[0] || null; handleExpFileChange(idx, f); }}
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Institution{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.institution_name}
+                      onChange={e => updateQual(idx, 'institution_name', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
                     />
-                  </label>
-                  {(exp.experience_letter || exp.experience_letter_base64) && (
-                    <button type="button" onClick={() => handleExpFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-                {errors[`exp_${idx}_letter`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_letter`]}</p>}
-              </div>
+                    {errors[`qual_${idx}_inst`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_inst`]}</p>}
+                  </div>
 
-              <div className="bg-white p-5 rounded-lg border border-[#dde3ec] space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]/60">
-                  <h5 className="font-semibold text-xs text-[#0f2744] uppercase tracking-wider">Designations</h5>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => addDesig(idx)}
-                    className="h-8 px-2.5 text-xs text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] gap-1 flex items-center transition-all font-medium border border-transparent hover:border-[#dde3ec]"
-                  >
-                    <Plus className="w-3 h-3" /> Add Designation
-                  </Button>
-                </div>
-                {errors[`exp_${idx}_desig_empty`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desig_empty`]}</p>}
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">University / Board{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      value={q.university}
+                      onChange={e => updateQual(idx, 'university', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_university`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_university`]}</p>}
+                  </div>
 
-                {exp.designations.map((des: any, didx: number) => (
-                  <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
-                    <div className="w-full">
-                      {exp.is_internal ? (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Role <span className="text-[#c9962a] ml-1">*</span></Label>
-                            <select
-                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
-                              value={des.company_role_id || ""}
-                              onChange={e => updateDesig(idx, didx, 'company_role_id', e.target.value)}
-                            >
-                              <option value="">Select Role</option>
-                              {roles.map(r => <option key={r.id} value={r.id}>{r.role || r.name}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Group <span className="text-[#c9962a] ml-1">*</span></Label>
-                            <select
-                              className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
-                              value={des.company_group_id || ""}
-                              onChange={e => updateDesig(idx, didx, 'company_group_id', e.target.value)}
-                            >
-                              <option value="">Select Group</option>
-                              {groups.map(g => <option key={g.id} value={g.id}>{g.group}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Title <span className="text-[#c9962a] ml-1">*</span></Label>
-                          <Input
-                            className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                            value={des.designation}
-                            onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
-                          />
-                          {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
-                        </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Location{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      placeholder="e.g. Kochi, Kerala"
+                      value={q.location}
+                      onChange={e => updateQual(idx, 'location', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_location`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_location`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Percentage / CGPA{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={q.percentage}
+                      onChange={e => updateQual(idx, 'percentage', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_percentage`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_percentage`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Start Date{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="date"
+                      value={q.start_year}
+                      onChange={e => updateQual(idx, 'start_year', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_start`]}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Pass Date{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <Input
+                      type="date"
+                      value={q.passing_year}
+                      onChange={e => updateQual(idx, 'passing_year', e.target.value)}
+                      className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                    />
+                    {errors[`qual_${idx}_pass`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_pass`]}</p>}
+                  </div>
+
+                  <div className="col-span-1 md:col-span-3">
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Certificate{" "}
+                      {qualificationsMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}</Label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
+                        <Upload className="w-4 h-4" />
+                        <span>{q.certificate ? (q.certificate as File).name : q.certificate_name ? q.certificate_name : "Upload Certificate"}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0] || null; handleQualFileChange(idx, f); }}
+                        />
+                      </label>
+                      {(q.certificate || q.certificate_base64) && (
+                        <button type="button" onClick={() => handleQualFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Start Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <Input
-                          type="date"
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          value={des.start_date}
-                          onChange={e => updateDesig(idx, didx, 'start_date', e.target.value)}
-                        />
-                        {errors[`exp_${idx}_des_${didx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_start`]}</p>}
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">End Date <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <Input
-                          type="date"
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          value={des.end_date}
-                          onChange={e => updateDesig(idx, didx, 'end_date', e.target.value)}
-                        />
-                        {errors[`exp_${idx}_des_${didx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_end`]}</p>}
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Type <span className="text-[#c9962a] ml-1">*</span></Label>
-                        <select
-                          className="h-8 text-xs w-full border border-[#dde3ec] bg-white rounded-md px-2 focus:outline-none cursor-pointer"
-                          value={des.change_type}
-                          onChange={e => updateDesig(idx, didx, 'change_type', e.target.value)}
-                        >
-                          <option value="Joined">Joined</option>
-                          <option value="Promotion">Promotion</option>
-                          <option value="Demotion">Demotion</option>
-                          <option value="Re-designation">Re-designation</option>
-                        </select>
-                        {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
-                      </div>
-                    </div>
-
-                    <div className="flex items-end gap-3">
-                      <div className="flex-1">
-                        <Label className="text-xs font-medium text-[#445069] mb-1 block">Description (optional)</Label>
-                        <Input
-                          className="h-8 text-xs border-[#dde3ec] bg-white w-full"
-                          placeholder="Notes about this change (optional)..."
-                          value={des.description}
-                          onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded shrink-0"
-                        onClick={() => removeDesig(idx, didx)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    {errors[`qual_${idx}_certificate`] && <p className="text-xs text-red-500 mt-1">{errors[`qual_${idx}_certificate`]}</p>}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-      {experiences.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No experience records added yet.
-        </div>
-      )}
-    </div>
-  );
-
-  const renderStep5 = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Aadhar Number <span className="text-[#c9962a] ml-1">*</span></Label>
-          <Input
-            value={profileData.aadhar_no}
-            onChange={handleProfileChange}
-            name="aadhar_no"
-            placeholder="xxxx xxxx xxxx xxxx"
-            className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-          />
-          {errors.aadhar_no && <p className="text-xs text-red-500 mt-1">{errors.aadhar_no}</p>}
-        </div>
-
-        <div>
-          <Label className="text-xs font-medium text-[#445069] mb-1.5">PAN Number</Label>
-          <Input
-            value={profileData.pan_no}
-            onChange={handleProfileChange}
-            name="pan_no"
-            placeholder="ABCDE1234F"
-            className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all uppercase"
-          />
-          {errors.pan_no && (
-            <p className="text-xs text-red-500 mt-1">
-              {errors.pan_no}
-            </p>
+          {qualifications.length === 0 && (
+            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+              No qualifications added yet. Please add at least one.
+            </div>
           )}
         </div>
-      </div>
+      )
+    );
+  };
 
-      <Separator className="bg-[#dde3ec]" />
+  const renderStep4 = () => {
+    const experienceMandatory = isFieldMandatory(
+      "experience",
+      "experience"
+    );
 
-      <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
-        <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
-        <Button
-          type="button"
-          onClick={addBank}
-          size="sm"
-          variant="outline"
-          className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
-        >
-          <Plus className="w-4 h-4" /> Add Bank
-        </Button>
-      </div>
-
-      {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
-
-      <div className="space-y-6">
-        {bankDetails.map((b, idx) => (
-          <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+    return (
+      isFieldVisible("experience", "experience") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+            <h3 className="font-semibold text-base text-[#0f2744]">Work Experience</h3>
             <Button
               type="button"
-              variant="destructive"
-              size="icon"
-              className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
-              onClick={() => removeBank(idx)}
+              onClick={addExp}
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
             >
-              <Trash2 className="w-4 h-4" />
+              <Plus className="w-4 h-4" /> Add Experience
             </Button>
+          </div>
 
-            <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Bank Name <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.bank_name}
-                  onChange={e => updateBank(idx, 'bank_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
-              </div>
+          <div className="space-y-6">
+            {experiences.map((exp, idx) => (
+              <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible mb-6">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                  onClick={() => removeExp(idx)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">Account Number <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.account_number}
-                  onChange={e => updateBank(idx, 'account_number', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
-              </div>
+                <CardContent className="p-0 space-y-4">
+                  <div className="flex items-center gap-3 bg-[#f4f7fb] p-3 rounded-lg border border-[#dde3ec]/60 w-fit">
+                    <Switch checked={exp.is_internal} onCheckedChange={v => updateExp(idx, 'is_internal', v)} />
+                    <div>
+                      <Label className="text-sm font-medium text-[#445069] cursor-pointer">Internal Experience</Label>
+                      <p className="text-[10px] text-[#7a8ba0] mt-0.5">Check if this was an internal position within our company</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Company Name{" "}
+                        {experienceMandatory && !exp.is_internal && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={exp.company_name}
+                        onChange={e => updateExp(idx, 'company_name', e.target.value)}
+                        disabled={exp.is_internal}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                      />
+                      {errors[`exp_${idx}_company`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_company`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Location{" "}
+                        {experienceMandatory && !exp.is_internal && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        value={exp.location}
+                        onChange={e => updateExp(idx, 'location', e.target.value)}
+                        disabled={exp.is_internal}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all disabled:bg-[#f4f7fb] disabled:cursor-not-allowed"
+                      />
+                      {errors[`exp_${idx}_location`] && !exp.is_internal && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_location`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        Start Date{" "}
+                        {experienceMandatory && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        type="date"
+                        value={exp.start_year}
+                        onChange={e => updateExp(idx, 'start_year', e.target.value)}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                      />
+                      {errors[`exp_${idx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_start`]}</p>}
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                        End Date{" "}
+                        {experienceMandatory && (
+                          <span className="text-[#c9962a] ml-1">*</span>
+                        )}
+                      </Label>
+                      <Input
+                        type="date"
+                        value={exp.end_year}
+                        onChange={e => updateExp(idx, 'end_year', e.target.value)}
+                        className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                      />
+                      {errors[`exp_${idx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_end`]}</p>}
+                    </div>
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">IFSC Code <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.ifsc_code}
-                  onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
-              </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5">Description / Notes</Label>
+                    <textarea
+                      rows={2}
+                      value={exp.description}
+                      onChange={e => updateExp(idx, 'description', e.target.value)}
+                      placeholder="Brief description of role or responsibilities (optional)..."
+                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-[7px] bg-white text-[#1a1a2e] text-sm focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all resize-none placeholder:text-[#7a8ba0]"
+                    />
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Account Holder Name <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.acc_holder_name}
-                  onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
-                  placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
-                />
-                {errors[`bank_${idx}_holder`] && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors[`bank_${idx}_holder`]}
-                  </p>
-                )}
-              </div>
+                  <div>
+                    <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                      Experience Letter{" "}
+                      {experienceMandatory && (
+                        <span className="text-[#c9962a] ml-1">*</span>
+                      )}
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer h-[38px] px-4 border border-dashed border-[#dde3ec] rounded-[7px] bg-white text-[#7a8ba0] text-sm hover:border-[#c9962a] hover:text-[#c9962a] transition-all">
+                        <Upload className="w-4 h-4" />
+                        <span>{exp.experience_letter ? (exp.experience_letter as File).name : exp.experience_letter_name ? exp.experience_letter_name : "Upload Experience Letter"}</span>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0] || null; handleExpFileChange(idx, f); }}
+                        />
+                      </label>
+                      {(exp.experience_letter || exp.experience_letter_base64) && (
+                        <button type="button" onClick={() => handleExpFileChange(idx, null)} className="text-red-400 hover:text-red-600 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {errors[`exp_${idx}_letter`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_letter`]}</p>}
+                  </div>
 
-              <div>
-                <Label className="text-xs font-medium text-[#445069] mb-1.5">Branch <span className="text-[#c9962a] ml-1">*</span></Label>
-                <Input
-                  value={b.branch_name}
-                  onChange={e => updateBank(idx, 'branch_name', e.target.value)}
-                  className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
-                />
-                {errors[`bank_${idx}_branch`] && (
-                  <p className="text-xs text-red-500 mt-1">
-                    {errors[`bank_${idx}_branch`]}
-                  </p>
-                )}
-              </div>
+                  <div className="bg-white p-5 rounded-lg border border-[#dde3ec] space-y-4">
+                    <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]/60">
+                      <h5 className="font-semibold text-xs text-[#0f2744] uppercase tracking-wider">Designations</h5>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => addDesig(idx)}
+                        className="h-8 px-2.5 text-xs text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] gap-1 flex items-center transition-all font-medium border border-transparent hover:border-[#dde3ec]"
+                      >
+                        <Plus className="w-3 h-3" /> Add Designation
+                      </Button>
+                    </div>
+                    {errors[`exp_${idx}_desig_empty`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_desig_empty`]}</p>}
 
-              <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
-                <Switch
-                  checked={b.is_primary}
-                  onCheckedChange={v => updateBank(idx, 'is_primary', v)}
-                />
-                <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    {exp.designations.map((des: any, didx: number) => (
+                      <div key={didx} className="flex flex-col gap-3 bg-[#f4f7fb]/40 p-3 rounded border border-[#dde3ec]/40 relative">
+                        <div className="w-full">
+                          {exp.is_internal ? (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Role{" "}
+                                  {experienceMandatory && (
+                                    <span className="text-[#c9962a] ml-1">*</span>
+                                  )}</Label>
+                                <select
+                                  className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
+                                  value={des.company_role_id || ""}
+                                  onChange={e => updateDesig(idx, didx, 'company_role_id', e.target.value)}
+                                >
+                                  <option value="">Select Role</option>
+                                  {roles.map(r => <option key={r.id} value={r.id}>{r.role || r.name}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">Company Group{" "}
+                                  {experienceMandatory && (
+                                    <span className="text-[#c9962a] ml-1">*</span>
+                                  )}</Label>
+                                <select
+                                  className="h-8 text-xs border border-[#dde3ec] bg-white w-full rounded-md px-2 focus:outline-none cursor-pointer"
+                                  value={des.company_group_id || ""}
+                                  onChange={e => updateDesig(idx, didx, 'company_group_id', e.target.value)}
+                                >
+                                  <option value="">Select Group</option>
+                                  {groups.map(g => <option key={g.id} value={g.id}>{g.group}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                                Title{" "}
+                                {experienceMandatory && (
+                                  <span className="text-[#c9962a] ml-1">*</span>
+                                )}
+                              </Label>
+                              <Input
+                                className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                                value={des.designation}
+                                onChange={e => updateDesig(idx, didx, 'designation', e.target.value)}
+                              />
+                              {errors[`exp_${idx}_des_${didx}_title`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_title`]}</p>}
+                            </div>
+                          )}
+                        </div>
 
-      {bankDetails.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
-          No bank accounts added yet. Please add at least one.
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              Start Date{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <Input
+                              type="date"
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              value={des.start_date}
+                              onChange={e => updateDesig(idx, didx, 'start_date', e.target.value)}
+                            />
+                            {errors[`exp_${idx}_des_${didx}_start`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_start`]}</p>}
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              End Date{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <Input
+                              type="date"
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              value={des.end_date}
+                              onChange={e => updateDesig(idx, didx, 'end_date', e.target.value)}
+                            />
+                            {errors[`exp_${idx}_des_${didx}_end`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_end`]}</p>}
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block flex items-center">
+                              Type{" "}
+                              {experienceMandatory && (
+                                <span className="text-[#c9962a] ml-1">*</span>
+                              )}
+                            </Label>
+                            <select
+                              className="h-8 text-xs w-full border border-[#dde3ec] bg-white rounded-md px-2 focus:outline-none cursor-pointer"
+                              value={des.change_type}
+                              onChange={e => updateDesig(idx, didx, 'change_type', e.target.value)}
+                            >
+                              <option value="Joined">Joined</option>
+                              <option value="Promotion">Promotion</option>
+                              <option value="Demotion">Demotion</option>
+                              <option value="Re-designation">Re-designation</option>
+                            </select>
+                            {errors[`exp_${idx}_des_${didx}_type`] && <p className="text-xs text-red-500 mt-1">{errors[`exp_${idx}_des_${didx}_type`]}</p>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-end gap-3">
+                          <div className="flex-1">
+                            <Label className="text-xs font-medium text-[#445069] mb-1 block">Description (optional)</Label>
+                            <Input
+                              className="h-8 text-xs border-[#dde3ec] bg-white w-full"
+                              placeholder="Notes about this change (optional)..."
+                              value={des.description}
+                              onChange={e => updateDesig(idx, didx, 'description', e.target.value)}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded shrink-0"
+                            onClick={() => removeDesig(idx, didx)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {experiences.length === 0 && (
+            <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+              No experience records added yet.
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      )
+    );
+  };
+
+  const renderStep5 = () => {
+    const identityMandatory = isFieldMandatory(
+      "identity",
+      "identity"
+    );
+
+    const panMandatory = isFieldMandatory(
+      "identity_bank",
+      "pan_no"
+    );
+
+    const bankMandatory = isFieldMandatory(
+      "identity_bank",
+      "bank_details"
+    );
+
+    return (
+      isFieldVisible("identity_bank", "aadhar_no") && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-[18px]">
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                Aadhar Number{" "}
+                {isFieldMandatory("identity_bank", "aadhar_no") && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <Input
+                value={profileData.aadhar_no}
+                onChange={handleProfileChange}
+                name="aadhar_no"
+                placeholder="xxxx xxxx xxxx xxxx"
+                className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+              />
+              {errors.aadhar_no && <p className="text-xs text-red-500 mt-1">{errors.aadhar_no}</p>}
+            </div>
+
+            <div>
+              <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                PAN Number{" "}
+                {panMandatory && (
+                  <span className="text-[#c9962a] ml-1">*</span>
+                )}
+              </Label>
+              <Input
+                value={profileData.pan_no}
+                onChange={handleProfileChange}
+                name="pan_no"
+                placeholder="ABCDE1234F"
+                className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all uppercase"
+              />
+              {errors.pan_no && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.pan_no}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {isFieldVisible("identity_bank", "bank_details") && (
+            <>
+              <Separator className="bg-[#dde3ec]" />
+
+              <div className="flex justify-between items-center pb-2 border-b border-[#dde3ec]">
+                <h3 className="font-semibold text-base text-[#0f2744]">Bank Accounts</h3>
+                <Button
+                  type="button"
+                  onClick={addBank}
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-8 border-[#0f2744] text-[#0f2744] hover:bg-[#eff6ff] hover:text-[#0f2744] font-medium transition-all flex items-center"
+                >
+                  <Plus className="w-4 h-4" /> Add Bank
+                </Button>
+              </div>
+
+              {errors.general && <p className="text-red-500 font-medium text-sm">{errors.general}</p>}
+
+              <div className="space-y-6">
+                {bankDetails.map((b, idx) => (
+                  <Card key={idx} className="relative bg-[#f4f7fb] border border-[#dde3ec] rounded-lg p-6 group transition-all hover:border-[#234d78]/30 shadow-sm overflow-visible">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-3 -right-3 rounded-full h-8 w-8 bg-white border border-[#dde3ec] text-[#7a8ba0] hover:text-red-500 hover:border-red-500 hover:bg-white shadow-md flex items-center justify-center transition-all md:opacity-0 md:group-hover:opacity-100"
+                      onClick={() => removeBank(idx)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+
+                    <CardContent className="p-0 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Bank Name{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.bank_name}
+                          onChange={e => updateBank(idx, 'bank_name', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_name`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_name`]}</p>}
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Account Number{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.account_number}
+                          onChange={e => updateBank(idx, 'account_number', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_acc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_acc`]}</p>}
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          IFSC Code{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.ifsc_code}
+                          onChange={e => updateBank(idx, 'ifsc_code', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_ifsc`] && <p className="text-xs text-red-500 mt-1">{errors[`bank_${idx}_ifsc`]}</p>}
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Account Holder Name{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.acc_holder_name}
+                          onChange={e => updateBank(idx, 'acc_holder_name', e.target.value)}
+                          placeholder={`${formData.first_name} ${formData.last_name}`.trim()}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all placeholder:text-[#7a8ba0]"
+                        />
+                        {errors[`bank_${idx}_holder`] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errors[`bank_${idx}_holder`]}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label className="text-xs font-medium text-[#445069] mb-1.5 flex items-center">
+                          Branch{" "}
+                          {bankMandatory && (
+                            <span className="text-[#c9962a] ml-1">*</span>
+                          )}
+                        </Label>
+                        <Input
+                          value={b.branch_name}
+                          onChange={e => updateBank(idx, 'branch_name', e.target.value)}
+                          className="h-[38px] px-3 border border-[#dde3ec] bg-white text-[#1a1a2e] text-sm focus-visible:ring-0 focus:outline-none focus:border-[#c9962a] focus:ring-[3px] focus:ring-[#c9962a]/12 transition-all"
+                        />
+                        {errors[`bank_${idx}_branch`] && (
+                          <p className="text-xs text-red-500 mt-1">
+                            {errors[`bank_${idx}_branch`]}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="col-span-1 md:col-span-3 flex items-center gap-3 mt-3 bg-white p-3 rounded-lg border border-[#dde3ec]/60">
+                        <Switch
+                          checked={b.is_primary}
+                          onCheckedChange={v => updateBank(idx, 'is_primary', v)}
+                        />
+                        <Label className="text-xs font-semibold text-[#445069] cursor-pointer">Primary Salary Account</Label>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {bankDetails.length === 0 && (
+                <div className="text-center p-8 border border-dashed border-[#dde3ec] rounded-lg text-[#7a8ba0] bg-[#f4f7fb]/30 font-medium">
+                  No bank accounts added yet. Please add at least one.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )
+    );
+  };
 
   // ---------- Main Return ----------
   return (
@@ -2490,8 +3237,8 @@ export default function AddEmployeePage() {
         <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(15,39,68,0.08)] p-6 mb-8 border border-[#dde3ec]">
           <div className="flex items-center justify-between relative px-4">
             <div className="absolute left-[5%] right-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#dde3ec] z-0 rounded-full"></div>
-            <div className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" style={{ width: `${(currentStep / (steps.length - 1)) * 90}%` }}></div>
-            {steps.map((label, idx) => (
+            <div className="absolute left-[5%] top-1/2 -translate-y-1/2 h-[3px] bg-[#0f2744] z-0 rounded-full transition-all duration-500" style={{ width: `${(visibleSteps.indexOf(steps[currentStep]) / (visibleSteps.length - 1)) * 90}%` }}></div>
+            {visibleSteps.map((label, idx) => (
               <div key={idx} className="relative z-10 flex flex-col items-center gap-2 group cursor-pointer w-24" onClick={() => { if (idx < currentStep) setCurrentStep(idx); }}>
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${idx === currentStep ? 'bg-[#eff6ff] border-2 border-[#0f2744] text-[#0f2744] shadow-[0_0_0_4px_rgba(239,246,255,1)] scale-105' : idx < currentStep ? 'bg-[#0f2744] text-white' : 'bg-[#f4f7fb] text-[#7a8ba0] border-2 border-transparent'}`}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
@@ -2524,7 +3271,7 @@ export default function AddEmployeePage() {
             <Button type="button" variant="outline" onClick={handlePrev} disabled={currentStep === 0 || loading} className="w-32 gap-2 border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb]">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
-            
+
             <Button type="button" variant="outline" onClick={() => saveDraft(currentStep, true)} disabled={loading} className="border-[#dde3ec] text-[#445069] bg-white hover:bg-[#f4f7fb] gap-2">
               <Save className="w-4 h-4" /> Save Draft
             </Button>
