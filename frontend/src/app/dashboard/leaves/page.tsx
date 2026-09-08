@@ -97,7 +97,40 @@ interface LeaveType {
 
   policies?: LeavePolicy[];
 }
+interface LeaveBalanceTaken {
+  approved: number;
+  pending: number;
+  total: number;
+}
 
+interface LeaveBalance {
+  leave_type_id: number;
+  leave_type: string;
+  short_name: string;
+  policy_mode: "normal" | "staff_category";
+  policy_id: number | null;
+  monthly_limit: number;
+  yearly_limit: number;
+  use_credit: boolean;
+  initial_credit: number;
+  monthly_taken: LeaveBalanceTaken;
+  yearly_taken: LeaveBalanceTaken;
+  monthly_remaining: number;
+  yearly_remaining: number;
+  credit_balance: number | null;
+  available_balance: number;
+}
+
+interface LeaveBalanceResponse {
+  user_id: number;
+  user_name: string;
+  company_id: number;
+  staff_category_id: number;
+  staff_category_name: string;
+  year: number;
+  month: number;
+  balances: LeaveBalance[];
+}
 interface LeaveRequest {
   id: number;
   user?: { first_name: string; last_name?: string };
@@ -181,6 +214,12 @@ export default function LeavesPage() {
 
   // Leave Type States
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
+  const [leaveBalance, setLeaveBalance] =
+  useState<LeaveBalanceResponse | null>(null);
+
+  const [isLeaveBalanceLoading, setIsLeaveBalanceLoading] =
+  useState(false);
+  
   const [leaveTypeForm, setLeaveTypeForm] = useState<Partial<LeaveType>>({
     leave_type: "",
     short_name: "",
@@ -519,6 +558,32 @@ export default function LeavesPage() {
       setIsHierarchySaving(false);
     }
   };
+  const fetchLeaveBalance = useCallback(async () => {
+    if (!companyId) return;
+
+    setIsLeaveBalanceLoading(true);
+
+    try {
+      const res = await fetch(
+        `/api/leave-balance?company_id=${companyId}`
+      );
+
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        setLeaveBalance(result.data);
+      } else {
+        console.error(
+          "Failed to load leave balance:",
+          result.message
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load leave balance", error);
+    } finally {
+      setIsLeaveBalanceLoading(false);
+    }
+  }, [companyId]);
 
   // Fetch functions
   const fetchLeaveTypes = useCallback(async () => {
@@ -692,23 +757,33 @@ export default function LeavesPage() {
   }, [companyId, cookieSynced]);
 
   useEffect(() => {
-    if (companyId) {
-      if (cookieSynced) {
+    if (companyId && cookieSynced) {
+      fetchLeaveBalance();
+
+      if (viewMode === "admin") {
         fetchLeaveTypes();
-        if (viewMode === "admin") {
-          fetchLeaveRequests();
-          fetchHolidays();
-          fetchRoles();
-          // Load employee pool and saved hierarchy when entering admin view
-          fetchHierarchyEmployees();
-        }
+        fetchLeaveRequests();
+        fetchHolidays();
+        fetchRoles();
+        fetchHierarchyEmployees();
       }
 
       if (viewMode !== "admin") {
         fetchMyLeaves();
       }
     }
-  }, [companyId, viewMode, fetchLeaveTypes, fetchLeaveRequests, fetchMyLeaves, fetchHolidays, fetchRoles, fetchHierarchyEmployees, cookieSynced]);
+  }, [
+    companyId,
+    viewMode,
+    cookieSynced,
+    fetchLeaveBalance,
+    fetchLeaveTypes,
+    fetchLeaveRequests,
+    fetchMyLeaves,
+    fetchHolidays,
+    fetchRoles,
+    fetchHierarchyEmployees,
+  ]);
 
   useEffect(() => {
     const fetchLoggedInProfile = async () => {
@@ -1251,8 +1326,138 @@ export default function LeavesPage() {
 
       {/* Content Area */}
       {viewMode === "user" ? (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between mb-6">
+  <div className="space-y-6">
+
+    {/* Leave Balance */}
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">
+            Leave Balance
+          </h2>
+
+          {leaveBalance && (
+            <p className="text-sm text-gray-500 mt-1">
+              {leaveBalance.user_name} • {leaveBalance.staff_category_name}
+            </p>
+          )}
+        </div>
+
+        {leaveBalance && (
+          <p className="text-sm text-gray-500">
+            {format(
+              new Date(leaveBalance.year, leaveBalance.month - 1),
+              "MMMM yyyy"
+            )}
+          </p>
+        )}
+      </div>
+
+      {isLeaveBalanceLoading ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin h-8 w-8 border-b-2 border-blue-600 rounded-full" />
+        </div>
+      ) : !leaveBalance || leaveBalance.balances.length === 0 ? (
+        <div className="text-center py-10">
+          <CalendarCheck className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+          <p className="text-gray-500">
+            No leave balance available
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {leaveBalance.balances.map((balance) => (
+            <div
+              key={balance.leave_type_id}
+              className="border border-gray-200 rounded-lg p-5 hover:border-blue-200 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
+                  {balance.short_name}
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-900">
+                    {balance.leave_type}
+                  </h3>
+
+                  <p className="text-xs text-gray-500">
+                    {balance.short_name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center bg-gray-50 rounded-lg py-4 mb-4">
+                <p className="text-xs text-gray-500 uppercase font-semibold">
+                  Available
+                </p>
+
+                <p className="text-3xl font-bold text-blue-600 mt-1">
+                  {balance.available_balance}
+                </p>
+
+                <p className="text-xs text-gray-500">
+                  days
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500">
+                    Monthly Limit
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {balance.monthly_limit}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500">
+                    Yearly Limit
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {balance.yearly_limit}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500">
+                    Monthly Taken
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {balance.monthly_taken.total}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500">
+                    Yearly Taken
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {balance.yearly_taken.total}
+                  </p>
+                </div>
+              </div>
+
+              {balance.use_credit && (
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    Credit Balance
+                  </span>
+
+                  <span className="text-sm font-semibold text-green-600">
+                    {balance.credit_balance ?? 0}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {/* Recent Leave History */}
+    <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-1">
               <History className="h-5 w-5 text-gray-600" />
               Recent Leave History
