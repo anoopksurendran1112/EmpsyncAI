@@ -645,17 +645,28 @@ export default function AddEmployeePage() {
 
     else if (step === 2) {
 
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.address_line_1?.trim()
+      ) {
+        newErrors.present_addr_1 = "Required";
+      }
 
       if (
         isFieldVisible("address_settings", "present_address") &&
-        isFieldMandatory("address_settings", "present_address")
+        profileData.present_address.address_line_1?.trim()
       ) {
-        if (!profileData.present_address.address_line_1?.trim()) {
-          newErrors.present_addr_1 = "Required";
-        } else if (profileData.present_address.address_line_1.trim().length < 3) {
+        if (profileData.present_address.address_line_1.trim().length < 3) {
           newErrors.present_addr_1 = "Minimum 3 characters required";
+        } else if (
+          profileData.present_address.address_line_1.trim().length > 100
+        ) {
+          newErrors.present_addr_1 = "Maximum 100 characters allowed";
         }
       }
+
+
       if (
         isFieldVisible("address_settings", "present_address") &&
         profileData.present_address.address_line_2 &&
@@ -666,12 +677,20 @@ export default function AddEmployeePage() {
 
       if (
         isFieldVisible("address_settings", "present_address") &&
-        isFieldMandatory("address_settings", "present_address")
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.city?.trim()
       ) {
-        if (!profileData.present_address.city?.trim()) {
-          newErrors.present_city = "Required";
-        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.city.trim())) {
-          newErrors.present_city = "Only alphabets and spaces are allowed";
+        newErrors.present_city = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.city?.trim()
+      ) {
+        if (profileData.present_address.city.trim().length < 3) {
+          newErrors.present_city = "Minimum 3 characters required";
+        } else if (profileData.present_address.city.trim().length > 100) {
+          newErrors.present_city = "Maximum 100 characters allowed";
         }
       }
 
@@ -694,25 +713,40 @@ export default function AddEmployeePage() {
           newErrors.present_state = "Required";
         }
       }
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.country?.trim()
+      ) {
+        newErrors.present_country = "Required";
+      }
 
       if (
         isFieldVisible("address_settings", "present_address") &&
-        isFieldMandatory("address_settings", "present_address")
+        profileData.present_address.country?.trim()
       ) {
-        if (!profileData.present_address.country?.trim()) {
-          newErrors.present_country = "Required";
-        } else if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
+        if (!/^[A-Za-z\s]+$/.test(profileData.present_address.country.trim())) {
           newErrors.present_country = "Only alphabets and spaces are allowed";
+        } else if (profileData.present_address.country.trim().length < 3) {
+          newErrors.present_country = "Minimum 3 characters required";
+        } else if (profileData.present_address.country.trim().length > 100) {
+          newErrors.present_country = "Maximum 100 characters allowed";
         }
       }
 
       if (
         isFieldVisible("address_settings", "present_address") &&
-        isFieldMandatory("address_settings", "present_address")
+        isFieldMandatory("address_settings", "present_address") &&
+        !profileData.present_address.pincode?.trim()
       ) {
-        if (!profileData.present_address.pincode?.trim()) {
-          newErrors.present_pincode = "Required";
-        } else if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
+        newErrors.present_pincode = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "present_address") &&
+        profileData.present_address.pincode?.trim()
+      ) {
+        if (!/^\d+$/.test(profileData.present_address.pincode.trim())) {
           newErrors.present_pincode = "Only digits are allowed";
         } else if (profileData.present_address.pincode.trim().length !== 6) {
           newErrors.present_pincode = "Pincode must be exactly 6 digits";
@@ -723,12 +757,22 @@ export default function AddEmployeePage() {
 
       if (
         isFieldVisible("address_settings", "permanent_address") &&
-        isFieldMandatory("address_settings", "permanent_address")
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.address_line_1?.trim()
       ) {
-        if (!profileData.permanent_address.address_line_1?.trim()) {
-          newErrors.permanent_addr_1 = "Required";
-        } else if (profileData.permanent_address.address_line_1.trim().length < 3) {
+        newErrors.permanent_addr_1 = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.address_line_1?.trim()
+      ) {
+        if (profileData.permanent_address.address_line_1.trim().length < 3) {
           newErrors.permanent_addr_1 = "Minimum 3 characters required";
+        } else if (
+          profileData.permanent_address.address_line_1.trim().length > 100
+        ) {
+          newErrors.permanent_addr_1 = "Maximum 100 characters allowed";
         }
       }
 
@@ -743,15 +787,22 @@ export default function AddEmployeePage() {
 
       if (
         isFieldVisible("address_settings", "permanent_address") &&
-        isFieldMandatory("address_settings", "permanent_address")
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.city?.trim()
       ) {
-        if (!profileData.permanent_address.city?.trim()) {
-          newErrors.permanent_city = "Required";
-        } else if (
-          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())
-        ) {
-          newErrors.permanent_city =
-            "Only alphabets and spaces are allowed";
+        newErrors.permanent_city = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.city?.trim()
+      ) {
+        if (!/^[A-Za-z\s]+$/.test(profileData.permanent_address.city.trim())) {
+          newErrors.permanent_city = "Only alphabets and spaces are allowed";
+        } else if (profileData.permanent_address.city.trim().length < 3) {
+          newErrors.permanent_city = "Minimum 3 characters required";
+        } else if (profileData.permanent_address.city.trim().length > 100) {
+          newErrors.permanent_city = "Maximum 100 characters allowed";
         }
       }
 
@@ -785,33 +836,43 @@ export default function AddEmployeePage() {
 
       if (
         isFieldVisible("address_settings", "permanent_address") &&
-        isFieldMandatory("address_settings", "permanent_address")
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.country?.trim()
       ) {
-        if (!profileData.permanent_address.country?.trim()) {
-          newErrors.permanent_country = "Required";
-        } else if (
-          !/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())
-        ) {
-          newErrors.permanent_country =
-            "Only alphabets and spaces are allowed";
+        newErrors.permanent_country = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.country?.trim()
+      ) {
+        if (!/^[A-Za-z\s]+$/.test(profileData.permanent_address.country.trim())) {
+          newErrors.permanent_country = "Only alphabets and spaces are allowed";
+        } else if (profileData.permanent_address.country.trim().length < 3) {
+          newErrors.permanent_country = "Minimum 3 characters required";
+        } else if (profileData.permanent_address.country.trim().length > 100) {
+          newErrors.permanent_country = "Maximum 100 characters allowed";
         }
       }
 
       if (
         isFieldVisible("address_settings", "permanent_address") &&
-        isFieldMandatory("address_settings", "permanent_address")
+        isFieldMandatory("address_settings", "permanent_address") &&
+        !profileData.permanent_address.pincode?.trim()
       ) {
-        if (!profileData.permanent_address.pincode?.trim()) {
-          newErrors.permanent_pincode = "Required";
-        } else if (
-          !/^\d+$/.test(profileData.permanent_address.pincode.trim())
-        ) {
+        newErrors.permanent_pincode = "Required";
+      }
+
+      if (
+        isFieldVisible("address_settings", "permanent_address") &&
+        profileData.permanent_address.pincode?.trim()
+      ) {
+        if (!/^\d+$/.test(profileData.permanent_address.pincode.trim())) {
           newErrors.permanent_pincode = "Only digits are allowed";
         } else if (
           profileData.permanent_address.pincode.trim().length !== 6
         ) {
-          newErrors.permanent_pincode =
-            "Pincode must be exactly 6 digits";
+          newErrors.permanent_pincode = "Pincode must be exactly 6 digits";
         }
       }
 
@@ -1083,7 +1144,16 @@ export default function AddEmployeePage() {
             "Experience letter is required";
         }
 
-        if (experienceMandatory && exp.designations.length === 0) {
+        if (
+          (experienceMandatory ||
+            exp.company_name?.trim() ||
+            exp.location?.trim() ||
+            exp.start_year ||
+            exp.end_year ||
+            exp.experience_letter ||
+            exp.experience_letter_base64) &&
+          exp.designations.length === 0
+        ) {
           newErrors[`exp_${i}_desig_empty`] =
             "At least one designation is required";
         }

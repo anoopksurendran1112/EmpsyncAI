@@ -130,6 +130,10 @@ class EmployeeAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeAddress
         fields = '__all__'
+        extra_kwargs = {
+            'district': {'required': False, 'allow_blank': True},
+            'state': {'required': False, 'allow_blank': True},
+        }
 
 
 class EmployeeProfileSerializer(serializers.ModelSerializer):
