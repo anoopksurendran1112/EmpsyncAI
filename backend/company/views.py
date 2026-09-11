@@ -1034,22 +1034,22 @@ def update_biometric_device(request, id):
 @api_view(['GET'])
 def get_virtual_devices(request,page=None):
         company_id = request.headers.get('X-Company-ID')
-        
-
         devices = VirtualDevice.objects.filter(company_id=company_id).order_by('is_active')
+
         device_list = [
-            {
-                'id': device.id,
-                'username':device.user.first_name,
-                                'biometric_id':device.user.biometric_id,
-                                                                'email':device.user.email,
-
-
-                'prof_img': device.user.prof_img.url if device.user.prof_img and hasattr(device.user.prof_img, 'url') else None,
-                'virtual_device': device.virtual_device,
-                'is_active': device.is_active
-            } for device in devices
+        {
+            'id': device.id,
+            'first_name': device.user.first_name,
+            'last_name': device.user.last_name,
+            'mobile': device.user.mobile,
+            'biometric_id': device.user.biometric_id,
+            'email': device.user.email,
+            'prof_img': device.user.prof_img.url if device.user.prof_img and hasattr(device.user.prof_img, 'url') else None,
+            'virtual_device': device.virtual_device,
+            'is_active': device.is_active
+        } for device in devices
         ]
+
         paginator = Paginator(device_list,5)
         page_data = paginator.get_page(page)
         return Response({
@@ -1059,13 +1059,6 @@ def get_virtual_devices(request,page=None):
             'total_page': paginator.num_pages,
             'devices': page_data.object_list
         }, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
 
 @api_view(['PUT'])
 def update_virtual_device(request):
@@ -1085,15 +1078,123 @@ def update_virtual_device(request):
             'message': 'Device not found.'
         }, status=status.HTTP_404_NOT_FOUND)
 
-    # Toggle the value
-    device.is_active = not device.is_active
-    device.save()
+    user = device.user
+
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    mobile = request.data.get('mobile')
+    email = request.data.get('email')
+    biometric_id = request.data.get('biometric_id')
+
+    if email and CustomUser.objects.filter(
+        email=email
+    ).exclude(id=user.id).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'A user with this email already exists.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if mobile and CustomUser.objects.filter(
+        mobile=mobile
+    ).exclude(id=user.id).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'A user with this mobile number already exists.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if biometric_id and CustomUser.objects.filter(
+        biometric_id=biometric_id
+    ).exclude(id=user.id).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': f'Biometric ID "{biometric_id}" is already in use.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if first_name is not None:
+        user.first_name = first_name
+
+    if last_name is not None:
+        user.last_name = last_name
+
+    if mobile is not None:
+        user.mobile = mobile
+
+    if email is not None:
+        user.email = email
+
+    user.biometric_id = biometric_id or None
+
+    user.save()
 
     return Response({
         'status': status.HTTP_200_OK,
-        'message': f'Device status updated to {"active" if device.is_active else "inactive"}',
-        'is_active': device.is_active
-    })
+        'message': 'Device updated successfully.'
+    }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def create_virtual_device(request):
+    company_id = request.headers.get('X-Company-ID')
+
+    if not company_id:
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'Company ID is required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    mobile = request.data.get('mobile')
+    email = request.data.get('email')
+    biometric_id = request.data.get('biometric_id') or None
+
+    if not first_name or not last_name or not mobile or not email:
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'First name, last name, mobile and email are required.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(email=email).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'A user with this email already exists.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if CustomUser.objects.filter(mobile=mobile).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': 'A user with this mobile number already exists.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    if biometric_id and CustomUser.objects.filter(
+        biometric_id=biometric_id
+    ).exists():
+        return Response({
+            'status': status.HTTP_400_BAD_REQUEST,
+            'message': f'Biometric ID "{biometric_id}" is already in use.'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    user = CustomUser.objects.create_user(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        mobile=mobile,
+        biometric_id=biometric_id
+    )
+
+    company = Company.objects.get(id=company_id)
+    user.company.add(company)
+
+    virtual_device = VirtualDevice.objects.create(
+        virtual_device=f"virtual-{user.id}",
+        user=user,
+        company=company
+    )
+
+    return Response({
+        'status': status.HTTP_201_CREATED,
+        'message': 'Virtual device created successfully.',
+        'device_id': virtual_device.id
+    }, status=status.HTTP_201_CREATED)
 
 
 @api_view(['DELETE'])
