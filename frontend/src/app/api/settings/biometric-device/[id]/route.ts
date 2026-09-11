@@ -21,7 +21,7 @@ export async function PUT(req: Request, context: any) {
     const apiUrl = `${process.env.API_URL}/biometric-device/${id}`;
 
     // ✅ Only attach company if available
-    const payload = companyId ? { ...body, company: companyId } : body;
+    const payload = companyId ? { ...body, company_id: companyId } : body;
 
     const res = await fetch(apiUrl, {
       method: "PUT",

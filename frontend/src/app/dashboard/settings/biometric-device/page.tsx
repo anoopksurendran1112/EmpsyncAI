@@ -659,14 +659,9 @@ export default function BiometricDevicesPage() {
       // Map API response to your interface
       const mappedDevices = devicesArray.map((device: any, index: number) => {
         // Extract status - ensure it matches your allowed values
-        let status: 'active' | 'inactive' | 'maintenance' = 'active';
-        const statusValue = device.status || device.device_status;
-        if (statusValue) {
-          const normalizedStatus = String(statusValue).toLowerCase();
-          if (['active', 'inactive', 'maintenance'].includes(normalizedStatus)) {
-            status = normalizedStatus as 'active' | 'inactive' | 'maintenance';
-          }
-        }
+        let status: 'active' | 'inactive' | 'maintenance' = device.is_active
+          ? 'active'
+          : 'inactive';
 
         // Get device name - use sequential numbering if name is not available
         const deviceName = device.device_name || device.name || `Biometric Device ${index + 1}`;
@@ -771,7 +766,10 @@ export default function BiometricDevicesPage() {
         res = await fetch(`/api/settings/biometric-device/${editingDevice.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            is_active: form.status === "active",
+          }),
         });
       } else {
         res = await fetch("/api/settings/biometric-device", {
@@ -782,6 +780,7 @@ export default function BiometricDevicesPage() {
       }
 
       const data = await res.json();
+      console.log("Update response:", res.status, data);
       if (res.ok) {
         setMessage({
           type: 'success',
@@ -937,8 +936,8 @@ export default function BiometricDevicesPage() {
         {/* Message Display */}
         {message && (
           <Card className={`border-l-4 ${message.type === 'success'
-              ? 'border-green-500 bg-green-50/50 dark:bg-green-950/50'
-              : 'border-red-500 bg-red-50/50 dark:bg-red-950/50'
+            ? 'border-green-500 bg-green-50/50 dark:bg-green-950/50'
+            : 'border-red-500 bg-red-50/50 dark:bg-red-950/50'
             } backdrop-blur-sm`}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -1204,10 +1203,10 @@ export default function BiometricDevicesPage() {
                           {/* Toggle Status Button */}
                           <div className="flex items-center gap-2">
                             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${device.status === 'active'
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : device.status === 'maintenance'
-                                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : device.status === 'maintenance'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
                               }`}>
                               {device.status === 'active' ? (
                                 <Power className="h-3.5 w-3.5" />
