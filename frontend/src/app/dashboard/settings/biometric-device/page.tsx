@@ -105,12 +105,12 @@
 //   // Validate form
 //   const validateForm = () => {
 //     const newErrors: Record<string, string> = {};
-    
+
 //     if (!form.device_id.trim()) newErrors.device_id = "Device ID is required";
 //     if (!form.device_name.trim()) newErrors.device_name = "Device name is required";
 //     if (!form.location.trim()) newErrors.location = "Location is required";
 //     if (!form.company_id.trim()) newErrors.company_id = "Company ID is required";
-    
+
 //     // Check if device ID already exists (only for new devices)
 //     if (!editingDevice && devices.some(d => d.device_id.toLowerCase() === form.device_id.toLowerCase())) {
 //       newErrors.device_id = "Device ID already exists";
@@ -331,7 +331,7 @@
 //                 </Button>
 //               </DialogTitle>
 //             </DialogHeader>
-            
+
 //             <div className="space-y-6">
 //               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 //                 <div className="space-y-2">
@@ -518,7 +518,7 @@
 //                             </Badge>
 
 //                           </div>
-                          
+
 //                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-4">
 //                             <div className="flex items-center gap-2 text-muted-foreground">
 //                               <MapPin className="h-3.5 w-3.5" />
@@ -538,7 +538,7 @@
 //                             </div>
 //                           </div>
 //                         </div>
-                        
+
 //                         <div className="flex gap-2 ml-4">
 //                           <Button 
 //                             variant="outline" 
@@ -579,12 +579,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Fingerprint, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Search, 
+import {
+  Fingerprint,
+  Plus,
+  Edit2,
+  Trash2,
+  Search,
   Settings,
   CheckCircle,
   AlertCircle,
@@ -619,7 +619,7 @@ export default function BiometricDevicesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingDevice, setEditingDevice] = useState<BiometricDevice | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -642,10 +642,10 @@ export default function BiometricDevicesPage() {
       const res = await fetch(`/api/settings/biometric-device/page/${page}`);
       if (!res.ok) throw new Error("Failed to fetch devices");
       const data = await res.json();
-      
+
       // Handle different API response structures
       let devicesArray: any[] = [];
-      
+
       if (Array.isArray(data)) {
         devicesArray = data;
       } else if (data?.devices && Array.isArray(data.devices)) {
@@ -655,7 +655,7 @@ export default function BiometricDevicesPage() {
       } else if (data?.results && Array.isArray(data.results)) {
         devicesArray = data.results;
       }
-      
+
       // Map API response to your interface
       const mappedDevices = devicesArray.map((device: any, index: number) => {
         // Extract status - ensure it matches your allowed values
@@ -667,10 +667,10 @@ export default function BiometricDevicesPage() {
             status = normalizedStatus as 'active' | 'inactive' | 'maintenance';
           }
         }
-        
+
         // Get device name - use sequential numbering if name is not available
         const deviceName = device.device_name || device.name || `Biometric Device ${index + 1}`;
-        
+
         return {
           id: device.id || device._id,
           device_id: device.device_id || device.deviceID || "",
@@ -683,7 +683,7 @@ export default function BiometricDevicesPage() {
           last_sync: device.last_sync || device.last_synced || ""
         };
       });
-      
+
       setDevices(mappedDevices);
       setFilteredDevices(mappedDevices);
     } catch (error) {
@@ -702,7 +702,7 @@ export default function BiometricDevicesPage() {
 
   // Filter devices based on search
   useEffect(() => {
-    const filtered = devices.filter(device => 
+    const filtered = devices.filter(device =>
       (device.device_name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (device.device_id ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (device.location ?? '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -721,12 +721,12 @@ export default function BiometricDevicesPage() {
   // Validate form - Only Device ID is required now
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     // Only Device ID is required
     if (!form.device_id.trim()) newErrors.device_id = "Device ID is required";
-    
+
     // Check if device ID already exists (only for new devices)
-    if (!editingDevice && devices.some(d => 
+    if (!editingDevice && devices.some(d =>
       d.device_id.toLowerCase() === form.device_id.toLowerCase()
     )) {
       newErrors.device_id = "Device ID already exists";
@@ -780,19 +780,19 @@ export default function BiometricDevicesPage() {
           body: JSON.stringify(form),
         });
       }
-      
+
       const data = await res.json();
       if (res.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: `Device ${editingDevice ? 'updated' : 'added'} successfully!` 
+        setMessage({
+          type: 'success',
+          text: `Device ${editingDevice ? 'updated' : 'added'} successfully!`
         });
         resetForm();
         fetchDevices(currentPage);
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: data.message || data.error || `Failed to ${editingDevice ? 'update' : 'add'} device` 
+        setMessage({
+          type: 'error',
+          text: data.message || data.error || `Failed to ${editingDevice ? 'update' : 'add'} device`
         });
       }
     } catch (err) {
@@ -805,14 +805,14 @@ export default function BiometricDevicesPage() {
 
   const handleDelete = async (device: BiometricDevice) => {
     if (!window.confirm(`Are you sure you want to delete "${device.device_name}"?`)) return;
-    
+
     try {
       const res = await fetch(`/api/settings/biometric-device/${device.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ company_id: device.company_id }),
       });
-      
+
       const data = await res.json();
       if (res.ok) {
         setMessage({ type: 'success', text: 'Device deleted successfully!' });
@@ -842,13 +842,13 @@ export default function BiometricDevicesPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': 
+      case 'active':
         return 'bg-green-500/10 text-green-600 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-800';
-      case 'inactive': 
+      case 'inactive':
         return 'bg-gray-500/10 text-gray-600 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-800';
-      case 'maintenance': 
+      case 'maintenance':
         return 'bg-yellow-500/10 text-yellow-600 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-800';
-      default: 
+      default:
         return 'bg-gray-500/10 text-gray-600 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-800';
     }
   };
@@ -864,7 +864,7 @@ export default function BiometricDevicesPage() {
 
   const formatLastSync = (dateString?: string) => {
     if (!dateString || dateString.trim() === '') return 'Never synced';
-    
+
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Invalid date';
@@ -876,7 +876,7 @@ export default function BiometricDevicesPage() {
 
   const toggleDeviceStatus = async (device: BiometricDevice) => {
     const newStatus = device.status === 'active' ? 'inactive' : 'active';
-    
+
     try {
       const res = await fetch(`/api/settings/biometric-device/${device.id}`, {
         method: "PUT",
@@ -886,7 +886,7 @@ export default function BiometricDevicesPage() {
           status: newStatus
         }),
       });
-      
+
       if (res.ok) {
         setMessage({ type: 'success', text: `Device ${newStatus === 'active' ? 'activated' : 'deactivated'}!` });
         fetchDevices(currentPage);
@@ -919,8 +919,11 @@ export default function BiometricDevicesPage() {
             <Badge variant="secondary" className="px-3 py-1">
               {filteredDevices.length} Device{filteredDevices.length !== 1 ? 's' : ''}
             </Badge>
-            <Button 
-              onClick={() => setShowAddForm(true)}
+            <Button
+              onClick={() => {
+                resetForm();
+                setShowAddForm(true);
+              }}
               className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg"
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -933,11 +936,10 @@ export default function BiometricDevicesPage() {
 
         {/* Message Display */}
         {message && (
-          <Card className={`border-l-4 ${
-            message.type === 'success' 
-              ? 'border-green-500 bg-green-50/50 dark:bg-green-950/50' 
+          <Card className={`border-l-4 ${message.type === 'success'
+              ? 'border-green-500 bg-green-50/50 dark:bg-green-950/50'
               : 'border-red-500 bg-red-50/50 dark:bg-red-950/50'
-          } backdrop-blur-sm`}>
+            } backdrop-blur-sm`}>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 {message.type === 'success' ? (
@@ -945,8 +947,8 @@ export default function BiometricDevicesPage() {
                 ) : (
                   <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
                 )}
-                <span className={message.type === 'success' 
-                  ? 'text-green-800 dark:text-green-200' 
+                <span className={message.type === 'success'
+                  ? 'text-green-800 dark:text-green-200'
                   : 'text-red-800 dark:text-red-200'
                 }>
                   {message.text}
@@ -982,7 +984,7 @@ export default function BiometricDevicesPage() {
                 {editingDevice ? 'Edit Device' : 'Add New Device'}
               </DialogTitle>
             </DialogHeader>
-            
+
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
@@ -1055,7 +1057,7 @@ export default function BiometricDevicesPage() {
                           <span>Active</span>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center gap-3 p-3 rounded-md border hover:bg-secondary/50 transition-colors">
                         <input
                           type="radio"
@@ -1073,7 +1075,7 @@ export default function BiometricDevicesPage() {
                           <span>Inactive</span>
                         </label>
                       </div>
-                      
+
                       <div className="flex items-center gap-3 p-3 rounded-md border hover:bg-secondary/50 transition-colors">
                         <input
                           type="radio"
@@ -1130,7 +1132,7 @@ export default function BiometricDevicesPage() {
               <Separator />
 
               <div className="flex gap-3">
-                <Button 
+                <Button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
                   className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
@@ -1198,16 +1200,15 @@ export default function BiometricDevicesPage() {
                               </Badge>
                             </div>
                           </div>
-                          
+
                           {/* Toggle Status Button */}
                           <div className="flex items-center gap-2">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
-                              device.status === 'active' 
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${device.status === 'active'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                 : device.status === 'maintenance'
-                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                              }`}>
                               {device.status === 'active' ? (
                                 <Power className="h-3.5 w-3.5" />
                               ) : device.status === 'maintenance' ? (
@@ -1242,7 +1243,7 @@ export default function BiometricDevicesPage() {
                             </div>
                             <p className="text-foreground pl-6">{device.location || "Not specified"}</p>
                           </div>
-                          
+
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm">
                               <Wifi className="h-4 w-4 text-muted-foreground" />
@@ -1250,7 +1251,7 @@ export default function BiometricDevicesPage() {
                             </div>
                             <p className="text-foreground pl-6">{device.ip_address || "Not configured"}</p>
                           </div>
-                          
+
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm">
                               <Monitor className="h-4 w-4 text-muted-foreground" />
@@ -1269,7 +1270,7 @@ export default function BiometricDevicesPage() {
                               {formatLastSync(device.last_sync)}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
