@@ -231,6 +231,10 @@ export async function POST(req: Request) {
       maleCount: data.male_count || 0,
       femaleCount: data.female_count || 0,
       othersCount: data.others_count || 0,
+      activeCount: data.active_count ?? 0,
+      activeMaleCount: data.active_male_count ?? 0,
+      activeFemaleCount: data.active_female_count ?? 0,
+      leaveCount: data.leave_count ?? 0,
       employees: employees, // Main array of employees
       data: employees, // Also include for backward compatibility
       message: data.message,

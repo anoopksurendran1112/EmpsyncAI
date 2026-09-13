@@ -11,6 +11,7 @@ import re
 import traceback
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from leave.models import Leave
 from dateutil.relativedelta import relativedelta
 
 
@@ -1034,6 +1035,10 @@ def getAllUsers(request, page):
     is_active = request.data.get('is_active')
     roles = request.data.get('roles', [])
     groups = request.data.get('groups', [])
+    # Support single group_id sent from frontend in addition to groups array
+    group_id_single = request.data.get('group_id')
+    if group_id_single and not groups:
+        groups = [group_id_single]
     search = request.data.get('search', '').strip()
     include_self = request.data.get('include_self', False)
 
@@ -1055,7 +1060,11 @@ def getAllUsers(request, page):
     else:
         filters &= Q(is_active=True)  # default: only show active employees
 
-    if not is_admin:
+    if groups:
+        # Explicit group filter always takes priority (works for both admin and non-admin)
+        filters &= Q(group_id__in=groups)
+    elif not is_admin:
+        # Non-admins with no group filter can only see their own group
         filters &= Q(group_id=user.group_id)
     if gender:
         # Handle both a single string value and a list of values
@@ -1065,8 +1074,6 @@ def getAllUsers(request, page):
             filters &= Q(gender=gender)
     if roles:
         filters &= Q(role_id__in=roles)
-    if groups:
-        filters &= Q(group_id__in=groups)
     if search:
         filters &= (
             Q(first_name__icontains=search) |
@@ -1113,10 +1120,11 @@ def getAllUsers(request, page):
             serializer = UserSerializer(user, context={'company_id': company_id})
             serialized_user = serializer.data
             biometric_id = user.biometric_id
-            if str(biometric_id).isdigit():
+            if biometric_id:
+                # Use user_id directly — device filter skipped because Device table IDs
+                # don't match actual biometric machine serial numbers in PunchRecords
                 today_punches = PunchRecords.objects.using('secondary').filter(
-                    user_id=int(biometric_id),
-                    device_id__in=device_ids,
+                    user_id=str(biometric_id),
                     punch_time__date=today
                 ).order_by('punch_time')
             else:
@@ -1170,10 +1178,47 @@ def getAllUsers(request, page):
             print("FAILED:", e)
             raise
 
-    return Response({ 'status': status.HTTP_200_OK, 'total': paginator.count,
-        'page': page_data.number, 'total_page': paginator.num_pages,
-        'male_count': male_count, 'female_count': female_count, 'others_count': others_count,
-        'success': True, 'message': 'No users found.' if paginator.count == 0 else 'Success',
+    # active_count: group members who punched Check-In today on ANY device
+    user_biometric_ids = [str(b) for b in users.values_list('biometric_id', flat=True) if b]
+    punched_today = set(
+        str(x) for x in PunchRecords.objects.using('secondary').filter(
+            user_id__in=user_biometric_ids,
+            punch_time__date=today,
+            status='Check-In'
+        ).values_list('user_id', flat=True)
+    )
+    active_count = len(punched_today)
+
+    # active male/female breakdown — matches the gender bar pattern in useActiveUsersCount
+    active_users_qs = users.filter(
+        biometric_id__in=[uid for uid in punched_today]
+    )
+    active_male_count = active_users_qs.filter(gender='M').count()
+    active_female_count = active_users_qs.filter(gender='F').count()
+
+    # leave_count: group members on approved leave today
+    leave_count = Leave.objects.filter(
+        user__in=users,
+        company_id=company_id,
+        from_date__lte=today,
+        to_date__gte=today,
+        status='A'
+    ).values('user_id').distinct().count()
+
+    return Response({
+        'status': status.HTTP_200_OK,
+        'total': paginator.count,
+        'page': page_data.number,
+        'total_page': paginator.num_pages,
+        'male_count': male_count,
+        'female_count': female_count,
+        'others_count': others_count,
+        'active_count': active_count,
+        'active_male_count': active_male_count,
+        'active_female_count': active_female_count,
+        'leave_count': leave_count,
+        'success': True,
+        'message': 'No users found.' if paginator.count == 0 else 'Success',
         'data': user_data
     })
 

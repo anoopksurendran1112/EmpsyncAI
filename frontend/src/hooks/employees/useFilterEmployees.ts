@@ -10,11 +10,23 @@ interface FilterEmployeesResponse {
   page: number;
   totalPages: number;
   totalEmployees: number;
+  totalCount?: number;
+  currentPage?: number;
   maleCount: number;
   femaleCount: number;
   othersCount: number;
+  activeCount?: number;
+  activeMaleCount?: number;
+  activeFemaleCount?: number;
+  leaveCount?: number;
+  active_count?: number;
+  active_male_count?: number;
+  active_female_count?: number;
+  leave_count?: number;
+  employees?: User[];
   data: User[];
   message: string;
+  error?: string;
 }
 
 interface FilterEmployeesData {
@@ -25,6 +37,12 @@ interface FilterEmployeesData {
   maleCount: number;
   femaleCount: number;
   othersCount: number;
+  activeCount: number;
+  activeMaleCount: number;
+  activeFemaleCount: number;
+  leaveCount: number;
+  hasNextPage?: boolean;
+  hasPrevPage?: boolean;
 }
 
 async function fetchFilterEmployees({
@@ -83,17 +101,20 @@ async function fetchFilterEmployees({
   });
 
   return {
-  employees: responseData.employees || responseData.data || [],
-  totalEmployees: responseData.totalEmployees || responseData.totalCount || 0,
-  currentPage: responseData.currentPage || responseData.page || page,
-  totalPages: responseData.totalPages || 1,
-  maleCount: responseData.maleCount || 0,
-  femaleCount: responseData.femaleCount || 0,
-  othersCount: responseData.othersCount || 0,
-  hasNextPage: (responseData.currentPage || responseData.page || page) < (responseData.totalPages || 1),
-  hasPrevPage: (responseData.currentPage || responseData.page || page) > 1,
-};
-
+    employees: responseData.employees || responseData.data || [],
+    totalEmployees: responseData.totalEmployees || responseData.totalCount || 0,
+    currentPage: responseData.currentPage || responseData.page || page,
+    totalPages: responseData.totalPages || 1,
+    maleCount: responseData.maleCount || 0,
+    femaleCount: responseData.femaleCount || 0,
+    othersCount: responseData.othersCount || 0,
+    activeCount: responseData.activeCount ?? responseData.active_count ?? 0,
+    activeMaleCount: responseData.activeMaleCount ?? responseData.active_male_count ?? 0,
+    activeFemaleCount: responseData.activeFemaleCount ?? responseData.active_female_count ?? 0,
+    leaveCount: responseData.leaveCount ?? responseData.leave_count ?? 0,
+    hasNextPage: (responseData.currentPage || responseData.page || page) < (responseData.totalPages || 1),
+    hasPrevPage: (responseData.currentPage || responseData.page || page) > 1,
+  };
 }
 
 export function useFilterEmployees({

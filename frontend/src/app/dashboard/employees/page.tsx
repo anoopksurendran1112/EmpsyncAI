@@ -527,6 +527,38 @@ function EmployeesList({ companyId }: { companyId: number }) {
     filteredEmployeesData,
   ]);
 
+  // When a group is selected, use group-specific counts from filteredEmployeesData;
+  // when no group is selected, fall back to company-wide activeUsersData
+  const displayActiveCount = useMemo(() => {
+    if (selectedGroupId !== 0 && filteredEmployeesData) {
+      return filteredEmployeesData.activeCount ?? 0;
+    }
+    return activeUsersData?.total ?? 0;
+  }, [selectedGroupId, filteredEmployeesData, activeUsersData]);
+
+  const displayLeaveCount = useMemo(() => {
+    if (selectedGroupId !== 0 && filteredEmployeesData) {
+      return filteredEmployeesData.leaveCount ?? 0;
+    }
+    return 0;
+  }, [selectedGroupId, filteredEmployeesData]);
+
+  const displayMaleCount = useMemo(() => {
+    if (selectedGroupId !== 0 && filteredEmployeesData) {
+      // Use active_male_count — consistent with useActiveUsersCount (active employees today)
+      return filteredEmployeesData.activeMaleCount ?? 0;
+    }
+    return activeUsersData?.male_count ?? 0;
+  }, [selectedGroupId, filteredEmployeesData, activeUsersData]);
+
+  const displayFemaleCount = useMemo(() => {
+    if (selectedGroupId !== 0 && filteredEmployeesData) {
+      // Use active_female_count — consistent with useActiveUsersCount (active employees today)
+      return filteredEmployeesData.activeFemaleCount ?? 0;
+    }
+    return activeUsersData?.female_count ?? 0;
+  }, [selectedGroupId, filteredEmployeesData, activeUsersData]);
+
   const currentPageEmployeesCount = filteredEmployees.length;
 
   // Calculate range for display
@@ -767,118 +799,118 @@ function EmployeesList({ companyId }: { companyId: number }) {
       <div className="pb-4">
         {/* Stats Cards */}
         <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-  {/* Total Employees Card */}
-  <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-    <div>
-      <h3 className="text-sm font-semibold text-gray-500 mb-1">
-        Total Employees
-      </h3>
-      <p className="text-3xl font-bold text-blue-600">
-        {countLoading ? (
-          <span className="text-gray-400">Loading...</span>
-        ) : (
-          displayTotalCount.toLocaleString()
-        )}
-      </p>
-    </div>
-    <div className="p-3 bg-blue-100 rounded-full">
-      <Users className="h-6 w-6 text-blue-600" />
-    </div>
-  </div>
-
-  {/* On Leave Card */}
-  <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
-    <div>
-      <h3 className="text-sm font-semibold text-gray-500 mb-1">
-        On Leave
-      </h3>
-      <p className="text-3xl font-bold text-red-600">
-        {activeUsersLoading ? (
-          <span className="text-gray-400">--</span>
-        ) : (
-          activeUsersData?.male_count || 0
-        )}
-      </p>
-    </div>
-    <div className="p-3 bg-red-100 rounded-full">
-      <UserRoundX className="h-6 w-6 text-red-600" />
-    </div>
-  </div>
-
-  {/* Active Today Card - bigger, spans full width below, with gender progress bar */}
-  <div className="sm:col-span-1 lg:col-span-1 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-    <div className="flex items-center justify-between mb-5">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-1">
-          Active Today
-        </h3>
-        <p className="text-4xl font-bold text-green-600">
-          {activeUsersLoading ? (
-            <span className="text-gray-400">Loading...</span>
-          ) : (
-            activeUsersData?.total.toLocaleString() || "0"
-          )}
-        </p>
-      </div>
-      <div className="p-4 bg-green-100 rounded-full">
-        <UserCheck className="h-8 w-8 text-green-600" />
-      </div>
-    </div>
-
-    {/* Gender Breakdown Progress Bar */}
-    {(() => {
-      const male = activeUsersData?.male_count || 0;
-      const female = activeUsersData?.female_count || 0;
-      const total = male + female;
-      const malePct = total > 0 ? (male / total) * 100 : 0;
-      const femalePct = total > 0 ? (female / total) * 100 : 0;
-
-      return (
-        <div>
-          {/* Stacked bar */}
-          <div className="flex w-full h-3 rounded-full overflow-hidden bg-gray-100">
-            {activeUsersLoading ? (
-              <div className="w-full h-full bg-gray-200 animate-pulse" />
-            ) : (
-              <>
-                <div
-                  className="h-full bg-purple-500 transition-all duration-500"
-                  style={{ width: `${malePct}%` }}
-                />
-                <div
-                  className="h-full bg-pink-500 transition-all duration-500"
-                  style={{ width: `${femalePct}%` }}
-                />
-              </>
-            )}
+          {/* Total Employees Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                Total Employees
+              </h3>
+              <p className="text-3xl font-bold text-blue-600">
+                {countLoading ? (
+                  <span className="text-gray-400">Loading...</span>
+                ) : (
+                  displayTotalCount.toLocaleString()
+                )}
+              </p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-full">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
           </div>
 
-          {/* Legend */}
-          <div className="flex items-center justify-between mt-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
-              <span className="text-sm text-gray-600">
-                Men{" "}
-                <span className="font-semibold text-purple-600">
-                  {activeUsersLoading ? "--" : male.toLocaleString()}
-                </span>
-              </span>
+          {/* On Leave Card */}
+          <div className="p-6 bg-white rounded-lg shadow-sm border border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                On Leave
+              </h3>
+              <p className="text-3xl font-bold text-red-600">
+                {filteredLoading || activeUsersLoading ? (
+                  <span className="text-gray-400">--</span>
+                ) : (
+                  displayLeaveCount.toLocaleString()
+                )}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-pink-500" />
-              <span className="text-sm text-gray-600">
-                Women{" "}
-                <span className="font-semibold text-pink-600">
-                  {activeUsersLoading ? "--" : female.toLocaleString()}
-                </span>
-              </span>
+            <div className="p-3 bg-red-100 rounded-full">
+              <UserRoundX className="h-6 w-6 text-red-600" />
             </div>
+          </div>
+
+          {/* Active Today Card - bigger, spans full width below, with gender progress bar */}
+          <div className="sm:col-span-1 lg:col-span-1 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 mb-1">
+                  Active Today
+                </h3>
+                <p className="text-4xl font-bold text-green-600">
+                  {filteredLoading || activeUsersLoading ? (
+                    <span className="text-gray-400">Loading...</span>
+                  ) : (
+                    displayActiveCount.toLocaleString()
+                  )}
+                </p>
+              </div>
+              <div className="p-4 bg-green-100 rounded-full">
+                <UserCheck className="h-8 w-8 text-green-600" />
+              </div>
+            </div>
+
+            {/* Gender Breakdown Progress Bar */}
+            {(() => {
+              const male = displayMaleCount;
+              const female = displayFemaleCount;
+              const total = male + female;
+              const malePct = total > 0 ? (male / total) * 100 : 0;
+              const femalePct = total > 0 ? (female / total) * 100 : 0;
+
+              return (
+                <div>
+                  {/* Stacked bar */}
+                  <div className="flex w-full h-3 rounded-full overflow-hidden bg-gray-100">
+                    {filteredLoading || activeUsersLoading ? (
+                      <div className="w-full h-full bg-gray-200 animate-pulse" />
+                    ) : (
+                      <>
+                        <div
+                          className="h-full bg-purple-500 transition-all duration-500"
+                          style={{ width: `${malePct}%` }}
+                        />
+                        <div
+                          className="h-full bg-pink-500 transition-all duration-500"
+                          style={{ width: `${femalePct}%` }}
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center justify-between mt-3">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+                      <span className="text-sm text-gray-600">
+                        Men{" "}
+                        <span className="font-semibold text-purple-600">
+                          {filteredLoading || activeUsersLoading ? "--" : male.toLocaleString()}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-pink-500" />
+                      <span className="text-sm text-gray-600">
+                        Women{" "}
+                        <span className="font-semibold text-pink-600">
+                          {filteredLoading || activeUsersLoading ? "--" : female.toLocaleString()}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
-      );
-    })()}
-  </div>
-</div>
 
         <div className="pt-6 mt-2">
           <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -914,7 +946,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
                 onChange={(e) => setSelectedStatusFilter(e.target.value)}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow bg-white h-[42px]"
               >
-              <option value="all">None</option>
+                <option value="all">None</option>
                 <option value="active">Active Today</option>
                 <option value="leave">Absent Today</option>
                 <option value="inactive">Inactive Members</option>
@@ -956,13 +988,13 @@ function EmployeesList({ companyId }: { companyId: number }) {
               {(selectedGroupId !== 0 ||
                 searchQuery ||
                 selectedStatusFilter !== "all") && (
-                <button
-                  onClick={clearFilters}
-                  className="flex items-center justify-center gap-2 px-6 py-[9px] bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium text-sm h-[42px]"
-                >
-                  Clear
-                </button>
-              )}
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center justify-center gap-2 px-6 py-[9px] bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition font-medium text-sm h-[42px]"
+                  >
+                    Clear
+                  </button>
+                )}
               <button
                 onClick={() => window.location.reload()}
                 className="flex items-center justify-center gap-2 px-6 py-[9px] bg-blue-600 text-white rounded-md hover:bg-blue-700 transition font-medium text-sm h-[42px]"
@@ -1215,9 +1247,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
                             currentPage <= 3
                               ? i + 1
                               : Math.min(
-                                  currentPage - 2 + i,
-                                  totalPages - 4 + i,
-                                );
+                                currentPage - 2 + i,
+                                totalPages - 4 + i,
+                              );
 
                           if (pageNum <= 0) pageNum = i + 1;
                           if (pageNum > totalPages) return null;
