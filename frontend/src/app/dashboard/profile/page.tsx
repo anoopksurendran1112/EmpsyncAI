@@ -1899,7 +1899,7 @@ export default function ProfilePage() {
                     </div>
                     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Present Address */}
-                      {isFieldVisible('address_settings', 'present_address_line') && (
+                      {isFieldVisible('address_settings', 'present_address') && (
                         <div>
                           <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Present Residence</p>
                           <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
@@ -1916,7 +1916,7 @@ export default function ProfilePage() {
                         </div>
                       )}
                       {/* Permanent Address */}
-                      {isFieldVisible('address_settings', 'permanent_address_line') && (
+                      {isFieldVisible('address_settings', 'permanent_address') && (
                         <div>
                           <p className="text-[10px] font-bold uppercase text-gray-400 mb-2">Permanent Landmark</p>
                           <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 min-h-[120px]">
@@ -2844,7 +2844,7 @@ export default function ProfilePage() {
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[65vh] overflow-y-auto custom-scrollbar">
 
               {/* PRESENT RESIDENCE SECTION */}
-              {isFieldVisible('address_settings', 'present_address_line') && (
+              {isFieldVisible('address_settings', 'present_address') && (
                 <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
                   <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
                     <div className="h-8 w-8 rounded-lg bg-[#eff6ff] flex items-center justify-center border border-blue-100 shadow-sm">
@@ -2988,7 +2988,7 @@ export default function ProfilePage() {
               )}
 
               {/* PERMANENT RESIDENCE SECTION */}
-              {isFieldVisible('address_settings', 'permanent_address_line') && (
+              {isFieldVisible('address_settings', 'permanent_address') && (
                 <div className="p-4 rounded-lg border border-[#dde3ec] bg-white space-y-4">
                   <div className="flex items-center gap-2.5 border-b border-[#dde3ec] pb-3">
                     <div className="h-8 w-8 rounded-lg bg-[#f5f3ff] flex items-center justify-center border border-purple-100 shadow-sm">
