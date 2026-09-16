@@ -35,29 +35,32 @@ export default function VirtualDevicePage() {
       setLoading(false);
     }
   };
-
-  // ✅ Create new device
+  //create device 
   const handleCreate = async () => {
     try {
-      const payload = {
-        device_id: formData.biometric_id, // adapt as needed
-        ...formData,
-      };
       const res = await fetch(`/api/settings/virtual-device`, {
-        method: "PUT", // since backend toggles `is_active` on PUT
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(formData),
       });
+
       const data = await res.json();
+
       if (res.ok) {
-        alert("Device created/updated successfully!");
-        setFormData({ first_name: "", last_name: "", mobile: "", email: "", biometric_id: "" });
+        alert("Device created successfully!");
+        setFormData({
+          first_name: "",
+          last_name: "",
+          mobile: "",
+          email: "",
+          biometric_id: "",
+        });
         fetchDevices();
       } else {
-        alert(data.message || "Failed to create/update device");
+        alert(data.message || "Failed to create device");
       }
     } catch (err) {
-      console.error("Error creating device:", err);
+      console.error("Error creating virtual device:", err);
     }
   };
 
@@ -92,15 +95,22 @@ export default function VirtualDevicePage() {
   const handleUpdate = async () => {
     try {
       const payload = {
-        device_id: editData.biometric_id, // backend requires `device_id`
-        ...editData,
+        device_id: editData.id,
+        first_name: editData.first_name,
+        last_name: editData.last_name,
+        mobile: editData.mobile,
+        email: editData.email,
+        biometric_id: editData.biometric_id,
       };
+
       const res = await fetch(`/api/settings/virtual-device`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
       const data = await res.json();
+
       if (res.ok) {
         alert("Device updated successfully!");
         setIsEditOpen(false);
@@ -109,10 +119,9 @@ export default function VirtualDevicePage() {
         alert(data.message || "Failed to update device");
       }
     } catch (err) {
-      console.error("Error updating device:", err);
+      console.error("Error updating virtual device:", err);
     }
   };
-
   useEffect(() => {
     fetchDevices();
   }, []);
@@ -188,12 +197,12 @@ export default function VirtualDevicePage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <Separator className="my-3" />
-                  
+
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => openEditModal(device)}
                       className="flex-1 hover:bg-primary hover:text-primary-foreground transition-colors"
@@ -201,8 +210,8 @@ export default function VirtualDevicePage() {
                       <Edit className="h-3.5 w-3.5 mr-2" />
                       Edit
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleDelete(device.id)}
                       className="hover:bg-destructive hover:text-destructive-foreground transition-colors"
@@ -288,8 +297,8 @@ export default function VirtualDevicePage() {
                 className="bg-background/50"
               />
             </div>
-            <Button 
-              onClick={handleCreate} 
+            <Button
+              onClick={handleCreate}
               className="w-full md:w-auto bg-primary hover:bg-primary/90"
               size="lg"
             >

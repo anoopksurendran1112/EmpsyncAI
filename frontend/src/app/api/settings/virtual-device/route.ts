@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const page = url.searchParams.get("page") || "1";
 
-    const apiUrl = `${process.env.API_URL}/get-virtual-devices?page=${page}`;
+    const apiUrl = `${process.env.API_URL}/virtual-device/${page}`;
 
     const res = await fetch(apiUrl, {
       method: "GET",
@@ -50,7 +50,54 @@ export async function GET(req: Request) {
     );
   }
 }
+// ✅ POST virtual device (create)
+export async function POST(req: Request) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("access_token")?.value;
+    const companyId = cookieStore.get("company_id")?.value;
 
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+
+    const apiUrl = `${process.env.API_URL}/create-virtual-device`;
+
+    const payload = companyId
+      ? { ...body, company_id: companyId }
+      : body;
+
+    const res = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(companyId ? { "X-Company-ID": companyId } : {}),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    return NextResponse.json(data, { status: res.status });
+  } catch (err) {
+    console.error("Error creating virtual device:", err);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to create virtual device",
+      },
+      { status: 500 }
+    );
+  }
+}
 // ✅ PUT virtual device (toggle is_active)
 export async function PUT(req: Request) {
   try {
