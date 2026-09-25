@@ -58,6 +58,7 @@ class LeaveType(models.Model):
         ],
         default="normal",
     )
+    settings = models.JSONField(default=dict, blank=True)
 
     def __str__(self):
         return self.leave_type
