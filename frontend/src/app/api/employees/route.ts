@@ -57,9 +57,9 @@ export async function POST(req: Request) {
 
     const apiUrl = process.env.API_URL;
     
-    // 🔥 ULTRA-FAST EMPLOYEE LOOKUP
+    // 🔥 DIRECT EMPLOYEE LOOKUP VIA BACKEND (1 single API call)
     if (employee_id) {
-      console.log(`🚀 Fast lookup: ${employee_id}`);
+      console.log(`🚀 Direct lookup for employee: ${employee_id}`);
       const startTime = Date.now();
       
       // Cache key
@@ -77,61 +77,47 @@ export async function POST(req: Request) {
         });
       }
       
-      // 2. SMART PAGE PREDICTION ALGORITHM
-      let employee = null;
-      
-      // If numeric ID, predict exact page
-      if (/^\d+$/.test(employee_id)) {
-        const empIdNum = parseInt(employee_id);
-        
-        // Algorithm 1: Direct page calculation (if IDs are sequential)
-        const predictedPage = Math.max(1, Math.ceil(empIdNum / 50));
-        
-        // Algorithm 2: Check if IDs start from certain number
-        // Many systems start IDs from 100, 1000, etc.
-        let offsetPredictedPage = predictedPage;
-        if (empIdNum >= 1000) {
-          offsetPredictedPage = Math.max(1, Math.ceil((empIdNum - 1000) / 50) + 1);
-        } else if (empIdNum >= 100) {
-          offsetPredictedPage = Math.max(1, Math.ceil((empIdNum - 100) / 50) + 1);
-        }
-        
-        console.log(`🎯 Predicted pages: ${predictedPage}, ${offsetPredictedPage}`);
-        
-        // Check predicted pages first
-        employee = await checkMultiplePages(
-          apiUrl, token, company_id, employee_id,
-          [predictedPage, offsetPredictedPage]
+      // 2. Direct lookup via backend employee-with-profile endpoint
+      try {
+        const backendRes = await fetch(
+          `${apiUrl}/employee-with-profile/?user_id=${encodeURIComponent(employee_id)}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
         );
-        
-        // If not found, check surrounding pages
-        if (!employee) {
-          const rangeStart = Math.max(1, Math.min(predictedPage, offsetPredictedPage) - 2);
-          const rangeEnd = Math.max(predictedPage, offsetPredictedPage) + 2;
-          employee = await checkPageRange(
-            apiUrl, token, company_id, employee_id,
-            rangeStart, rangeEnd
-          );
+
+        if (backendRes.ok) {
+          const backendData = await backendRes.json();
+          const user = backendData?.data?.user;
+          if (user) {
+            const employeeData = {
+              ...user,
+              avg_working_hour: user.avg_working_hour ?? 0,
+              is_below_avg_hours: user.is_below_avg_hours ?? false,
+              check_in: user.check_in ?? null,
+              check_out: user.check_out ?? null,
+              punch_pairs: user.punch_pairs ?? [],
+            };
+
+            quickCache.set(cacheKey, employeeData);
+            const totalTime = Date.now() - startTime;
+            console.log(`✅ Found in ${totalTime}ms via employee-with-profile`);
+
+            return NextResponse.json({ 
+              success: true, 
+              data: employeeData,
+              searchTime: totalTime
+            });
+          }
         }
-      }
-      
-      // 3. If not numeric or prediction failed, use smart search
-      if (!employee) {
-        employee = await smartSearch(apiUrl, token, company_id, employee_id);
-      }
-      
-      if (employee) {
-        // Cache the result
-        quickCache.set(cacheKey, employee);
-        
-        const totalTime = Date.now() - startTime;
-        console.log(`✅ Found in ${totalTime}ms`);
-        
-        return NextResponse.json({ 
-          success: true, 
-          data: employee,
-          searchTime: totalTime
-        });
+      } catch (lookupErr) {
+        console.error("Direct employee lookup error:", lookupErr);
       }
       
       const totalTime = Date.now() - startTime;
@@ -196,149 +182,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Check multiple specific pages
-async function checkMultiplePages(
-  apiUrl: string,
-  token: string,
-  company_id: string,
-  employee_id: string,
-  pages: number[]
-): Promise<any> {
-  const uniquePages = [...new Set(pages.filter(p => p > 0))];
-  
-  const promises = uniquePages.map(page => 
-    checkSinglePage(apiUrl, token, company_id, employee_id, page)
-  );
-  
-  const results = await Promise.all(promises);
-  return results.find(emp => emp !== null) || null;
-}
-
-// Check single page
-async function checkSinglePage(
-  apiUrl: string,
-  token: string,
-  company_id: string,
-  employee_id: string,
-  page: number
-): Promise<any> {
-  try {
-    const fetchUrl = `${apiUrl}/admin/users/${page}`;
-    const res = await fetch(fetchUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ company_id, limit: 100 }),
-    });
-
-    if (!res.ok) return null;
-
-    const responseData = await res.json();
-    const employees = responseData.data || [];
-    
-    const employee = employees.find((emp: any) => 
-      emp.id?.toString() === employee_id ||
-      emp.biometric_id?.toString() === employee_id
-    );
-    
-    if (employee) {
-      console.log(`🎯 Found on page ${page}`);
-      return employee;
-    }
-    
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Check page range
-async function checkPageRange(
-  apiUrl: string,
-  token: string,
-  company_id: string,
-  employee_id: string,
-  startPage: number,
-  endPage: number
-): Promise<any> {
-  const pages = Array.from(
-    { length: Math.min(endPage - startPage + 1, 5) },
-    (_, i) => startPage + i
-  ).filter(p => p > 0);
-  
-  return await checkMultiplePages(apiUrl, token, company_id, employee_id, pages);
-}
-
-// Smart search algorithm
-async function smartSearch(
-  apiUrl: string,
-  token: string,
-  company_id: string,
-  employee_id: string
-): Promise<any> {
-  console.log(`🤔 Starting smart search for ${employee_id}`);
-  
-  // Get total pages first
-  try {
-    const firstPage = await checkSinglePage(apiUrl, token, company_id, "", 1);
-    if (!firstPage) return null;
-    
-    // We need to fetch page 1 to get total pages
-    const fetchUrl = `${apiUrl}/admin/users/1`;
-    const res = await fetch(fetchUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ company_id, limit: 1 }),
-    });
-
-    if (!res.ok) return null;
-
-    const responseData = await res.json();
-    const totalPages = responseData.total_page || 1;
-    
-    console.log(`📚 Total pages: ${totalPages}`);
-    
-    // Strategy: Check first, last, and middle pages first
-    const checkPages = [1, totalPages];
-    if (totalPages > 2) {
-      checkPages.push(Math.floor(totalPages / 2));
-    }
-    
-    // Remove duplicates
-    const uniquePages = [...new Set(checkPages.filter(p => p > 0))];
-    
-    console.log(`🔍 Checking key pages: ${uniquePages.join(', ')}`);
-    
-    // Check key pages
-    const employee = await checkMultiplePages(apiUrl, token, company_id, employee_id, uniquePages);
-    if (employee) return employee;
-    
-    // If not found, do parallel search of remaining pages in chunks
-    const remainingPages = Array.from(
-      { length: totalPages },
-      (_, i) => i + 1
-    ).filter(p => !uniquePages.includes(p));
-    
-    // Search in chunks of 3
-    for (let i = 0; i < remainingPages.length; i += 3) {
-      const chunk = remainingPages.slice(i, i + 3);
-      console.log(`🔍 Checking chunk: ${chunk.join(', ')}`);
-      
-      const found = await checkMultiplePages(apiUrl, token, company_id, employee_id, chunk);
-      if (found) return found;
-    }
-    
-  } catch (error) {
-    console.error("Smart search error:", error);
-  }
-  
-  return null;
-}
 
 // // app/api/employees/route.ts
 

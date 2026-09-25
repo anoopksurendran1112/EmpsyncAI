@@ -21,7 +21,6 @@ import { useAuth, User } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { useEmployee } from "@/hooks/employees/useGetEmployee";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -205,10 +204,10 @@ export default function EmployeeDetailsPage() {
     overall_completion_percentage: number;
   } | null>(null);
 
-  const { data: employee, isLoading, isError, refetch } = useEmployee(companyId, employeeId);
   const [formData, setFormData] = useState<User | null>(null);
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(false);
   
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editProfileData, setEditProfileData] = useState<EditableProfile | null>(null);
@@ -307,15 +306,6 @@ export default function EmployeeDetailsPage() {
     }
   }, [employeeId, companyId]);
 
-  useEffect(() => {
-    if (employee) {
-      setFormData(employee);
-      setBiometricInput(employee.biometric_id || "");
-      setRetryCount(0);
-    } else {
-      setFormData(null);
-    }
-  }, [employee]);
 
   useEffect(() => {
     if (employeeId) fetchProfile();
@@ -330,11 +320,11 @@ export default function EmployeeDetailsPage() {
   }, [companyId]);
 
   useEffect(() => {
-    if (isError && retryCount < 2) {
-      const timer = setTimeout(() => { refetch(); setRetryCount(p => p + 1); }, 1000);
+    if (profileError && retryCount < 2) {
+      const timer = setTimeout(() => { fetchProfile(); setRetryCount(p => p + 1); }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isError, retryCount, refetch]);
+  }, [profileError, retryCount]);
 
 
   useEffect(() => {
@@ -355,19 +345,24 @@ export default function EmployeeDetailsPage() {
  
   const fetchProfile = async () => {
     setProfileLoading(true);
+    setProfileError(false);
     try {
       const res = await fetch(`/api/employee-with-profile?user_id=${employeeId}`, { cache: "no-store" });
       if (res.ok) {
         const result = await res.json();
         if (result?.success && result.data) {
           setFullProfile(result.data.profile || null);
-          setFormData(prev => result.data.user || prev);
+          setFormData(result.data.user || null);
+          setBiometricInput(result.data.user?.biometric_id || "");
+          setRetryCount(0);
           setQualifications(result.data.qualifications || []);
           setExperiences(result.data.experiences || []);
           setBankDetails(result.data.bank_details || []);
           setGuardians(result.data.guardians || []);
         } else {
           setFullProfile(null);
+          setFormData(null);
+          setProfileError(true);
           setQualifications([]);
           setExperiences([]);
           setBankDetails([]);
@@ -377,6 +372,8 @@ export default function EmployeeDetailsPage() {
         const errorText = await res.text();
         console.error("Failed to fetch employee-with-profile:", errorText);
         setFullProfile(null);
+        setFormData(null);
+        setProfileError(true);
         setQualifications([]);
         setExperiences([]);
         setBankDetails([]);
@@ -385,6 +382,8 @@ export default function EmployeeDetailsPage() {
     } catch (err) {
       console.error("Failed to fetch profile:", err);
       setFullProfile(null);
+      setFormData(null);
+      setProfileError(true);
     } finally {
       setProfileLoading(false);
     }
@@ -1001,8 +1000,6 @@ export default function EmployeeDetailsPage() {
       if (result.data?.experiences) setExperiences(result.data.experiences);
       if (result.data?.bank_details) setBankDetails(result.data.bank_details);
       if (result.data?.guardians) setGuardians(result.data.guardians);
-
-      refetch();
       await fetchProfile();
       
       // Refresh data entry percentage after save
@@ -1097,8 +1094,7 @@ export default function EmployeeDetailsPage() {
     router.push(url);
   };
 
- 
-  if (authLoading || isLoading) {
+  if (authLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="h-12 w-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
@@ -1107,7 +1103,7 @@ export default function EmployeeDetailsPage() {
     );
   }
 
-  if (isError && !formData) {
+  if (profileError && !formData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <Card className="max-w-md w-full text-center p-8 bg-white shadow-xl rounded-2xl border-none">
@@ -1117,7 +1113,7 @@ export default function EmployeeDetailsPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
           <p className="text-gray-500 mb-8 leading-relaxed">We encountered an issue while retrieving this employee's data. This record may be dormant or inactive.</p>
           <div className="space-y-3">
-             <Button onClick={() => { setRetryCount(0); refetch(); }} className="w-full bg-blue-600 py-6 text-base font-bold rounded-xl shadow-lg shadow-blue-200"><RefreshCw className="h-5 w-5 mr-2" />Re-sync Record</Button>
+             <Button onClick={() => { setRetryCount(0); fetchProfile(); }} className="w-full bg-blue-600 py-6 text-base font-bold rounded-xl shadow-lg shadow-blue-200"><RefreshCw className="h-5 w-5 mr-2" />Re-sync Record</Button>
              <Link href="/dashboard/employees" className="block text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors pt-2">Return to list</Link>
           </div>
         </Card>
