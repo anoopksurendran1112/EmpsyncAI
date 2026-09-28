@@ -98,16 +98,21 @@ function decodeJwt(token: string): any | null {
 // ✅ Function to refresh the access token using refresh token
 async function refreshAccessToken(refreshToken: string) {
   try {
-    const res = await fetch(`${process.env.API_URL}/api/token/refresh/`, {
+    const baseUrl = (process.env.API_URL || "http://127.0.0.1:8000/api").replace(/\/+$/, "");
+    const refreshUrl = baseUrl.endsWith("/api")
+      ? `${baseUrl}/token/refresh`
+      : `${baseUrl}/api/token/refresh`;
+
+    const res = await fetch(refreshUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh: refreshToken }),
+      body: JSON.stringify({ refresh_token: refreshToken, refresh: refreshToken }),
     });
 
     if (!res.ok) return null;
 
     const data = await res.json();
-    return data.access; // DRF SimpleJWT returns {"access": "..."}
+    return data.access_token || data.access || null;
   } catch {
     return null;
   }

@@ -13,6 +13,12 @@ export async function POST() {
     maxAge: 0,
     path: "/",
   });
+  response.cookies.set({
+    name: "refresh_token",
+    value: "",
+    maxAge: 0,
+    path: "/",
+  });
 
   if (token) {
     try {
