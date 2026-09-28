@@ -192,7 +192,7 @@ interface RoleItem { id: number; role?: string; name?: string; }
 
 export default function ProfilePage() {
   const { user, isAdmin, updateUser, company } = useAuth();
-  
+
   // Data Entry Percentage State
   const [dataEntryPercentage, setDataEntryPercentage] = useState<number | null>(null);
   const [dataEntryLoading, setDataEntryLoading] = useState(true);
@@ -203,9 +203,9 @@ export default function ProfilePage() {
     filled_visible: number;
     overall_completion_percentage: number;
   } | null>(null);
-  
+
   const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(company?.id || null);
-  
+
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editedUser, setEditedUser] = useState<User | null>(user ? { ...user } : null);
   const [isSaving, setIsSaving] = useState(false);
@@ -339,7 +339,7 @@ export default function ProfilePage() {
   // Fetch Data Entry Percentage
   const fetchDataEntryPercentage = useCallback(async () => {
     if (!user?.id || !company?.id) return;
-    
+
     setDataEntryLoading(true);
     try {
       const response = await fetch(`/api/data-entry-percentage/`, {
@@ -767,7 +767,7 @@ export default function ProfilePage() {
       const formData = new FormData();
 
       formData.append("user_id", user.id.toString());
-      
+
       if (editingSection === "personal") {
 
         if (!editedUser?.first_name?.trim()) {
@@ -907,7 +907,7 @@ export default function ProfilePage() {
 
       }
       else if (editingSection === "contact") {
-     
+
         const primaryMobile = editedUser?.mobile?.trim() || '';
         if (!primaryMobile) {
           setValidationErrors(prev => ({ ...prev, mobile: "Primary mobile number is required" }));
@@ -977,7 +977,7 @@ export default function ProfilePage() {
       }
 
       else if (editingSection === "family") {
-     
+
         const guardianNames = new Set<string>();
 
         for (const guardian of guardians) {
@@ -1125,8 +1125,16 @@ export default function ProfilePage() {
       }
 
       else if (editingSection === "education") {
+        if (qualFormOpen) {
+          if (currentQual?._idx !== undefined) {
+            toast.error("Please click Update Record before saving.");
+          } else {
+            toast.error("Please click Add Record before saving.");
+          }
+          return;
+        }
         if (editQualifications) {
-          
+
           for (const qualification of editQualifications) {
 
             if (!qualification.qualification_level) {
@@ -1290,7 +1298,7 @@ export default function ProfilePage() {
 
       else if (editingSection === "legal") {
         if (editProfileData) {
-          
+
           if (isFieldVisible('identity_bank', 'aadhar_no')) {
             if (!editProfileData.aadhar_no?.trim()) {
               toast.error("Aadhaar Number is required");
@@ -1347,7 +1355,7 @@ export default function ProfilePage() {
 
       else if (editingSection === "bank") {
         if (editBankDetails) {
-          
+
           for (const bank of editBankDetails) {
 
             if (!bank.acc_holder_name?.trim()) {
@@ -1406,14 +1414,14 @@ export default function ProfilePage() {
       }
 
       else if (editingSection === "preference") {
-       
+
         formData.append("is_whatsapp", String(editedUser?.is_whatsapp || false));
         formData.append("is_sms", String(editedUser?.is_sms || false));
         formData.append("is_wfh", String(editedUser?.is_wfh || false));
       }
 
       else {
-       
+
         const imageFile = fileInputRef.current?.files?.[0] || null;
         if (imageFile) {
           const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
@@ -1453,12 +1461,12 @@ export default function ProfilePage() {
       }
 
       await fetchProfile();
-      
+
       // Refresh data entry percentage after save
       setTimeout(() => {
         fetchDataEntryPercentage();
       }, 500);
-      
+
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -1512,8 +1520,8 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] py-8">
       <div className="max-w-6xl mx-auto pb-12">
-        
-        
+
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           {!fullProfile && !profileLoading && <Button onClick={createEmptyProfile} className="bg-blue-50 text-blue-700 border-none hover:bg-blue-100"><Plus className="h-4 w-4 mr-2" /> Initialize Extended Profile</Button>}
@@ -1523,147 +1531,146 @@ export default function ProfilePage() {
         {/* Inactive User Warning */}
         {!user.is_active && <Alert className="mb-6 bg-yellow-50 border-yellow-200"><AlertDescription className="text-yellow-800 flex items-center gap-2"><XCircle className="h-4 w-4" /><span><strong>Account Inactive:</strong> Your account is currently inactive. Please contact your administrator.</span></AlertDescription></Alert>}
 
-       {/* Hero Profile Card with Image Upload */}
-<div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 relative">
-  <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
-    <div className="relative group">
-      <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
-        {profileUrl && !imgError ? (
-          <Image
-            src={profileUrl}
-            alt="Profile"
-            width={128}
-            height={128}
-            className="object-cover h-full w-full"
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center text-blue-700">
-            <span className="text-4xl font-bold">{initials}</span>
-            <span className="text-xs font-semibold uppercase mt-1">User</span>
-          </div>
-        )}
-      </div>
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        disabled={uploadingImage}
-        className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
-        aria-label="Change profile picture"
-      >
-        {uploadingImage ? (
-          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-        ) : (
-          <Camera className="h-4 w-4 text-white" />
-        )}
-      </button>
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={handleSave}
-      />
-      <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
-        {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
-      </div>
-    </div>
-    <div className="flex-1 text-center md:text-left">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-1">{user.first_name} {user.last_name}</h2>
-          <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500">
-            <Mail className="h-4 w-4" />
-            <span>{user.email}</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
-          <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1">
-            <Briefcase className="h-3 w-3 mr-1.5" /> {getRoleName(user.role_id || user.role)}
-          </Badge>
-          {isAdmin && <Badge className="bg-amber-50 text-amber-700 border-amber-200 px-3 py-1">
-            <Shield className="h-3 w-3 mr-1.5" /> Admin
-          </Badge>}
-          {user.is_superuser && <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1">
-            <Crown className="h-3 w-3 mr-1.5" /> Super User
-          </Badge>}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {/* Profile Completion Badge */}
-  {!dataEntryLoading && dataEntryPercentage !== null && dataEntryDetails && (
-    <div className="absolute bottom-4 right-4">
-      <div className="bg-gradient-to-br from-blue-50 to-blue-100/70 rounded-xl border border-blue-200/50 shadow-lg p-3 min-w-[160px] backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-
-          <div className="relative h-14 w-14 flex-shrink-0">
-            <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
-              <circle
-                cx="18"
-                cy="18"
-                r="15.9155"
-                fill="none"
-                stroke="#dbeafe"
-                strokeWidth="3"
+        {/* Hero Profile Card with Image Upload */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 relative">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <div className="relative group">
+              <div className="h-32 w-32 rounded-2xl overflow-hidden border-4 border-blue-50 shadow-inner bg-blue-50 flex items-center justify-center">
+                {profileUrl && !imgError ? (
+                  <Image
+                    src={profileUrl}
+                    alt="Profile"
+                    width={128}
+                    height={128}
+                    className="object-cover h-full w-full"
+                    onError={() => setImgError(true)}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-blue-700">
+                    <span className="text-4xl font-bold">{initials}</span>
+                    <span className="text-xs font-semibold uppercase mt-1">User</span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-blue-600 border-2 border-white shadow-sm flex items-center justify-center hover:bg-blue-700 transition disabled:opacity-50"
+                aria-label="Change profile picture"
+              >
+                {uploadingImage ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                ) : (
+                  <Camera className="h-4 w-4 text-white" />
+                )}
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleSave}
               />
-              <circle
-                cx="18"
-                cy="18"
-                r="15.9155"
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth="3"
-                strokeDasharray={`${(dataEntryDetails.overall_completion_percentage / 100) * 100} 100`}
-                strokeLinecap="round"
-                className="transition-all duration-800 ease-out"
-              />
-              <circle
-                cx="18"
-                cy="18"
-                r="12"
-                fill="none"
-                stroke="#22c55e"
-                strokeWidth="2.5"
-                strokeDasharray={`${(dataEntryPercentage / 100) * 100} 100`}
-                strokeLinecap="round"
-                className="transition-all duration-800 ease-out"
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-sm font-bold text-blue-600">
-                {Math.round(dataEntryDetails.overall_completion_percentage)}%
-              </span>
+              <div className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${user.is_active ? "bg-green-500" : "bg-red-500"}`}>
+                {user.is_active ? <CheckCircle className="h-4 w-4 text-white" /> : <XCircle className="h-4 w-4 text-white" />}
+              </div>
+            </div>
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-1">{user.first_name} {user.last_name}</h2>
+                  <div className="flex items-center justify-center md:justify-start gap-2 text-gray-500">
+                    <Mail className="h-4 w-4" />
+                    <span>{user.email}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap justify-center md:justify-end gap-2 text-sm">
+                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-none px-3 py-1">
+                    <Briefcase className="h-3 w-3 mr-1.5" /> {getRoleName(user.role_id || user.role)}
+                  </Badge>
+                  {isAdmin && <Badge className="bg-amber-50 text-amber-700 border-amber-200 px-3 py-1">
+                    <Shield className="h-3 w-3 mr-1.5" /> Admin
+                  </Badge>}
+                  {user.is_superuser && <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1">
+                    <Crown className="h-3 w-3 mr-1.5" /> Super User
+                  </Badge>}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div>
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Profile Completion</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs font-medium text-green-600">Mandatory: {Math.round(dataEntryPercentage)}%</span>
-              <span className="text-xs text-gray-300">|</span>
-              <span className="text-xs font-medium text-blue-600">Overall: {Math.round(dataEntryDetails.overall_completion_percentage)}%</span>
+          {/* Profile Completion Badge */}
+          {!dataEntryLoading && dataEntryPercentage !== null && dataEntryDetails && (
+            <div className="absolute bottom-4 right-4">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/70 rounded-xl border border-blue-200/50 shadow-lg p-3 min-w-[160px] backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+
+                  <div className="relative h-14 w-14 flex-shrink-0">
+                    <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.9155"
+                        fill="none"
+                        stroke="#dbeafe"
+                        strokeWidth="3"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15.9155"
+                        fill="none"
+                        stroke="#3b82f6"
+                        strokeWidth="3"
+                        strokeDasharray={`${(dataEntryDetails.overall_completion_percentage / 100) * 100} 100`}
+                        strokeLinecap="round"
+                        className="transition-all duration-800 ease-out"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="12"
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2.5"
+                        strokeDasharray={`${(dataEntryPercentage / 100) * 100} 100`}
+                        strokeLinecap="round"
+                        className="transition-all duration-800 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-bold text-blue-600">
+                        {Math.round(dataEntryDetails.overall_completion_percentage)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Profile Completion</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-medium text-green-600">Mandatory: {Math.round(dataEntryPercentage)}%</span>
+                      <span className="text-xs text-gray-300">|</span>
+                      <span className="text-xs font-medium text-blue-600">Overall: {Math.round(dataEntryDetails.overall_completion_percentage)}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
+                      <span>{dataEntryDetails.filled_mandatory}/{dataEntryDetails.total_mandatory}</span>
+                      <span>•</span>
+                      <span>{dataEntryDetails.filled_visible}/{dataEntryDetails.total_visible}</span>
+                    </div>
+                    <div className={`mt-1 text-[10px] font-semibold ${dataEntryPercentage >= 80 ? 'text-green-600' :
+                      dataEntryPercentage >= 50 ? 'text-yellow-600' :
+                        'text-red-600'
+                      }`}>
+                      {dataEntryPercentage >= 80 ? '✅ Complete' :
+                        dataEntryPercentage >= 50 ? '⚠️ Partial' :
+                          '❌ Incomplete'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-400">
-              <span>{dataEntryDetails.filled_mandatory}/{dataEntryDetails.total_mandatory}</span>
-              <span>•</span>
-              <span>{dataEntryDetails.filled_visible}/{dataEntryDetails.total_visible}</span>
-            </div>
-            <div className={`mt-1 text-[10px] font-semibold ${
-              dataEntryPercentage >= 80 ? 'text-green-600' :
-              dataEntryPercentage >= 50 ? 'text-yellow-600' :
-              'text-red-600'
-            }`}>
-              {dataEntryPercentage >= 80 ? '✅ Complete' :
-               dataEntryPercentage >= 50 ? '⚠️ Partial' :
-               '❌ Incomplete'}
-            </div>
-          </div>
+          )}
         </div>
-      </div>
-    </div>
-  )}
-</div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -3795,115 +3802,115 @@ export default function ProfilePage() {
         )}
 
         {/* LEGAL EDIT DIALOG */}
-        {(isFieldVisible('identity_bank', 'aadhar_no') || 
-          isFieldVisible('identity_bank', 'pan_no') || 
-          isFieldVisible('identity_bank', 'ktu_id') || 
+        {(isFieldVisible('identity_bank', 'aadhar_no') ||
+          isFieldVisible('identity_bank', 'pan_no') ||
+          isFieldVisible('identity_bank', 'ktu_id') ||
           isFieldVisible('identity_bank', 'aicte_id')) && (
-          <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
-            <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
+            <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
+              <DialogContent className="max-w-md bg-white rounded-xl p-0 overflow-hidden border border-[#dde3ec] shadow-2xl">
 
-              {/* Modal Header */}
-              <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
-                <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
-                  Statutory Identities
-                </DialogTitle>
-                <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
-                  Update governmental and legal identification numbers.
-                </DialogDescription>
-                <ShieldCheck className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
-              </DialogHeader>
+                {/* Modal Header */}
+                <DialogHeader className="p-6 border-b border-[#dde3ec] bg-white relative">
+                  <DialogTitle className="text-[18px] font-bold text-[#1a1a2e] tracking-tight">
+                    Statutory Identities
+                  </DialogTitle>
+                  <DialogDescription className="text-[#7a8ba0] mt-1 text-[12px] font-normal">
+                    Update governmental and legal identification numbers.
+                  </DialogDescription>
+                  <ShieldCheck className="absolute right-8 top-6 h-10 w-10 text-blue-600 pointer-events-none" />
+                </DialogHeader>
 
-              {/* Modal Body / Form */}
-              <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                {/* Modal Body / Form */}
+                <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto custom-scrollbar">
 
-                {/* Aadhaar Number  */}
-                {isFieldVisible('identity_bank', 'aadhar_no') && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
-                      Aadhaar Number (UIDAI)
-                      {isFieldMandatory('identity_bank', 'aadhar_no') && <span className="text-red-500 -ml-1">*</span>}
-                    </Label>
-                    <Input
-                      value={editProfileData?.aadhar_no || ""}
-                      onChange={(e) => handleProfileChange("aadhar_no", e.target.value)}
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
-                      required={isFieldMandatory('identity_bank', 'aadhar_no')}
-                    />
-                  </div>
-                )}
+                  {/* Aadhaar Number  */}
+                  {isFieldVisible('identity_bank', 'aadhar_no') && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                        Aadhaar Number (UIDAI)
+                        {isFieldMandatory('identity_bank', 'aadhar_no') && <span className="text-red-500 -ml-1">*</span>}
+                      </Label>
+                      <Input
+                        value={editProfileData?.aadhar_no || ""}
+                        onChange={(e) => handleProfileChange("aadhar_no", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                        required={isFieldMandatory('identity_bank', 'aadhar_no')}
+                      />
+                    </div>
+                  )}
 
-                {/* PAN Number*/}
-                {isFieldVisible('identity_bank', 'pan_no') && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
-                      PAN Number (Income Tax)
-                      {isFieldMandatory('identity_bank', 'pan_no') && <span className="text-red-500 -ml-1">*</span>}
-                    </Label>
-                    <Input
-                      value={editProfileData?.pan_no || ""}
-                      onChange={(e) => handleProfileChange("pan_no", e.target.value)}
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono"
-                      required={isFieldMandatory('identity_bank', 'pan_no')}
-                    />
-                  </div>
-                )}
+                  {/* PAN Number*/}
+                  {isFieldVisible('identity_bank', 'pan_no') && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                        PAN Number (Income Tax)
+                        {isFieldMandatory('identity_bank', 'pan_no') && <span className="text-red-500 -ml-1">*</span>}
+                      </Label>
+                      <Input
+                        value={editProfileData?.pan_no || ""}
+                        onChange={(e) => handleProfileChange("pan_no", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono"
+                        required={isFieldMandatory('identity_bank', 'pan_no')}
+                      />
+                    </div>
+                  )}
 
-                <Separator className="bg-[#dde3ec]" />
+                  <Separator className="bg-[#dde3ec]" />
 
-                {/* KTU Identifier */}
-                {isFieldVisible('identity_bank', 'ktu_id') && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
-                      KTU Identifier
-                      {isFieldMandatory('identity_bank', 'ktu_id') && <span className="text-red-500 -ml-1">*</span>}
-                    </Label>
-                    <Input
-                      value={editProfileData?.ktu_id || ""}
-                      onChange={(e) => handleProfileChange("ktu_id", e.target.value)}
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
-                      required={isFieldMandatory('identity_bank', 'ktu_id')}
-                    />
-                  </div>
-                )}
+                  {/* KTU Identifier */}
+                  {isFieldVisible('identity_bank', 'ktu_id') && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                        KTU Identifier
+                        {isFieldMandatory('identity_bank', 'ktu_id') && <span className="text-red-500 -ml-1">*</span>}
+                      </Label>
+                      <Input
+                        value={editProfileData?.ktu_id || ""}
+                        onChange={(e) => handleProfileChange("ktu_id", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                        required={isFieldMandatory('identity_bank', 'ktu_id')}
+                      />
+                    </div>
+                  )}
 
-                {/* AICTE Identifier */}
-                {isFieldVisible('identity_bank', 'aicte_id') && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
-                      AICTE Identifier
-                      {isFieldMandatory('identity_bank', 'aicte_id') && <span className="text-red-500 -ml-1">*</span>}
-                    </Label>
-                    <Input
-                      value={editProfileData?.aicte_id || ""}
-                      onChange={(e) => handleProfileChange("aicte_id", e.target.value)}
-                      className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
-                      required={isFieldMandatory('identity_bank', 'aicte_id')}
-                    />
-                  </div>
-                )}
-              </div>
+                  {/* AICTE Identifier */}
+                  {isFieldVisible('identity_bank', 'aicte_id') && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">
+                        AICTE Identifier
+                        {isFieldMandatory('identity_bank', 'aicte_id') && <span className="text-red-500 -ml-1">*</span>}
+                      </Label>
+                      <Input
+                        value={editProfileData?.aicte_id || ""}
+                        onChange={(e) => handleProfileChange("aicte_id", e.target.value)}
+                        className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono"
+                        required={isFieldMandatory('identity_bank', 'aicte_id')}
+                      />
+                    </div>
+                  )}
+                </div>
 
-              {/* Modal Footer */}
-              <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handleCancel}
-                  className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
-                >
-                  {isSaving ? "Updating Changes..." : "Save Changes"}
-                </Button>
-              </DialogFooter>
+                {/* Modal Footer */}
+                <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={handleCancel}
+                    className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
+                  >
+                    {isSaving ? "Updating Changes..." : "Save Changes"}
+                  </Button>
+                </DialogFooter>
 
-            </DialogContent>
-          </Dialog>
-        )}
+              </DialogContent>
+            </Dialog>
+          )}
 
         {/* BANK EDIT DIALOG */}
         {isFieldVisible('identity_bank', 'bank_details') && (

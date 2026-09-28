@@ -2621,7 +2621,7 @@ def employee_with_profile(request):
                     b_serializer.save()
 
                 print("STEP 3 - Bank saved")
-
+            
                 if qualifications:
                     for idx, q_data in enumerate(qualifications):
                         q_data['user'] = user.id
@@ -2966,6 +2966,12 @@ def employee_with_profile(request):
 
                 # ---- 7. Upsert Qualifications ----
                 if qualifications:
+                    existing_qualification_ids = set(EmployeeQualification.objects.filter(user=user).values_list('id', flat=True))
+                    submitted_qualification_ids = {_parse_int(q.get('id'))for q in qualifications if q.get('id')}
+                    print("Existing qualification IDs:", existing_qualification_ids)
+                    print("Submitted qualification IDs:", submitted_qualification_ids)
+
+                    EmployeeQualification.objects.filter(user=user,id__in=existing_qualification_ids - submitted_qualification_ids).delete()
                     for idx, q_data in enumerate(qualifications):
                         q_data['user'] = user.id
                         cert_key = f'qualifications[{idx}][certificate]'
