@@ -30,6 +30,8 @@ import {
   UserRoundPlus,
   GripVertical,
   BadgeCheck,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,8 +97,155 @@ interface LeaveType {
 
   policy_mode?: "normal" | "staff_category";
 
+  allow_carry_forward?: boolean;
+  settings?: Partial<LeaveTypeFormData>;
+
   policies?: LeavePolicy[];
 }
+
+type LeaveTypePolicyMode = "normal" | "staff_category";
+type CarryForwardExpiry = "end_of_year" | "no_expiry" | "custom_period";
+type CustomExpiryUnit = "days" | "months" | "quarters" | "years";
+
+interface LeaveTypeFormData {
+  leave_type: string;
+  short_name: string;
+  monthly_limit: number | string;
+  yearly_limit: number | string;
+  initial_credit: number | string;
+  use_credit: boolean;
+  policy_mode: LeaveTypePolicyMode;
+  policies: LeavePolicy[];
+  description: string;
+  employee_type: string;
+  department: string;
+  employment_status: string;
+  designation: string;
+  work_location: string;
+  service_period_value: number | string;
+  service_period_unit: "days" | "months" | "years";
+  waiting_rule: string;
+  entitlement_period: string;
+  limit_unit: string;
+  limit_value: number | string;
+  credit_method: string;
+  restrict_availability_period: boolean;
+  availability_start_date: string;
+  availability_end_date: string;
+  availability_repeat: string;
+  allowed_duration: string;
+  minimum_duration: number | string;
+  maximum_per_application: number | string | null;
+  maximum_consecutive_days: number | string | null;
+  allow_carry_forward: boolean;
+  maximum_carry_forward: number | string | null;
+  carry_forward_expiry: CarryForwardExpiry;
+  leave_year_start: string;
+  custom_expiry_value: number | string | null;
+  custom_expiry_unit: CustomExpiryUnit;
+  replacement_required: boolean;
+  supporting_document: boolean;
+  ta_da_applicable: boolean;
+  manager_approval: boolean;
+  hr_approval: boolean;
+  multi_level_approval: boolean;
+  effective_from: string;
+  effective_until: string;
+}
+
+type EditableLeaveType = LeaveTypeFormData & { id: number };
+
+const createLeaveTypeForm = (policies: LeavePolicy[] = []): LeaveTypeFormData => ({
+  leave_type: "",
+  short_name: "",
+  monthly_limit: 0,
+  yearly_limit: 0,
+  initial_credit: 0,
+  use_credit: false,
+  policy_mode: "normal",
+  policies,
+  description: "",
+  employee_type: "All Employee Types",
+  department: "All Departments",
+  employment_status: "Active",
+  designation: "All Designations",
+  work_location: "All Locations",
+  service_period_value: 0,
+  service_period_unit: "months",
+  waiting_rule: "LOP only",
+  entitlement_period: "Monthly",
+  limit_unit: "Days",
+  limit_value: 0,
+  credit_method: "Monthly",
+  restrict_availability_period: false,
+  availability_start_date: "",
+  availability_end_date: "",
+  availability_repeat: "Every Year",
+  allowed_duration: "Full Day & Half Day",
+  minimum_duration: 0.5,
+  maximum_per_application: null,
+  maximum_consecutive_days: null,
+  allow_carry_forward: true,
+  maximum_carry_forward: null,
+  carry_forward_expiry: "end_of_year",
+  leave_year_start: "",
+  custom_expiry_value: null,
+  custom_expiry_unit: "months",
+  replacement_required: false,
+  supporting_document: false,
+  ta_da_applicable: false,
+  manager_approval: false,
+  hr_approval: false,
+  multi_level_approval: false,
+  effective_from: "",
+  effective_until: "",
+});
+
+const monthNames = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const getMonthDayFromDate = (dateString: string) => {
+  if (!dateString) {
+    return { month: 11, day: 31 };
+  }
+
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) {
+    return { month: 11, day: 31 };
+  }
+
+  return {
+    month: parsed.getMonth(),
+    day: parsed.getDate(),
+  };
+};
+
+const getMaxDaysForMonth = (month: number) => {
+  if (month === 1) return 28;
+  if ([3, 5, 8, 10].includes(month)) return 30;
+  return 31;
+};
+
+const createYearlessDateString = (month: number, day: number) => {
+  const year = new Date().getFullYear();
+  const maxDays = getMaxDaysForMonth(month);
+  const safeDay = Math.min(day, maxDays);
+  const date = new Date(year, month, safeDay);
+  return date.toISOString().split("T")[0];
+};
+
 interface LeaveBalanceTaken {
   approved: number;
   pending: number;
@@ -220,18 +369,17 @@ export default function LeavesPage() {
   const [isLeaveBalanceLoading, setIsLeaveBalanceLoading] =
   useState(false);
   
-  const [leaveTypeForm, setLeaveTypeForm] = useState<Partial<LeaveType>>({
-    leave_type: "",
-    short_name: "",
-    monthly_limit: 0,
-    yearly_limit: 0,
-    initial_credit: 0,
-    use_credit: false,
-    policy_mode: "normal",
-    policies: [],
-  });
+  const [leaveTypeForm, setLeaveTypeForm] = useState<LeaveTypeFormData>(
+    createLeaveTypeForm(),
+  );
   const [activePolicyTab, setActivePolicyTab] = useState(0);
-  const [editingLeaveType, setEditingLeaveType] = useState<LeaveType | null>(null);
+  const [leaveTypeSections, setLeaveTypeSections] = useState<Record<string, boolean>>({
+    description: false,
+    entitlement: true,
+    availability: true,
+    requirements: true,
+  });
+  const [editingLeaveType, setEditingLeaveType] = useState<EditableLeaveType | null>(null);
   const [isLeaveTypeLoading, setIsLeaveTypeLoading] = useState(false);
   const [isLeaveTypeSubmitting, setIsLeaveTypeSubmitting] = useState(false);
   const [leaveTypeMessage, setLeaveTypeMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -829,6 +977,68 @@ export default function LeavesPage() {
 
   // Leave Type Handlers
 
+  const activeLeaveType = editingLeaveType ?? leaveTypeForm;
+
+  const toggleLeaveTypeSection = (key: string) => {
+    setLeaveTypeSections((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+  };
+
+  const renderLeaveTypeSection = ({
+    key,
+    title,
+    children,
+  }: {
+    key: string;
+    title: string;
+    children: React.ReactNode;
+  }) => {
+    const isOpen = !leaveTypeSections[key];
+
+    return (
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <button
+          type="button"
+          onClick={() => toggleLeaveTypeSection(key)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        >
+          <span className="text-sm font-semibold text-foreground">{title}</span>
+          {isOpen ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        {isOpen && <div className="border-t px-4 pb-4 pt-4 space-y-4">{children}</div>}
+      </div>
+    );
+  };
+
+  const updateLeaveTypeField = <T extends keyof LeaveTypeFormData>(
+    field: T,
+    value: LeaveTypeFormData[T],
+  ) => {
+    if (editingLeaveType) {
+      setEditingLeaveType((current) =>
+        current ? { ...current, [field]: value } : current,
+      );
+    } else {
+      setLeaveTypeForm((current) => ({ ...current, [field]: value }));
+    }
+  };
+
+  const updateLeaveTypeFields = (updates: Partial<LeaveTypeFormData>) => {
+    if (editingLeaveType) {
+      setEditingLeaveType((current) =>
+        current ? { ...current, ...updates } : current,
+      );
+    } else {
+      setLeaveTypeForm((current) => ({ ...current, ...updates }));
+    }
+  };
+
   const handleLeaveTypeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = editingLeaveType || leaveTypeForm;
@@ -857,6 +1067,42 @@ export default function LeavesPage() {
         company_id: companyId,
         leave_type: data.leave_type.trim(),
         short_name: data.short_name.trim(),
+        settings: {
+          description: data.description,
+          employee_type: data.employee_type,
+          department: data.department,
+          employment_status: data.employment_status,
+          designation: data.designation,
+          work_location: data.work_location,
+          service_period_value: data.service_period_value,
+          service_period_unit: data.service_period_unit,
+          waiting_rule: data.waiting_rule,
+          entitlement_period: data.entitlement_period,
+          limit_unit: data.limit_unit,
+          limit_value: data.limit_value,
+          credit_method: data.credit_method,
+          restrict_availability_period: data.restrict_availability_period,
+          availability_start_date: data.availability_start_date,
+          availability_end_date: data.availability_end_date,
+          availability_repeat: data.availability_repeat,
+          allowed_duration: data.allowed_duration,
+          minimum_duration: data.minimum_duration,
+          maximum_per_application: data.maximum_per_application,
+          maximum_consecutive_days: data.maximum_consecutive_days,
+          maximum_carry_forward: data.maximum_carry_forward,
+          carry_forward_expiry: data.carry_forward_expiry,
+          leave_year_start: data.leave_year_start,
+          custom_expiry_value: data.custom_expiry_value,
+          custom_expiry_unit: data.custom_expiry_unit,
+          replacement_required: data.replacement_required,
+          supporting_document: data.supporting_document,
+          ta_da_applicable: data.ta_da_applicable,
+          manager_approval: data.manager_approval,
+          hr_approval: data.hr_approval,
+          multi_level_approval: data.multi_level_approval,
+          effective_from: data.effective_from,
+          effective_until: data.effective_until,
+        },
       };
 
       console.log("Payload:", payload);
@@ -879,16 +1125,7 @@ export default function LeavesPage() {
         setTimeout(() => {
           setIsAddTypeOpen(false);
           setEditingLeaveType(null);
-          setLeaveTypeForm({
-            policy_mode: "normal",
-            leave_type: "",
-            short_name: "",
-            monthly_limit: 0,
-            yearly_limit: 0,
-            initial_credit: 0,
-            use_credit: false,
-            policies: [],
-          });
+          setLeaveTypeForm(createLeaveTypeForm());
 
           setLeaveTypeMessage(null);
           fetchLeaveTypes();
@@ -1718,17 +1955,9 @@ export default function LeavesPage() {
                 <Button
                   onClick={() => {
                     setEditingLeaveType(null);
-
-                    setLeaveTypeForm({
-                      policy_mode: "normal",
-                      leave_type: "",
-                      short_name: "",
-                      monthly_limit: 0,
-                      yearly_limit: 0,
-                      initial_credit: 0,
-                      use_credit: false,
-
-                      policies: staffCategories.map((category: any) => ({
+                    setActivePolicyTab(0);
+                    setLeaveTypeForm(createLeaveTypeForm(
+                      staffCategories.map((category: any) => ({
                         staff_category_id: category.id,
                         staff_category_name: category.name,
 
@@ -1741,7 +1970,7 @@ export default function LeavesPage() {
 
                         custom_settings: {},
                       })),
-                    });
+                    ));
 
                     setIsAddTypeOpen(true);
                   }}
@@ -1776,7 +2005,13 @@ export default function LeavesPage() {
                               console.log("Editing Leave Type:", type);
                               console.log("Policies:", type.policies);
 
-                              setEditingLeaveType(type);
+                              setActivePolicyTab(0);
+                              setEditingLeaveType({
+                                ...createLeaveTypeForm(type.policies || []),
+                                ...type,
+                                ...(type.settings || {}),
+                                id: type.id,
+                              });
                               setIsAddTypeOpen(true);
                             }}
                           >
@@ -2712,6 +2947,273 @@ export default function LeavesPage() {
                 </div>
               </>
             )}
+
+            {renderLeaveTypeSection({
+              key: "description",
+              title: "Description and Eligibility",
+              children: (
+                <>
+                  <textarea
+                    className="w-full min-h-[90px] rounded-md border px-3 py-2 text-sm"
+                    placeholder="Describe this leave policy"
+                    value={activeLeaveType.description}
+                    onChange={(e) => updateLeaveTypeField("description", e.target.value)}
+                  />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Employee Type</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.employee_type} onChange={(e) => updateLeaveTypeField("employee_type", e.target.value)}>
+                        <option>All Employee Types</option>
+                        <option>Permanent</option>
+                        <option>Contract</option>
+                        <option>Temporary</option>
+                        <option>Visiting</option>
+                        <option>Probationary</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Department</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.department} onChange={(e) => updateLeaveTypeField("department", e.target.value)}>
+                        <option>All Departments</option>
+                        <option>Administration</option>
+                        <option>Teaching</option>
+                        <option>Technical</option>
+                        <option>Finance</option>
+                        <option>HR</option>
+                        <option>IT</option>
+                        <option>Operations</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Employment Status</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.employment_status} onChange={(e) => updateLeaveTypeField("employment_status", e.target.value)}>
+                        <option>Active</option>
+                        <option>Probation</option>
+                        <option>On Notice Period</option>
+                        <option>All</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Designation</Label>
+                      <Input value={activeLeaveType.designation} onChange={(e) => updateLeaveTypeField("designation", e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Work Location / Branch</Label>
+                      <Input value={activeLeaveType.work_location} onChange={(e) => updateLeaveTypeField("work_location", e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Minimum Service</Label>
+                      <div className="flex gap-2">
+                        <Input type="number" min="0" value={activeLeaveType.service_period_value} onChange={(e) => updateLeaveTypeField("service_period_value", e.target.value)} />
+                        <select className="rounded-md border px-2 text-sm" value={activeLeaveType.service_period_unit} onChange={(e) => updateLeaveTypeField("service_period_unit", e.target.value as LeaveTypeFormData["service_period_unit"])}>
+                          <option value="months">Months</option>
+                          <option value="days">Days</option>
+                          <option value="years">Years</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Waiting Period Rule</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.waiting_rule} onChange={(e) => updateLeaveTypeField("waiting_rule", e.target.value)}>
+                        <option>LOP only</option>
+                        <option>No leave allowed</option>
+                        <option>Selected leave types allowed</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Entitlement Period</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.entitlement_period} onChange={(e) => updateLeaveTypeField("entitlement_period", e.target.value)}>
+                        <option>Monthly</option>
+                        <option>Yearly</option>
+                        <option>Academic Year</option>
+                        <option>Financial Year</option>
+                        <option>One Time</option>
+                        <option>Unlimited</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              ),
+            })}
+
+            {renderLeaveTypeSection({
+              key: "entitlement",
+              title: "Entitlement and Usage Rules",
+              children: (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Limit Measured In</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.limit_unit} onChange={(e) => updateLeaveTypeField("limit_unit", e.target.value)}>
+                        <option>Days</option>
+                        <option>Hours</option>
+                        <option>Occurrences</option>
+                        <option>Applications</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Limit</Label>
+                      <Input type="number" min="0" step="0.5" value={activeLeaveType.limit_value} onChange={(e) => updateLeaveTypeField("limit_value", e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Credit Method</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.credit_method} onChange={(e) => updateLeaveTypeField("credit_method", e.target.value)}>
+                        <option>Monthly</option>
+                        <option>At Joining</option>
+                        <option>Yearly</option>
+                        <option>After Completing Service</option>
+                        <option>Manual</option>
+                        <option>No Credit Required</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Allowed Duration</Label>
+                      <select className="w-full rounded-md border px-3 py-2 text-sm" value={activeLeaveType.allowed_duration} onChange={(e) => updateLeaveTypeField("allowed_duration", e.target.value)}>
+                        <option>Full Day &amp; Half Day</option>
+                        <option>Full Day Only</option>
+                        <option>Hours</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Minimum Duration</Label>
+                      <Input type="number" min="0" step="0.5" value={activeLeaveType.minimum_duration} onChange={(e) => updateLeaveTypeField("minimum_duration", e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Maximum per Application</Label>
+                      <Input type="number" min="0" step="0.5" value={activeLeaveType.maximum_per_application ?? ""} onChange={(e) => updateLeaveTypeField("maximum_per_application", e.target.value || null)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Maximum Consecutive Days</Label>
+                    <Input type="number" min="0" step="0.5" value={activeLeaveType.maximum_consecutive_days ?? ""} onChange={(e) => updateLeaveTypeField("maximum_consecutive_days", e.target.value || null)} />
+                  </div>
+                </>
+              ),
+            })}
+
+            {renderLeaveTypeSection({
+              key: "availability",
+              title: "Availability and Carry Forward",
+              children: (
+                <>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={activeLeaveType.restrict_availability_period} onChange={(e) => updateLeaveTypeField("restrict_availability_period", e.target.checked)} />
+                    Restrict leave to a specific period
+                  </label>
+                  {activeLeaveType.restrict_availability_period && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 rounded-md border p-4">
+                      <Input type="date" value={activeLeaveType.availability_start_date} onChange={(e) => updateLeaveTypeField("availability_start_date", e.target.value)} />
+                      <Input type="date" value={activeLeaveType.availability_end_date} onChange={(e) => updateLeaveTypeField("availability_end_date", e.target.value)} />
+                      <select className="rounded-md border px-2 text-sm" value={activeLeaveType.availability_repeat} onChange={(e) => updateLeaveTypeField("availability_repeat", e.target.value)}>
+                        <option>Every Year</option>
+                        <option>Once</option>
+                        <option>Every Academic Year</option>
+                        <option>Every Financial Year</option>
+                        <option>Custom</option>
+                      </select>
+                    </div>
+                  )}
+                  <div className="flex gap-4">
+                    <label className="flex-1 rounded-md border p-3">
+                      <input type="radio" name="allow_carry_forward" checked={!activeLeaveType.allow_carry_forward} onChange={() => updateLeaveTypeFields({ allow_carry_forward: false, maximum_carry_forward: null })} /> Not Allowed
+                    </label>
+                    <label className="flex-1 rounded-md border p-3">
+                      <input type="radio" name="allow_carry_forward" checked={activeLeaveType.allow_carry_forward} onChange={() => updateLeaveTypeField("allow_carry_forward", true)} /> Allowed
+                    </label>
+                  </div>
+                  {activeLeaveType.allow_carry_forward && (
+                    <div className="space-y-4 rounded-md border p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input type="number" min="0" step="0.5" placeholder="Maximum carry forward" value={activeLeaveType.maximum_carry_forward ?? ""} onChange={(e) => updateLeaveTypeField("maximum_carry_forward", e.target.value || null)} />
+                        <select className="rounded-md border px-2 text-sm" value={activeLeaveType.carry_forward_expiry} onChange={(e) => {
+                          const value = e.target.value as CarryForwardExpiry;
+                          updateLeaveTypeFields({
+                            carry_forward_expiry: value,
+                            leave_year_start: value === "end_of_year" ? activeLeaveType.leave_year_start : "",
+                            custom_expiry_value: value === "custom_period" ? activeLeaveType.custom_expiry_value : null,
+                            custom_expiry_unit: value === "custom_period" ? activeLeaveType.custom_expiry_unit : "months",
+                          });
+                        }}>
+                          <option value="end_of_year">End of Year</option>
+                          <option value="no_expiry">No Expiry</option>
+                          <option value="custom_period">After Custom Period</option>
+                        </select>
+                      </div>
+                      {activeLeaveType.carry_forward_expiry === "end_of_year" && (() => {
+                        const { month, day } = getMonthDayFromDate(activeLeaveType.leave_year_start || createYearlessDateString(11, 31));
+                        const maxDays = getMaxDaysForMonth(month);
+
+                        return (
+                          <div className="space-y-3 rounded-md border p-4">
+                            <Label className="text-sm font-medium">Expiry day (repeats every year)</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <select
+                                className="rounded-md border px-2 py-2 text-sm"
+                                value={month}
+                                onChange={(e) => {
+                                  const nextMonth = Number(e.target.value);
+                                  const nextMaxDays = getMaxDaysForMonth(nextMonth);
+                                  const nextDay = Math.min(day, nextMaxDays);
+                                  updateLeaveTypeField("leave_year_start", createYearlessDateString(nextMonth, nextDay));
+                                }}
+                              >
+                                {monthNames.map((name, index) => (
+                                  <option key={name} value={index}>{name}</option>
+                                ))}
+                              </select>
+
+                              <select
+                                className="rounded-md border px-2 py-2 text-sm"
+                                value={day}
+                                onChange={(e) => {
+                                  const nextDay = Number(e.target.value);
+                                  updateLeaveTypeField("leave_year_start", createYearlessDateString(month, nextDay));
+                                }}
+                              >
+                                {Array.from({ length: maxDays }, (_, index) => index + 1).map((dateNumber) => (
+                                  <option key={dateNumber} value={dateNumber}>{dateNumber}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Selected: {day} {monthNames[month]}
+                            </p>
+                          </div>
+                        );
+                      })()}
+                      {activeLeaveType.carry_forward_expiry === "custom_period" && <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input type="number" min="1" step="1" placeholder="Expiry duration" value={activeLeaveType.custom_expiry_value ?? ""} onChange={(e) => updateLeaveTypeField("custom_expiry_value", e.target.value || null)} /><select className="rounded-md border px-2 text-sm" value={activeLeaveType.custom_expiry_unit} onChange={(e) => updateLeaveTypeField("custom_expiry_unit", e.target.value as CustomExpiryUnit)}><option value="days">Days</option><option value="months">Months</option><option value="quarters">Quarters</option><option value="years">Years</option></select></div>}
+                    </div>
+                  )}
+                </>
+              ),
+            })}
+
+            {renderLeaveTypeSection({
+              key: "requirements",
+              title: "Application Requirements and Effective Period",
+              children: (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <label><input type="checkbox" checked={activeLeaveType.replacement_required} onChange={(e) => updateLeaveTypeField("replacement_required", e.target.checked)} /> Replacement required</label>
+                    <label><input type="checkbox" checked={activeLeaveType.supporting_document} onChange={(e) => updateLeaveTypeField("supporting_document", e.target.checked)} /> Supporting document</label>
+                    <label><input type="checkbox" checked={activeLeaveType.ta_da_applicable} onChange={(e) => updateLeaveTypeField("ta_da_applicable", e.target.checked)} /> TA/DA applicable</label>
+                    <label><input type="checkbox" checked={activeLeaveType.manager_approval} onChange={(e) => updateLeaveTypeField("manager_approval", e.target.checked)} /> Manager approval</label>
+                    <label><input type="checkbox" checked={activeLeaveType.hr_approval} onChange={(e) => updateLeaveTypeField("hr_approval", e.target.checked)} /> HR approval</label>
+                    <label><input type="checkbox" checked={activeLeaveType.multi_level_approval} onChange={(e) => updateLeaveTypeField("multi_level_approval", e.target.checked)} /> Multi-level approval</label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Effective From *</Label><Input type="date" required value={activeLeaveType.effective_from} onChange={(e) => updateLeaveTypeField("effective_from", e.target.value)} /></div>
+                    <div className="space-y-2"><Label>Effective Until</Label><Input type="date" value={activeLeaveType.effective_until} onChange={(e) => updateLeaveTypeField("effective_until", e.target.value)} /></div>
+                  </div>
+                </>
+              ),
+            })}
 
             <DialogFooter>
               <Button

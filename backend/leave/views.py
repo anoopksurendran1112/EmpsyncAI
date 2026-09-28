@@ -695,6 +695,8 @@ def get_leave_types(request):
                 'use_credit': lt.use_credit,
                 'is_global': lt.is_global,
                 'policy_mode': lt.policy_mode,
+                'allow_carry_forward': lt.allow_carry_forward,
+                'settings': lt.settings,
                 'policies': policies_by_type[lt.id]
             })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
@@ -749,10 +751,15 @@ def get_leave_types(request):
             leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
             leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
             leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.allow_carry_forward = request.data.get(
+                "allow_carry_forward",
+                leave_type.allow_carry_forward,
+            )
             leave_type.policy_mode = request.data.get(
                 "policy_mode",
                 leave_type.policy_mode
             )
+            leave_type.settings = request.data.get("settings", leave_type.settings)
             leave_type.save()
 
             # 2. Fetch existing credits to verify and update in memory
@@ -866,8 +873,10 @@ def get_leave_types(request):
                 "monthly_limit": float(request.data.get("monthly_limit") or 0),
                 "yearly_limit": float(request.data.get("yearly_limit") or 0),
                 "initial_credit": float(request.data.get("initial_credit") or 0),
+                "allow_carry_forward": request.data.get("allow_carry_forward", True),
                 "use_credit": request.data.get("use_credit", False),
                 "policy_mode": request.data.get("policy_mode", "normal"),
+                "settings": request.data.get("settings", {}),
                 "company": company
             }
             
