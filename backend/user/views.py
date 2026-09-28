@@ -2439,9 +2439,9 @@ def employee_with_profile(request):
                             errors["qualifications"] = "Qualifications are required."
                         continue
 
-                    if field_name == "experiences":
+                    if field_name == "experience":
                         if not experiences:
-                            errors["experiences"] = "Experience details are required."
+                            errors["experience"] = "Experience details are required."
                         continue
 
                     if field_name == "present_address":
