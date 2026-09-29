@@ -3183,7 +3183,12 @@ export default function ProfilePage() {
                             </p>
                           )}
                           {qual.certificate && typeof qual.certificate === 'string' && !qual.certificate_preview && (
-                            <a href={qual.certificate} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline font-medium block mt-1">
+                            <a
+                              href={`${process.env.NEXT_PUBLIC_COMPANY_MEDIA_BASE}${qual.certificate}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] text-blue-600 hover:underline font-medium block mt-1"
+                            >
                               View Uploaded Document
                             </a>
                           )}
