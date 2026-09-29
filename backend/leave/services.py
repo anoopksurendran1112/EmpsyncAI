@@ -236,4 +236,254 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
         'year': year,
         'month': month,
         'balances': balances
+    }
+
+
+def get_company_leave_roster(company, year=None, month=None, department_id=None):
+    """
+    Calculate leave balances and usage for all active employees of a company
+    in a bulk, highly optimized manner to populate the admin Leave Roster.
+    """
+    from django.db.models import Q, Sum
+    from django.utils import timezone
+    import calendar
+    from .models import Leave, LeaveType, LeavePolicy, LeaveCredit
+    from company.models import CompanyGroup
+
+    now = timezone.now()
+    try:
+        year = int(year) if year else now.year
+    except (ValueError, TypeError):
+        year = now.year
+
+    try:
+        month = int(month) if month else now.month
+    except (ValueError, TypeError):
+        month = now.month
+
+    # 1. Fetch active LeaveTypes for company
+    leave_types = list(LeaveType.objects.filter(is_active=True).filter(
+        Q(company=company) | Q(is_global=True)
+    ).order_by('id'))
+
+    leave_type_ids = [lt.id for lt in leave_types]
+
+    # 2. Fetch all active LeavePolicies for company
+    policies = list(LeavePolicy.objects.filter(
+        company=company,
+        leave_type_id__in=leave_type_ids,
+        is_active=True
+    ).select_related('staff_category'))
+
+    policy_by_type_category = {
+        (p.leave_type_id, p.staff_category_id): p for p in policies
+    }
+    type_has_category_policies = set(p.leave_type_id for p in policies)
+
+    # 3. Fetch departments (CompanyGroup)
+    groups = list(CompanyGroup.objects.filter(company=company).order_by('group'))
+    departments = [
+        {"id": g.id, "name": g.group or g.short_name or f"Department {g.id}"}
+        for g in groups
+    ]
+
+    # 4. Fetch all active employees
+    employees_qs = CustomUser.objects.filter(
+        company=company,
+        is_active=True
+    ).select_related('profile__staff_category', 'group').order_by('first_name', 'last_name')
+
+    if department_id:
+        try:
+            dept_id_int = int(department_id)
+            employees_qs = employees_qs.filter(group_id=dept_id_int)
+        except (ValueError, TypeError):
+            pass
+
+    employees = list(employees_qs)
+    user_ids = [emp.id for emp in employees]
+
+    # 5. Aggregate leaves taken for this year
+    leave_aggregations = Leave.objects.filter(
+        company=company,
+        user_id__in=user_ids,
+        leave_type_id__in=leave_type_ids,
+        from_date__year=year,
+        status__in=['A', 'P']
+    ).values('user_id', 'leave_type_id', 'status', 'from_date__month').annotate(total_days=Sum('days_taken'))
+
+    usage_map = {}
+    for item in leave_aggregations:
+        key = (item['user_id'], item['leave_type_id'])
+        if key not in usage_map:
+            usage_map[key] = {
+                'yearly_approved': 0.0,
+                'yearly_pending': 0.0,
+                'monthly_approved': 0.0,
+                'monthly_pending': 0.0,
+            }
+        days = float(item['total_days'] or 0.0)
+        status_val = item['status']
+        m = item['from_date__month']
+
+        if status_val == 'A':
+            usage_map[key]['yearly_approved'] += days
+            if m == month:
+                usage_map[key]['monthly_approved'] += days
+        elif status_val == 'P':
+            usage_map[key]['yearly_pending'] += days
+            if m == month:
+                usage_map[key]['monthly_pending'] += days
+
+    # 6. Fetch credits for users in this company for this year
+    credit_records = LeaveCredit.objects.filter(
+        user_id__in=user_ids,
+        leave_type_id__in=leave_type_ids,
+        year=year
+    ).values('user_id', 'leave_type_id', 'credits')
+
+    credit_map = {
+        (c['user_id'], c['leave_type_id']): float(c['credits'])
+        for c in credit_records
+    }
+
+    # 7. Construct leave types column definitions
+    columns = [
+        {
+            'id': lt.id,
+            'name': lt.leave_type,
+            'short_code': lt.short_name or lt.leave_type[:4].upper(),
+            'policy_mode': lt.policy_mode,
+            'monthly_limit': lt.monthly_limit,
+            'yearly_limit': lt.yearly_limit,
+            'use_credit': lt.use_credit,
+        }
+        for lt in leave_types
+    ]
+
+    # 8. Assemble roster for each employee
+    employee_rows = []
+    for emp in employees:
+        profile = getattr(emp, 'profile', None)
+        staff_cat = getattr(profile, 'staff_category', None) if profile else None
+        staff_cat_id = staff_cat.id if staff_cat else None
+        staff_cat_name = staff_cat.category_name if staff_cat else "Unassigned"
+
+        dept_name = emp.group.group if emp.group and emp.group.group else (
+            emp.group.short_name if emp.group and emp.group.short_name else "General"
+        )
+
+        leaves_data = {}
+        for lt in leave_types:
+            code = lt.short_name or str(lt.id)
+            key = (emp.id, lt.id)
+            usage = usage_map.get(key, {
+                'yearly_approved': 0.0,
+                'yearly_pending': 0.0,
+                'monthly_approved': 0.0,
+                'monthly_pending': 0.0,
+            })
+
+            used_yearly = usage['yearly_approved']
+            pending_yearly = usage['yearly_pending']
+            used_monthly = usage['monthly_approved']
+            pending_monthly = usage['monthly_pending']
+
+            monthly_limit = lt.monthly_limit
+            yearly_limit = lt.yearly_limit
+            use_credit = lt.use_credit
+            initial_credit = lt.initial_credit
+            is_eligible = True
+
+            if lt.policy_mode == 'staff_category':
+                if staff_cat_id:
+                    policy = policy_by_type_category.get((lt.id, staff_cat_id))
+                    if policy:
+                        monthly_limit = policy.monthly_limit
+                        yearly_limit = policy.yearly_limit
+                        use_credit = policy.use_credit
+                        initial_credit = policy.initial_credit
+                        is_eligible = True
+                    else:
+                        if lt.id in type_has_category_policies:
+                            is_eligible = False
+                else:
+                    if lt.id in type_has_category_policies:
+                        is_eligible = False
+
+            if not is_eligible:
+                leaves_data[code] = {
+                    'leave_type_id': lt.id,
+                    'leave_type_name': lt.leave_type,
+                    'short_code': code,
+                    'is_eligible': False,
+                    'is_unlimited': False,
+                    'entitlement': None,
+                    'monthly_limit': None,
+                    'yearly_limit': None,
+                    'used': 0.0,
+                    'pending': 0.0,
+                    'monthly_used': 0.0,
+                    'balance': None,
+                }
+                continue
+
+            is_unlimited = (yearly_limit is None and not use_credit)
+            credit_balance = credit_map.get(key)
+            if use_credit:
+                if credit_balance is None:
+                    credit_balance = max(0.0, float(initial_credit or 0) - (used_yearly + pending_yearly))
+                balance = credit_balance
+                entitlement = initial_credit
+            elif is_unlimited:
+                balance = None
+                entitlement = None
+            else:
+                entitlement = yearly_limit
+                balance = max(0.0, (yearly_limit or 0) - (used_yearly + pending_yearly))
+
+            leaves_data[code] = {
+                'leave_type_id': lt.id,
+                'leave_type_name': lt.leave_type,
+                'short_code': code,
+                'is_eligible': True,
+                'is_unlimited': is_unlimited,
+                'entitlement': entitlement,
+                'monthly_limit': monthly_limit,
+                'yearly_limit': yearly_limit,
+                'used': used_yearly,
+                'pending': pending_yearly,
+                'monthly_used': used_monthly,
+                'monthly_pending': pending_monthly,
+                'balance': balance,
+                'credit_balance': credit_balance if use_credit else None,
+            }
+
+        full_name = f"{emp.first_name} {emp.last_name}".strip() or emp.email
+        employee_rows.append({
+            'id': emp.id,
+            'name': full_name,
+            'email': emp.email,
+            'department': dept_name,
+            'department_id': emp.group_id,
+            'category': staff_cat_name,
+            'category_id': staff_cat_id,
+            'staff_id': getattr(profile, 'staff_id', '') if profile else '',
+            'leaves': leaves_data
+        })
+
+    month_name = calendar.month_name[month]
+    period_str = f"{month_name} {year}"
+
+    company_name = getattr(company, 'company_name', getattr(company, 'name', ''))
+
+    return {
+        'company_id': company.id,
+        'company_name': company_name,
+        'year': year,
+        'month': month,
+        'period': period_str,
+        'departments': departments,
+        'leave_types': columns,
+        'employees': employee_rows
     }

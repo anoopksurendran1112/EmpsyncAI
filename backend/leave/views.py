@@ -20,7 +20,7 @@ from notification.models import FcmToken
 from datetime import date
 from django.utils import timezone as tz
 from django.db import transaction
-from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level, get_user_leave_balance
+from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level, get_user_leave_balance, get_company_leave_roster
 from django.db import transaction
 from django.utils import timezone as tz
 
@@ -1781,4 +1781,48 @@ def get_leave_balance(request):
         'success': True,
         'data': balance_data
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def get_leave_roster(request):
+    """
+    Returns the company-wide leave roster containing all active employees,
+    their entitlements, leaves taken, and remaining balances for each leave type.
+    """
+    user = request.user
+    if not user or not user.is_authenticated:
+        return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    company_id = (
+        request.query_params.get('company_id')
+        or (request.data.get('company_id') if isinstance(request.data, dict) else None)
+        or request.headers.get('X-Company-ID')
+    )
+    if company_id:
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        company = getattr(user, 'parent_company', None) or user.company.first()
+
+    if not company:
+        return Response({'success': False, 'message': 'Company not specified or found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    year = request.query_params.get('year') or (request.data.get('year') if isinstance(request.data, dict) else None)
+    month = request.query_params.get('month') or (request.data.get('month') if isinstance(request.data, dict) else None)
+    department_id = request.query_params.get('department_id') or (request.data.get('department_id') if isinstance(request.data, dict) else None)
+
+    roster_data = get_company_leave_roster(
+        company=company,
+        year=year,
+        month=month,
+        department_id=department_id
+    )
+
+    return Response({
+        'success': True,
+        'data': roster_data
+    }, status=status.HTTP_200_OK)
+
 

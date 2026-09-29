@@ -2477,7 +2477,7 @@ export default function LeavesPage() {
 
             {/* Admin: Leave Roster Tab */}
             <TabsContent value="roster" className="space-y-6">
-              <LeaveRoster />
+              <LeaveRoster companyId={companyId} />
             </TabsContent>
           </Tabs>
         </div>
