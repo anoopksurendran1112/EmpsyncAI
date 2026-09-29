@@ -56,6 +56,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LeaveRoster from "@/components/leaves/LeaveRoster";
 
 // Dummy Data
 const DUMMY_STATS = {
@@ -1800,6 +1801,7 @@ export default function LeavesPage() {
               <TabsTrigger value="types" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Types</TabsTrigger>
               <TabsTrigger value="holidays" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Holiday Schedule</TabsTrigger>
               <TabsTrigger value="hierarchy" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Hierarchy</TabsTrigger>
+              <TabsTrigger value="roster" className="rounded-md data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2 text-sm font-medium">Leave Roster</TabsTrigger>
             </TabsList>
 
 
@@ -2471,6 +2473,11 @@ export default function LeavesPage() {
                 </Button>
               </div>
 
+            </TabsContent>
+
+            {/* Admin: Leave Roster Tab */}
+            <TabsContent value="roster" className="space-y-6">
+              <LeaveRoster />
             </TabsContent>
           </Tabs>
         </div>
