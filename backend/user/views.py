@@ -3007,6 +3007,10 @@ def employee_with_profile(request):
                         q_s.save()
 
                 # ---- 8. Upsert Experiences + Designations ----
+                existing_experience_ids = set(EmployeeExperience.objects.filter(user=user).values_list('id', flat=True))
+                submitted_experience_ids = {_parse_int(e.get('id'))for e in experiences if e.get('id')}
+                EmployeeExperience.objects.filter(user=user,id__in=existing_experience_ids - submitted_experience_ids).delete()
+
                 if experiences:
                     for idx, e_data in enumerate(experiences):
                         e_data['user'] = user.id

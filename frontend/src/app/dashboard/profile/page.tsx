@@ -1228,6 +1228,16 @@ export default function ProfilePage() {
       }
 
       else if (editingSection === "experience") {
+
+        if (expFormOpen) {
+          if (currentExp?.id) {
+            toast.error("Please click Update Record before saving.");
+          } else {
+            toast.error("Please click Add Record before saving.");
+          }
+          return;
+        }
+
         if (editExperiences) {
 
           for (const exp of editExperiences) {
@@ -1253,7 +1263,7 @@ export default function ProfilePage() {
               end_year: exp.end_year || null,
               is_internal: !!exp.is_internal,
               is_after_pg: !!exp.is_after_pg,
-              category: exp.category || null,
+              category: exp.category || 'Other',
               is_aicte_approved: !!exp.is_aicte_approved,
               designations: (exp.designations || []).map((des: DesignationItem) => {
                 if (exp.is_internal) {
