@@ -1390,9 +1390,9 @@ export default function EmployeeDetailsPage() {
         </Dialog>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {[
-            { label: "User ID", val: `#${formData?.id}`, icon: Hash, color: "blue" },
+          
             { label: "Biometric ID", val: formData?.biometric_id || "--", icon: Fingerprint, color: "green" },
             { label: "Current Group", val: getGroupName(formData?.group_id || formData?.group), icon: Users, color: "purple" },
             { label: "College Staff ID", val: fullProfile?.staff_id || "---", icon: IdCard, color: "amber" }
