@@ -1986,6 +1986,16 @@ export default function ProfilePage() {
                             <span className="text-xs font-semibold text-gray-400">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} - {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}</span>
                             {qual.percentage && <span className="bg-gray-200 px-2.5 py-0.5 rounded text-xs font-bold text-gray-700">{qual.percentage}% / CGPA</span>}
                           </div>
+                          {qual.certificate && typeof qual.certificate === 'string' && (
+                            <a
+                              href={`${process.env.NEXT_PUBLIC_COMPANY_MEDIA_BASE || ''}${qual.certificate}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] text-blue-600 hover:underline font-medium block mt-1"
+                            >
+                              View Uploaded Document
+                            </a>
+                          )}
                         </div>
                       ))
                     ) : (
