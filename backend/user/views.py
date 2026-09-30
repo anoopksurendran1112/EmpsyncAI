@@ -1144,7 +1144,7 @@ def getAllUsers(request, page):
             serialized_user['check_in'] = check_in.isoformat() if check_in else None
             serialized_user['check_out'] = check_out.isoformat() if check_out else None
 
-            print("STEP 8")
+            #print("STEP 8")
             punch_pairs = []
             if company.punch_mode == 'M':
                 remaining_check_ins = punch_ins.copy()
@@ -1169,7 +1169,7 @@ def getAllUsers(request, page):
 
             serialized_user["punch_pairs"] = punch_pairs
 
-            print("STEP 9")
+            #print("STEP 9")
             user_data.append(serialized_user)
 
         except Exception as e:
@@ -2223,23 +2223,23 @@ def calculate_total_experience(queryset):
 @api_view(['GET', 'POST', 'PUT'])
 @permission_classes([AllowAny])
 def employee_with_profile(request):
-    import uuid
-    request_id = uuid.uuid4().hex[:8]
-    print("HEADERS:")
-    for key, value in request.headers.items():
-        print(f"{key}: {value}")
-    print("=" * 60)
-    print("=" * 60)
-    print(f"REQUEST ID: {request_id}")
-    print("METHOD:", request.method)
-    print("PATH:", request.path)
-    print("EMAIL:", request.data.get("email"))
-    print("MOBILE:", request.data.get("mobile"))
-    print("=" * 60)
-    print("REQUEST STACK")
-    print("REMOTE_ADDR:", request.META.get("REMOTE_ADDR"))
-    print("REMOTE_PORT:", request.META.get("REMOTE_PORT"))
-    traceback.print_stack(limit=5)
+    # import uuid
+    # request_id = uuid.uuid4().hex[:8]
+    # print("HEADERS:")
+    # for key, value in request.headers.items():
+    #     print(f"{key}: {value}")
+    # print("=" * 60)
+    # print("=" * 60)
+    # print(f"REQUEST ID: {request_id}")
+    # print("METHOD:", request.method)
+    # print("PATH:", request.path)
+    # print("EMAIL:", request.data.get("email"))
+    # print("MOBILE:", request.data.get("mobile"))
+    # print("=" * 60)
+    # print("REQUEST STACK")
+    # print("REMOTE_ADDR:", request.META.get("REMOTE_ADDR"))
+    # print("REMOTE_PORT:", request.META.get("REMOTE_PORT"))
+    # traceback.print_stack(limit=5)
 
 
     def _parse_bool(value):
@@ -2319,7 +2319,7 @@ def employee_with_profile(request):
             'experiences': []
         }
         print("=" * 50)
-        print("BUILD PAYLOAD PROFILE:")
+        #print("BUILD PAYLOAD PROFILE:")
         profile = EmployeeProfile.objects.filter(user=user).first()
         print(EmployeeProfileSerializer(profile).data if profile else None)
         print("=" * 50)
@@ -2395,14 +2395,14 @@ def employee_with_profile(request):
         present_address_data = safe_parse_json('present_address', dict)
         permanent_address_data = safe_parse_json('permanent_address', dict)
         profile_payload = safe_parse_json('profile', dict)
-        print("PROFILE PAYLOAD:", profile_payload)
-        print("RAW PROFILE:", request.data.get("profile"))
-        print("=" * 50)
-        print("CONTENT TYPE:", request.content_type)
-        print("RAW PROFILE:", request.data.get("profile"))
-        print("PROFILE PAYLOAD:", profile_payload)
-        print("REQUEST DATA:", request.data)
-        print("=" * 50)
+        # print("PROFILE PAYLOAD:", profile_payload)
+        # print("RAW PROFILE:", request.data.get("profile"))
+        # print("=" * 50)
+        # print("CONTENT TYPE:", request.content_type)
+        # print("RAW PROFILE:", request.data.get("profile"))
+        # print("PROFILE PAYLOAD:", profile_payload)
+        # print("REQUEST DATA:", request.data)
+        # print("=" * 50)
         guardians = safe_parse_json('guardians', list)
         bank_details = safe_parse_json('bank_details', list)
         qualifications = safe_parse_json('qualifications', list)
@@ -2596,7 +2596,7 @@ def employee_with_profile(request):
                     print("VALIDATED DATA:", profile_serializer.validated_data)
                 profile = profile_serializer.save()
 
-                print("STEP 1 - Profile saved")
+                # print("STEP 1 - Profile saved")
 
                 if guardians:
                     for g_data in guardians:
@@ -2609,7 +2609,7 @@ def employee_with_profile(request):
                         raise ValueError(f"Guardians validation failed: {g_serializer.errors}")
                     g_serializer.save()
 
-                print("STEP 2 - Guardians saved")
+                # print("STEP 2 - Guardians saved")
 
                 if bank_details:
                     for b_data in bank_details:
@@ -2620,7 +2620,7 @@ def employee_with_profile(request):
                         raise ValueError(f"Bank validation failed: {b_serializer.errors}")
                     b_serializer.save()
 
-                print("STEP 3 - Bank saved")
+                # print("STEP 3 - Bank saved")
             
                 if qualifications:
                     for idx, q_data in enumerate(qualifications):
@@ -2655,7 +2655,7 @@ def employee_with_profile(request):
                         raise ValueError(f"Qualifications validation failed: {q_serializer.errors}")
                     q_serializer.save()
 
-                print("STEP 4 - Qualifications saved")
+                # print("STEP 4 - Qualifications saved")
 
                 if experiences:
                     final_experiences_response = []
@@ -2738,16 +2738,16 @@ def employee_with_profile(request):
                             "designations": created_designations
                         })
 
-                print("STEP 5 - Experiences saved")
+                # print("STEP 5 - Experiences saved")
 
                 user.refresh_from_db()
-                print("STEP 6 - User refreshed")
+                # print("STEP 6 - User refreshed")
 
                 fresh_profile = EmployeeProfile.objects.get(user=user)
-                print("STEP 7 - Fresh profile fetched")
+                # print("STEP 7 - Fresh profile fetched")
 
                 payload = build_employee_payload(user)
-                print("STEP 8 - Payload built")
+                # print("STEP 8 - Payload built")
 
                 return Response({
                     "saved_profile": EmployeeProfileSerializer(profile).data,
@@ -2849,7 +2849,8 @@ def employee_with_profile(request):
 
                 if 'team_lead' in request.data:
                     user.team_lead = _parse_bool(request.data.get('team_lead'))
-
+                
+                print("DEBUG is_active before save:", user.is_active)
                 user.save()
 
                 # Update CompanyUser admin status
@@ -2968,8 +2969,8 @@ def employee_with_profile(request):
                 if qualifications:
                     existing_qualification_ids = set(EmployeeQualification.objects.filter(user=user).values_list('id', flat=True))
                     submitted_qualification_ids = {_parse_int(q.get('id'))for q in qualifications if q.get('id')}
-                    print("Existing qualification IDs:", existing_qualification_ids)
-                    print("Submitted qualification IDs:", submitted_qualification_ids)
+                    # print("Existing qualification IDs:", existing_qualification_ids)
+                    # print("Submitted qualification IDs:", submitted_qualification_ids)
 
                     EmployeeQualification.objects.filter(user=user,id__in=existing_qualification_ids - submitted_qualification_ids).delete()
                     for idx, q_data in enumerate(qualifications):
@@ -3481,8 +3482,8 @@ def manageEmployeeProfile(request):
                         if not address_data:
                             return None
 
-                    print("DEBUG ADDRESS DATA:", repr(address_data))
-                    print("DEBUG ADDRESS LABEL:", label)
+                    # print("DEBUG ADDRESS DATA:", repr(address_data))
+                    # print("DEBUG ADDRESS LABEL:", label)
 
                     serializer = EmployeeAddressSerializer(data=address_data)
                     if serializer.is_valid():
