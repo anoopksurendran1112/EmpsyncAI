@@ -32,6 +32,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 function useFieldSettings(companyId: number | null) {
@@ -188,6 +189,7 @@ const isValidMobile = (mobile: string) => /^\d{10}$/.test(mobile.trim());
 export default function EmployeeDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const employeeId = params.id as string;
   const { company, loading: authLoading } = useAuth();
   const companyId = company?.id;
@@ -1006,7 +1008,8 @@ export default function EmployeeDetailsPage() {
 
       // refetch();
       // await fetchProfile();
-
+      queryClient.invalidateQueries({ queryKey: ["filteredEmployees"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
       const refreshed = await refetch();
       console.log("Refetched employee:", refreshed.data?.is_active);
       await fetchProfile();
@@ -1104,7 +1107,7 @@ export default function EmployeeDetailsPage() {
   };
 
 
-  if (authLoading || isLoading) {
+  if (authLoading || (isLoading && !formData)) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="h-12 w-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
@@ -1705,7 +1708,7 @@ export default function EmployeeDetailsPage() {
                         </div>
                         {qual.certificate && typeof qual.certificate === 'string' && (
                           <a
-                           href={`${process.env.NEXT_PUBLIC_COMPANY_MEDIA_BASE || ''}${qual.certificate}`}
+                            href={qual.certificate}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[11px] text-blue-600 hover:underline font-medium block mt-1"

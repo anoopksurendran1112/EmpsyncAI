@@ -45,7 +45,8 @@ export function useEmployee(companyId: number | undefined, employeeId: string | 
     queryFn: () => fetchEmployee(companyId!, employeeId!),
     enabled: !!companyId && !!employeeId,
     staleTime: 5 * 60 * 1000,
-    retry: 3,
-    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    // retry: 3,
+    // retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retry: false,
   });
 }
