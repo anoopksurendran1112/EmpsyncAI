@@ -20,7 +20,7 @@ from notification.models import FcmToken
 from datetime import date
 from django.utils import timezone as tz
 from django.db import transaction
-from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level, get_user_leave_balance
+from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level, get_user_leave_balance, get_company_leave_roster
 from django.db import transaction
 from django.utils import timezone as tz
 
@@ -695,6 +695,8 @@ def get_leave_types(request):
                 'use_credit': lt.use_credit,
                 'is_global': lt.is_global,
                 'policy_mode': lt.policy_mode,
+                'allow_carry_forward': lt.allow_carry_forward,
+                'settings': lt.settings,
                 'policies': policies_by_type[lt.id]
             })
         return Response({'success': True, 'data': data}, status=status.HTTP_200_OK)
@@ -749,10 +751,15 @@ def get_leave_types(request):
             leave_type.yearly_limit = float(request.data.get("yearly_limit") or 0)
             leave_type.initial_credit = float(request.data.get("initial_credit") or 0)
             leave_type.use_credit = request.data.get("use_credit", False)
+            leave_type.allow_carry_forward = request.data.get(
+                "allow_carry_forward",
+                leave_type.allow_carry_forward,
+            )
             leave_type.policy_mode = request.data.get(
                 "policy_mode",
                 leave_type.policy_mode
             )
+            leave_type.settings = request.data.get("settings", leave_type.settings)
             leave_type.save()
 
             # 2. Fetch existing credits to verify and update in memory
@@ -866,8 +873,10 @@ def get_leave_types(request):
                 "monthly_limit": float(request.data.get("monthly_limit") or 0),
                 "yearly_limit": float(request.data.get("yearly_limit") or 0),
                 "initial_credit": float(request.data.get("initial_credit") or 0),
+                "allow_carry_forward": request.data.get("allow_carry_forward", True),
                 "use_credit": request.data.get("use_credit", False),
                 "policy_mode": request.data.get("policy_mode", "normal"),
+                "settings": request.data.get("settings", {}),
                 "company": company
             }
             
@@ -1772,4 +1781,48 @@ def get_leave_balance(request):
         'success': True,
         'data': balance_data
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST'])
+def get_leave_roster(request):
+    """
+    Returns the company-wide leave roster containing all active employees,
+    their entitlements, leaves taken, and remaining balances for each leave type.
+    """
+    user = request.user
+    if not user or not user.is_authenticated:
+        return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    company_id = (
+        request.query_params.get('company_id')
+        or (request.data.get('company_id') if isinstance(request.data, dict) else None)
+        or request.headers.get('X-Company-ID')
+    )
+    if company_id:
+        try:
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_404_NOT_FOUND)
+    else:
+        company = getattr(user, 'parent_company', None) or user.company.first()
+
+    if not company:
+        return Response({'success': False, 'message': 'Company not specified or found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    year = request.query_params.get('year') or (request.data.get('year') if isinstance(request.data, dict) else None)
+    month = request.query_params.get('month') or (request.data.get('month') if isinstance(request.data, dict) else None)
+    department_id = request.query_params.get('department_id') or (request.data.get('department_id') if isinstance(request.data, dict) else None)
+
+    roster_data = get_company_leave_roster(
+        company=company,
+        year=year,
+        month=month,
+        department_id=department_id
+    )
+
+    return Response({
+        'success': True,
+        'data': roster_data
+    }, status=status.HTTP_200_OK)
+
 

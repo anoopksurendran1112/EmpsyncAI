@@ -1,10 +1,10 @@
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
-from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile,StaffIdConfig,CompanyFieldSetting
+from .models import Company,CompanyRole,Device,VirtualDevice,CompanyGroup,StaffType,StaffCategory,CompanyUser,CompanyProfile,StaffIdConfig,CompanyFieldSetting,CompanyShift
 from punch.models import PunchRecords
 from rest_framework import status
-from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer,StaffIdConfigSerializer,CompanyFieldSettingSerializer
+from .serializer import CompanySerializer,DeviceSerializer,StaffTypeSerializer,StaffCategorySerializer,CompanyProfileSerializer,StaffIdConfigSerializer,CompanyFieldSettingSerializer,CompanyShiftSerializer
 from drf_spectacular.utils import extend_schema,OpenApiParameter, OpenApiTypes
 from rest_framework.decorators import api_view,permission_classes
 from rest_framework.permissions import AllowAny
@@ -714,6 +714,126 @@ def company_head(request, id):
                 }
             }
         }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+def company_shifts(request):
+    company_id = request.query_params.get('company_id') or request.data.get('company_id')
+
+    if not company_id:
+        return Response({
+            'success': False,
+            'message': 'company_id is required',
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        company = Company.objects.get(id=company_id)
+    except Company.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Company not found',
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    is_admin = CompanyUser.objects.filter(
+        user=request.user,
+        company=company,
+        is_admin=True,
+    ).exists()
+    if not (is_admin or getattr(request.user, 'is_superuser', False)):
+        return Response({
+            'success': False,
+            'message': 'Admin privileges required',
+        }, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        shifts = CompanyShift.objects.filter(company=company).order_by('shift')
+        serialized_shifts = CompanyShiftSerializer(shifts, many=True).data
+        for shift_data, shift in zip(serialized_shifts, shifts):
+            if shift.staff_type_id:
+                shift_data['staff_count'] = CustomUser.objects.filter(
+                    company=company,
+                    is_active=True,
+                    profile__staff_type_id=shift.staff_type_id,
+                ).count()
+            elif shift.applicable_to == 'All Staff':
+                shift_data['staff_count'] = CustomUser.objects.filter(
+                    company=company,
+                    is_active=True,
+                ).count()
+            else:
+                # Legacy label-only rows cannot be mapped safely to a staff type.
+                shift_data['staff_count'] = 0
+        return Response({
+            'success': True,
+            'data': serialized_shifts,
+        })
+
+    if request.method == 'POST':
+        payload = request.data.copy()
+        payload['company_id'] = company.id
+        serializer = CompanyShiftSerializer(data=payload)
+        if serializer.is_valid():
+            selected_staff_type = serializer.validated_data.get('staff_type')
+            if selected_staff_type and selected_staff_type.company_id != company.id:
+                return Response({
+                    'success': False,
+                    'message': 'Selected staff type does not belong to this company',
+                }, status=status.HTTP_400_BAD_REQUEST)
+            shift = serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Shift created successfully',
+                'data': CompanyShiftSerializer(shift).data,
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            'success': False,
+            'message': 'Validation failed',
+            'errors': serializer.errors,
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    shift_id = request.data.get('id')
+    if not shift_id:
+        return Response({
+            'success': False,
+            'message': 'Shift id is required',
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        shift = CompanyShift.objects.get(id=shift_id, company=company)
+    except CompanyShift.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Shift not found',
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'DELETE':
+        shift.delete()
+        return Response({
+            'success': True,
+            'message': 'Shift deleted successfully',
+        })
+
+    payload = request.data.copy()
+    payload['company_id'] = company.id
+    serializer = CompanyShiftSerializer(shift, data=payload, partial=True)
+    if serializer.is_valid():
+        selected_staff_type = serializer.validated_data.get('staff_type')
+        if selected_staff_type and selected_staff_type.company_id != company.id:
+            return Response({
+                'success': False,
+                'message': 'Selected staff type does not belong to this company',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        updated_shift = serializer.save()
+        return Response({
+            'success': True,
+            'message': 'Shift updated successfully',
+            'data': CompanyShiftSerializer(updated_shift).data,
+        })
+    return Response({
+        'success': False,
+        'message': 'Validation failed',
+        'errors': serializer.errors,
+    }, status=status.HTTP_400_BAD_REQUEST)
 
 @extend_schema(
     request={

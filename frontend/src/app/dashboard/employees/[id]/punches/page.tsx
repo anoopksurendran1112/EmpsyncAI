@@ -21,6 +21,7 @@ import {
 import Image from "next/image";
 import { useEmployee } from "@/hooks/employees/useGetEmployee";
 import FixPunch from "@/components/fix-punch";
+import { useToast } from "@/hooks/use-toast";
 
 // ADDED FOR PDF EXPORT
 import jsPDF from 'jspdf';
@@ -379,6 +380,7 @@ export default function EmployeePunchPage() {
   const [error, setError] = useState<string | null>(null);
   const [todaysPunch, setTodaysPunch] = useState<any>(null);
   const [multiMode, setMultiMode] = useState<boolean>(false);
+  const { toast } = useToast();
   const [todaysStatus, setTodaysStatus] = useState<string>("No punches recorded");
 
   const biometricIdFromQuery = searchParams.get('biometric_id');
@@ -512,6 +514,8 @@ export default function EmployeePunchPage() {
     try {
       const today = format(new Date(), "yyyy-MM-dd");
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 45000);
       const res = await fetch("/api/punch/todaypunch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -522,7 +526,10 @@ export default function EmployeePunchPage() {
           end_date: today,
           user_id: biometricId,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
+
 
       if (res.ok) {
         const todayData = await res.json();
@@ -564,7 +571,12 @@ export default function EmployeePunchPage() {
         };
       }
     } catch (error) {
-      console.error("Error fetching today's punch:", error);
+      if ((error as any).name === "AbortError") {
+        toast({ title: "Request timed out", description: "Unable to fetch today's punch data within 45 seconds.", variant: "destructive" });
+      } else {
+        console.error("Error fetching today's punch:", error);
+        toast({ title: "Failed to fetch today's punch", description: String(error), variant: "destructive" });
+      }
       return {
         first_check_in: null,
         last_check_out: null,

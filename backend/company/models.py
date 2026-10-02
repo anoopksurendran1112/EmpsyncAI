@@ -96,9 +96,19 @@ class User(models.Model):
 class CompanyShift(models.Model):
 
     shift = models.CharField(max_length=100)
-    check_in = models.TimeField()
-    check_out = models.TimeField()
+    check_in = models.TimeField(null=True, blank=True)
+    check_out = models.TimeField(null=True, blank=True)
     late_allowance = models.DurationField(default=timedelta(minutes=15))
+    days_applicable = models.CharField(max_length=100, default='Mon - Sat')
+    applicable_to = models.CharField(max_length=100, default='All Staff')
+    staff_count = models.PositiveIntegerField(default=0)
+    staff_type = models.ForeignKey(
+        'company.StaffType',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='shifts',
+    )
     company = models.ForeignKey('company.Company',on_delete=models.CASCADE)
 
     def __str__(self):

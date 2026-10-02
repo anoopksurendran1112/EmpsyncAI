@@ -21,7 +21,6 @@ import { useAuth, User } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { useEmployee } from "@/hooks/employees/useGetEmployee";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -207,11 +206,11 @@ export default function EmployeeDetailsPage() {
     overall_completion_percentage: number;
   } | null>(null);
 
-  const { data: employee, isLoading, isError, refetch } = useEmployee(companyId, employeeId);
   const [formData, setFormData] = useState<User | null>(null);
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-
+  const [profileError, setProfileError] = useState(false);
+  
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editProfileData, setEditProfileData] = useState<EditableProfile | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -309,15 +308,6 @@ export default function EmployeeDetailsPage() {
     }
   }, [employeeId, companyId]);
 
-  useEffect(() => {
-    if (employee) {
-      setFormData(employee);
-      setBiometricInput(employee.biometric_id || "");
-      setRetryCount(0);
-    } else {
-      setFormData(null);
-    }
-  }, [employee]);
 
   useEffect(() => {
     if (employeeId) fetchProfile();
@@ -332,11 +322,11 @@ export default function EmployeeDetailsPage() {
   }, [companyId]);
 
   useEffect(() => {
-    if (isError && retryCount < 2) {
-      const timer = setTimeout(() => { refetch(); setRetryCount(p => p + 1); }, 1000);
+    if (profileError && retryCount < 2) {
+      const timer = setTimeout(() => { fetchProfile(); setRetryCount(p => p + 1); }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isError, retryCount, refetch]);
+  }, [profileError, retryCount]);
 
 
   useEffect(() => {
@@ -357,19 +347,24 @@ export default function EmployeeDetailsPage() {
 
   const fetchProfile = async () => {
     setProfileLoading(true);
+    setProfileError(false);
     try {
       const res = await fetch(`/api/employee-with-profile?user_id=${employeeId}`, { cache: "no-store" });
       if (res.ok) {
         const result = await res.json();
         if (result?.success && result.data) {
           setFullProfile(result.data.profile || null);
-          setFormData(prev => result.data.user || prev);
+          setFormData(result.data.user || null);
+          setBiometricInput(result.data.user?.biometric_id || "");
+          setRetryCount(0);
           setQualifications(result.data.qualifications || []);
           setExperiences(result.data.experiences || []);
           setBankDetails(result.data.bank_details || []);
           setGuardians(result.data.guardians || []);
         } else {
           setFullProfile(null);
+          setFormData(null);
+          setProfileError(true);
           setQualifications([]);
           setExperiences([]);
           setBankDetails([]);
@@ -379,6 +374,8 @@ export default function EmployeeDetailsPage() {
         const errorText = await res.text();
         console.error("Failed to fetch employee-with-profile:", errorText);
         setFullProfile(null);
+        setFormData(null);
+        setProfileError(true);
         setQualifications([]);
         setExperiences([]);
         setBankDetails([]);
@@ -387,6 +384,8 @@ export default function EmployeeDetailsPage() {
     } catch (err) {
       console.error("Failed to fetch profile:", err);
       setFullProfile(null);
+      setFormData(null);
+      setProfileError(true);
     } finally {
       setProfileLoading(false);
     }
@@ -1116,7 +1115,7 @@ export default function EmployeeDetailsPage() {
     );
   }
 
-  if (isError && !formData) {
+  if (profileError && !formData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <Card className="max-w-md w-full text-center p-8 bg-white shadow-xl rounded-2xl border-none">
