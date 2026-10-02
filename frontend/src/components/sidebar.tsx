@@ -11,6 +11,7 @@ import {
   DollarSign,
   Building2,
   CalendarX,
+  Clock,
   Fingerprint,
   ChevronDown,
   UserPlus,
@@ -85,6 +86,7 @@ export function Sidebar({ className }: SidebarProps) {
 
 
     { title: "Company", icon: Building2, href: "/dashboard/company" },
+    { title: "Shifts", icon: Clock, href: "/dashboard/shifts" },
     {
       title: "Settings", icon: Settings, href: "/dashboard/settings", adminOnly: true,
       children: [
