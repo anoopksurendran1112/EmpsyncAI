@@ -5,7 +5,7 @@ from .views import (
     logout_view, delete_user, get_user_companies, get_team_members, getAllEmployees, 
     manageReligion, manageCaste, manageEmployeeProfile, manageBankDetail, manageQualification,
     manageExperience, employee_with_profile, available_id, candidateApplication,
-    calculate_data_entry_percentage,  manage_employee_draft
+    calculate_data_entry_percentage,  manage_employee_draft, manage_employee_history
 )
  
 
@@ -41,4 +41,7 @@ urlpatterns = [
     path('api/manage-experience/', manageExperience, name='manage-experience'),
     
     path('api/data-entry-percentage/', calculate_data_entry_percentage, name='data-entry-percentage'),
-]
+
+    # Employee History
+    path('api/employee-history/<int:user_id>/', manage_employee_history, name='employee-history'),
+]

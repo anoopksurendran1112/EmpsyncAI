@@ -53,11 +53,12 @@ from company.serializer import CompanySerializer
 from company.models import CompanyFieldSetting
 from punch.utils.deduplication import deduplicate_punches
 from company.models import CompanyGroup, CompanyUser, Device, Company, StaffIdConfig
-from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeOnboardingDraft
+from .models import CustomUser, Religion, Caste, EmployeeProfile, EmployeeAddress, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeOnboardingDraft, EmployeeHistoryEvent
 from .serializer import (
     UserSerializer, LoginSerializer, GetUserSerializer, OTPResetSerializer,
     ReligionSerializer, CasteSerializer, EmployeeProfileSerializer, EmployeeAddressSerializer,
-    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer, EmployeeGuardianSerializer, CandidateApplicationsSerializer
+    BankDetailSerializer, EmployeeQualificationSerializer, EmployeeExperienceSerializer, ExperienceDesignationSerializer, EmployeeGuardianSerializer, CandidateApplicationsSerializer,
+    EmployeeHistoryEventSerializer
 )
 
 
@@ -4055,3 +4056,112 @@ def manageExperience(request):
 
         return Response({'success': False, 'message': 'experience_id or designation_id required'}, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+@api_view(['GET', 'POST', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def manage_employee_history(request, user_id):
+    """
+    GET    /api/employee-history/<user_id>/
+        Returns the complete employment lifecycle history for the given user.
+        Optional query params:
+          - event_type  : filter by a single event type (e.g. ?event_type=promotion)
+          - company_id  : filter by company (defaults to request.user's parent_company)
+
+    POST   /api/employee-history/<user_id>/
+        Manually create a new history event (e.g. promotion, transfer, relieving).
+        Body: { event_type, effective_date, company, from_group?, to_group?,
+                from_role?, to_role?, reason?, corrected_field?, old_value?,
+                new_value?, metadata? }
+        'changed_by' is automatically set to the requesting user.
+
+    PATCH  /api/employee-history/<user_id>/
+        Update an existing history event by its id.
+        Body: { id, ...fields to update }
+        Note: 'correction' events are immutable once created to preserve audit integrity.
+
+    DELETE /api/employee-history/<user_id>/
+        Delete a history event by id (admin only, non-correction events).
+        Body: { id }
+    """
+    try:
+        employee = CustomUser.objects.get(pk=user_id)
+    except CustomUser.DoesNotExist:
+        return Response({'success': False, 'message': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # ── GET ───────────────────────────────────────────────────────────────
+    if request.method == 'GET':
+        qs = EmployeeHistoryEvent.objects.filter(employee=employee).select_related(
+            'company', 'from_group', 'to_group', 'from_role', 'to_role', 'changed_by'
+        )
+
+        event_type = request.query_params.get('event_type')
+        if event_type:
+            qs = qs.filter(event_type=event_type)
+
+        company_id = request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(company__id=company_id)
+
+        serializer = EmployeeHistoryEventSerializer(qs, many=True)
+        return Response({
+            'success': True,
+            'employee_id': user_id,
+            'employee_name': f"{employee.first_name} {employee.last_name}",
+            'count': qs.count(),
+            'history': serializer.data,
+        }, status=status.HTTP_200_OK)
+
+    # ── POST ──────────────────────────────────────────────────────────────
+    if request.method == 'POST':
+        data = request.data.copy()
+        data['employee'] = user_id
+        data['changed_by'] = request.user.id
+
+        serializer = EmployeeHistoryEventSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'event': serializer.data}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── PATCH ─────────────────────────────────────────────────────────────
+    if request.method == 'PATCH':
+        event_id = request.data.get('id')
+        if not event_id:
+            return Response({'success': False, 'message': '"id" field is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            event = EmployeeHistoryEvent.objects.get(pk=event_id, employee=employee)
+        except EmployeeHistoryEvent.DoesNotExist:
+            return Response({'success': False, 'message': 'History event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Correction events are immutable — preserve audit integrity
+        if event.event_type == 'correction':
+            return Response(
+                {'success': False, 'message': 'Correction events cannot be edited. Add a new correction event instead.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = EmployeeHistoryEventSerializer(event, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'event': serializer.data}, status=status.HTTP_200_OK)
+        return Response({'success': False, 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── DELETE ────────────────────────────────────────────────────────────
+    if request.method == 'DELETE':
+        event_id = request.data.get('id')
+        if not event_id:
+            return Response({'success': False, 'message': '"id" field is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            event = EmployeeHistoryEvent.objects.get(pk=event_id, employee=employee)
+        except EmployeeHistoryEvent.DoesNotExist:
+            return Response({'success': False, 'message': 'History event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.event_type == 'correction':
+            return Response(
+                {'success': False, 'message': 'Correction events cannot be deleted.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        event.delete()
+        return Response({'success': True, 'message': 'History event deleted'}, status=status.HTTP_200_OK)

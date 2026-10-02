@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import CustomUser
 from company.models import CompanyRole,CompanyGroup, CompanyUser, Company
-from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications
+from .models import Religion, Caste, EmployeeAddress, EmployeeProfile, BankDetail, EmployeeQualification, EmployeeExperience, ExperienceDesignation, EmployeeGuardian, CandidateApplications, EmployeeHistoryEvent
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -283,3 +283,35 @@ class EmployeeExperienceSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'category': 'Invalid category. Must be one of Institution, Industry, Other.'})
             
         return data
+
+
+class EmployeeHistoryEventSerializer(serializers.ModelSerializer):
+    event_type_display  = serializers.CharField(source='get_event_type_display', read_only=True)
+
+    from_group_name     = serializers.CharField(source='from_group.group',      read_only=True)
+    to_group_name       = serializers.CharField(source='to_group.group',        read_only=True)
+    from_role_name      = serializers.CharField(source='from_role.role',        read_only=True)
+    to_role_name        = serializers.CharField(source='to_role.role',          read_only=True)
+    changed_by_name     = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = EmployeeHistoryEvent
+        fields = [
+            'id', 'employee', 'company',
+            'event_type', 'event_type_display',
+            'effective_date',
+            'from_group', 'from_group_name',
+            'to_group',   'to_group_name',
+            'from_role',  'from_role_name',
+            'to_role',    'to_role_name',
+            'corrected_field', 'old_value', 'new_value',
+            'changed_by', 'changed_by_name',
+            'reason', 'metadata',
+            'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+    def get_changed_by_name(self, obj):
+        if obj.changed_by:
+            return f"{obj.changed_by.first_name} {obj.changed_by.last_name}".strip()
+        return None

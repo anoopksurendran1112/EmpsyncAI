@@ -359,3 +359,91 @@ class EmployeeOnboardingDraft(models.Model):
     def __str__(self):
         return f"Draft by {self.created_by.email} for {self.company.name}"
 
+
+
+class EmployeeHistoryEvent(models.Model):
+    """
+    Authoritative internal employment lifecycle event log.
+    One row per event — never overwritten. Corrections are also events.
+    """
+
+    EVENT_CHOICES = [
+        ('joined',        'Joined'),
+        ('transfer',      'Department / Group Transfer'),
+        ('promotion',     'Promotion'),
+        ('demotion',      'Demotion'),
+        ('redesignation', 'Re-designation'),
+        ('relieving',     'Relieving / Resignation'),
+        ('correction',    'Correction'),
+        ('other',         'Other'),
+    ]
+
+    # ── Core linkage ──────────────────────────────────────────────
+    employee = models.ForeignKey(
+        'CustomUser', on_delete=models.CASCADE,
+        related_name='history_events'
+    )
+    company = models.ForeignKey(
+        'company.Company', on_delete=models.CASCADE,
+        related_name='employee_history_events'
+    )
+
+    # ── Event classification ───────────────────────────────────────
+    event_type = models.CharField(max_length=20, choices=EVENT_CHOICES)
+    effective_date = models.DateField(
+        help_text="Date the event actually took effect (not when it was entered)"
+    )
+
+    # ── Department / Group transition ──────────────────────────────
+    from_group = models.ForeignKey(
+        'company.CompanyGroup', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='history_from_group'
+    )
+    to_group = models.ForeignKey(
+        'company.CompanyGroup', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='history_to_group'
+    )
+
+    # ── Role transition ────────────────────────────────────────────
+    from_role = models.ForeignKey(
+        'company.CompanyRole', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='history_from_role'
+    )
+    to_role = models.ForeignKey(
+        'company.CompanyRole', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='history_to_role'
+    )
+
+    # ── For Correction events ──────────────────────────────────────
+    corrected_field = models.CharField(
+        max_length=100, null=True, blank=True,
+        help_text="Name of the field that was corrected (e.g. 'date_of_joining')"
+    )
+    old_value = models.TextField(null=True, blank=True)
+    new_value = models.TextField(null=True, blank=True)
+
+    # ── Who / Why ──────────────────────────────────────────────────
+    changed_by = models.ForeignKey(
+        'CustomUser', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='history_changes_made'
+    )
+    reason = models.TextField(null=True, blank=True)
+
+    # ── Optional flexible metadata ─────────────────────────────────
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text="Optional extra info (e.g. order letter number, reference)"
+    )
+
+    # ── Timestamps ─────────────────────────────────────────────────
+    created_at = models.DateTimeField(auto_now_add=True)   # when entered in system
+
+    class Meta:
+        ordering = ['-effective_date', '-created_at']
+        indexes = [
+            models.Index(fields=['employee', 'event_type']),
+            models.Index(fields=['company', 'effective_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.employee} | {self.get_event_type_display()} | {self.effective_date}"
