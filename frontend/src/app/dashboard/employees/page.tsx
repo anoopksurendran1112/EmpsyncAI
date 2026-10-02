@@ -632,7 +632,11 @@ function EmployeesList({ companyId }: { companyId: number }) {
           router.push(`/dashboard/employees/${employeeId}`);
           return;
         }
-
+        if (employee.is_active === false) {
+          setEmployee(employeeId, employee, companyId);
+          router.push(`/dashboard/employees/${employeeId}`);
+          return;
+        }
         const startTime = Date.now();
         const response = await fetch("/api/employees", {
           method: "POST",
@@ -1051,7 +1055,9 @@ function EmployeesList({ companyId }: { companyId: number }) {
                       key={emp.uniqueKey}
                       className="relative bg-white border border-purple-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:border-purple-300 transition-all duration-200 cursor-pointer group"
                       onMouseEnter={() => {
-                        onHoverStart(emp.id.toString());
+                        if (emp.is_active !== false) {
+                          onHoverStart(emp.id.toString());
+                        }
                         setHoveredId(emp.uniqueKey);
                       }}
                       onMouseLeave={() => {

@@ -7,7 +7,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Loader, Mail, Phone, UserIcon, UserMinus, MapPin, ArrowLeft,
   MessageSquare, Home, Pen, AlertTriangle, RefreshCw, Camera, X, Upload,
-  Edit, Save, Plus, Activity, Hash, Briefcase, Shield, ShieldCheck, Crown, 
+  Edit, Save, Plus, Activity, Hash, Briefcase, Shield, ShieldCheck, Crown,
   CheckCircle, XCircle, Settings, Key, Globe, Layout, UserPlus, Fingerprint,
   Heart, GraduationCap, Building2, Landmark, Smartphone, MessageCircle, Edit3, Users,
   Calendar, Eye, History, Trash2, Milestone, FileText, GraduationCap as GradIcon,
@@ -31,6 +31,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 function useFieldSettings(companyId: number | null) {
@@ -187,13 +188,14 @@ const isValidMobile = (mobile: string) => /^\d{10}$/.test(mobile.trim());
 export default function EmployeeDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const employeeId = params.id as string;
   const { company, loading: authLoading } = useAuth();
   const companyId = company?.id;
 
   const { isFieldVisible, isFieldMandatory, loading: fieldSettingsLoading } = useFieldSettings(companyId || null);
 
- 
+
   const [dataEntryPercentage, setDataEntryPercentage] = useState<number | null>(null);
   const [dataEntryLoading, setDataEntryLoading] = useState(true);
   const [dataEntryDetails, setDataEntryDetails] = useState<{
@@ -214,10 +216,10 @@ export default function EmployeeDetailsPage() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [showBiometricDialog, setShowBiometricDialog] = useState(false);
   const [biometricInput, setBiometricInput] = useState("");
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  
+
 
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -265,10 +267,10 @@ export default function EmployeeDetailsPage() {
     { id: 'notifications', label: 'Notification Preferences', icon: <MessageSquareDot className="h-4 w-4" /> },
   ];
 
-  
+
   const fetchDataEntryPercentage = useCallback(async () => {
     if (!employeeId || !companyId) return;
-    
+
     setDataEntryLoading(true);
     try {
       const response = await fetch(`/api/data-entry-percentage/`, {
@@ -335,14 +337,14 @@ export default function EmployeeDetailsPage() {
     fetchCastes(editProfileData.religion_id);
   }, [editProfileData?.religion_id, editingSection]);
 
- 
+
   useEffect(() => {
     if (employeeId && companyId) {
       fetchDataEntryPercentage();
     }
   }, [employeeId, companyId, fetchDataEntryPercentage]);
 
- 
+
   const fetchProfile = async () => {
     setProfileLoading(true);
     setProfileError(false);
@@ -396,7 +398,7 @@ export default function EmployeeDetailsPage() {
         fetch(`/api/settings/staff_category/${companyId}`),
         fetch(`/api/settings/manage-religion/`)
       ]);
-      
+
       const staffTypeData = await staffTypeRes.json();
       const items = Array.isArray(staffTypeData) ? staffTypeData : (staffTypeData.data || staffTypeData.types || staffTypeData.results || []);
       setStaffTypes(items.map((st: any) => ({ id: st.id, name: st.type_name || st.name })));
@@ -427,10 +429,10 @@ export default function EmployeeDetailsPage() {
         fetch(`/api/settings/roles/${companyId}`)
       ]);
       const [gData, rData] = await Promise.all([gRes.json(), rRes.json()]);
-      
+
       const gItems = Array.isArray(gData) ? gData : (gData.data || gData.groups || gData.results || []);
       setGroups(gItems);
-      
+
       const rItems = Array.isArray(rData) ? rData : (rData.data || rData.roles || rData.results || []);
       setRoles(rItems);
     } catch (e) { console.error(e); }
@@ -447,7 +449,7 @@ export default function EmployeeDetailsPage() {
     } catch (err) { console.error("Failed to fetch company profile", err); }
   };
 
- 
+
   const getProfileImageUrl = () => {
     if (!formData?.prof_img) return null;
     if (formData.prof_img.startsWith('http') || formData.prof_img.startsWith('data:')) return formData.prof_img;
@@ -519,26 +521,26 @@ export default function EmployeeDetailsPage() {
     return value;
   };
 
-  
+
   const handleEdit = (section: string) => {
     if (!formData) return;
-    
+
     let religionId = null;
     let casteId = null;
-    
+
     if (fullProfile) {
       religionId = (fullProfile as any).religion || null;
       if (!religionId && fullProfile.religion_name) {
         const found = religions.find(r => r.name === fullProfile.religion_name);
         religionId = found ? found.id : null;
       }
-      
+
       casteId = (fullProfile as any).caste || null;
       if (!casteId && fullProfile.caste_name) {
         const found = castes.find(c => c.name === fullProfile.caste_name);
         casteId = found ? found.id : null;
       }
-      
+
       if (religionId) {
         fetchCastes(religionId);
       }
@@ -644,7 +646,7 @@ export default function EmployeeDetailsPage() {
     }
   };
 
-  
+
   const handleSave = async (sectionOverride?: string) => {
     console.log("🔥 HANDLE SAVE CALLED", sectionOverride);
     if (!formData || !company) return;
@@ -655,7 +657,7 @@ export default function EmployeeDetailsPage() {
     try {
       const formDataPayload = new FormData();
 
-      
+
       formDataPayload.append("user_id", employeeId);
 
 
@@ -690,8 +692,8 @@ export default function EmployeeDetailsPage() {
           };
           formDataPayload.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+      }
+
       else if (activeSection === "professional") {
         if (!formData.group_id) {
           toast.error("Department / Group is required");
@@ -727,8 +729,8 @@ export default function EmployeeDetailsPage() {
           };
           formDataPayload.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+      }
+
       else if (activeSection === "contact") {
         const primaryMobile = formData.mobile?.trim() || '';
         if (!primaryMobile) {
@@ -772,8 +774,8 @@ export default function EmployeeDetailsPage() {
           };
           formDataPayload.append("profile", JSON.stringify(profileData));
         }
-      } 
-      
+      }
+
       else if (activeSection === "family") {
         for (const guardian of guardians) {
           const phone = guardian.phone?.trim();
@@ -799,13 +801,13 @@ export default function EmployeeDetailsPage() {
         }
 
         formDataPayload.append("guardians", JSON.stringify(guardiansToSend));
-      } 
-      
+      }
+
       else if (activeSection === "address") {
         if (editProfileData) {
           const presentAddr = { ...editProfileData.present_address_details };
           const permanentAddr = { ...editProfileData.permanent_address_details };
-          
+
           ['address_line_1', 'city', 'district', 'state', 'country', 'pincode'].forEach(f => {
             if (!presentAddr[f as keyof AddressDetails] || (presentAddr[f as keyof AddressDetails] as string)?.trim() === '') {
               (presentAddr as any)[f] = f === 'pincode' ? '000000' : 'Not provided';
@@ -850,7 +852,7 @@ export default function EmployeeDetailsPage() {
             start_year: exp.start_year,
             end_year: exp.end_year || null,
             is_internal: !!exp.is_internal,
-            
+
             category: exp.category || 'Other',
             is_aicte_approved: !!exp.is_aicte_approved,
             is_after_pg: !!exp.is_after_pg,
@@ -908,7 +910,7 @@ export default function EmployeeDetailsPage() {
           formDataPayload.append("profile", JSON.stringify(profileData));
         }
       }
-      
+
       else if (activeSection === "bank") {
         const banksToSend = editBankDetails.map((b: any) => ({
           ...(b.id ? { id: b.id } : {}),
@@ -930,6 +932,8 @@ export default function EmployeeDetailsPage() {
       }
 
       else if (activeSection === "hero") {
+        console.log("DEBUG frontend is_active:", formData.is_active);
+        console.log("DEBUG value being sent:", String(formData.is_active ?? true));
         formDataPayload.append("is_active", String(formData.is_active ?? true));
       }
 
@@ -941,7 +945,7 @@ export default function EmployeeDetailsPage() {
         }
         formDataPayload.append("biometric_id", biometricValue);
       }
-      
+
       else {
         setUploadingImage(true);
         const imageFile = fileInputRef.current?.files?.[0] || null;
@@ -1000,13 +1004,20 @@ export default function EmployeeDetailsPage() {
       if (result.data?.experiences) setExperiences(result.data.experiences);
       if (result.data?.bank_details) setBankDetails(result.data.bank_details);
       if (result.data?.guardians) setGuardians(result.data.guardians);
+
+      // refetch();
+      // await fetchProfile();
+      queryClient.invalidateQueries({ queryKey: ["filteredEmployees"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      const refreshed = await refetch();
+      console.log("Refetched employee:", refreshed.data?.is_active);
       await fetchProfile();
-      
+
       // Refresh data entry percentage after save
       setTimeout(() => {
         fetchDataEntryPercentage();
       }, 500);
-      
+
     } catch (err: any) {
       toast.error(err.message || "An error occurred while saving.");
     } finally {
@@ -1072,12 +1083,12 @@ export default function EmployeeDetailsPage() {
 
       toast.success("Extended profile initialized!");
       await fetchProfile();
-      
+
       // Refresh data entry percentage after creating profile
       setTimeout(() => {
         fetchDataEntryPercentage();
       }, 500);
-      
+
     } catch (error: any) {
       toast.error(error.message || "Failed to create profile skeleton");
     } finally {
@@ -1094,7 +1105,8 @@ export default function EmployeeDetailsPage() {
     router.push(url);
   };
 
-  if (authLoading || profileLoading) {
+
+  if (authLoading || (isLoading && !formData)) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="h-12 w-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
@@ -1113,8 +1125,8 @@ export default function EmployeeDetailsPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Restricted</h2>
           <p className="text-gray-500 mb-8 leading-relaxed">We encountered an issue while retrieving this employee's data. This record may be dormant or inactive.</p>
           <div className="space-y-3">
-             <Button onClick={() => { setRetryCount(0); fetchProfile(); }} className="w-full bg-blue-600 py-6 text-base font-bold rounded-xl shadow-lg shadow-blue-200"><RefreshCw className="h-5 w-5 mr-2" />Re-sync Record</Button>
-             <Link href="/dashboard/employees" className="block text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors pt-2">Return to list</Link>
+            <Button onClick={() => { setRetryCount(0); refetch(); }} className="w-full bg-blue-600 py-6 text-base font-bold rounded-xl shadow-lg shadow-blue-200"><RefreshCw className="h-5 w-5 mr-2" />Re-sync Record</Button>
+            <Link href="/dashboard/employees" className="block text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors pt-2">Return to list</Link>
           </div>
         </Card>
       </div>
@@ -1181,13 +1193,12 @@ export default function EmployeeDetailsPage() {
                 ref={fileInputRef}
                 className="hidden"
                 accept="image/jpeg,image/png,image/webp"
-                onChange={handleSave}
+                onChange={() => handleSave()}
               />
 
               <div
-                className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${
-                  formData?.is_active ? "bg-green-500" : "bg-red-500"
-                }`}
+                className={`absolute -bottom-2 -left-2 h-8 w-8 rounded-full border-4 border-white shadow-sm flex items-center justify-center ${formData?.is_active ? "bg-green-500" : "bg-red-500"
+                  }`}
               >
                 {formData?.is_active ? (
                   <CheckCircle className="h-4 w-4 text-white" />
@@ -1220,21 +1231,21 @@ export default function EmployeeDetailsPage() {
                   )}
                 </div>
               </div>
-              
+
               <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-6 border-t border-gray-100 pt-6">
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={handleViewPunch}
                     className="bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 font-bold rounded-lg h-9 px-4"
                   >
                     <Activity className="h-4 w-4 mr-2" />
                     View Punches
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setBiometricInput(formData?.biometric_id || "");
                       setShowBiometricDialog(true);
@@ -1247,15 +1258,15 @@ export default function EmployeeDetailsPage() {
                 </div>
                 <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-lg border border-gray-100">
                   <span className="text-[10px] font-bold uppercase text-gray-400 ml-2">Account Status</span>
-                  <Switch 
-                    checked={formData?.is_active || false} 
+                  <Switch
+                    checked={formData?.is_active || false}
                     onCheckedChange={(val) => {
                       handleInputChange("is_active", val);
                       setEditingSection("hero");
                     }}
                   />
                   {editingSection === "hero" && (
-                    <Button size="sm" onClick={handleSave} className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2">Apply</Button>
+                    <Button size="sm" onClick={() => handleSave()} className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2">Apply</Button>
                   )}
                 </div>
               </div>
@@ -1320,14 +1331,13 @@ export default function EmployeeDetailsPage() {
                       <span>•</span>
                       <span>{dataEntryDetails.filled_visible}/{dataEntryDetails.total_visible}</span>
                     </div>
-                    <div className={`mt-1 text-[10px] font-semibold ${
-                      dataEntryPercentage >= 80 ? 'text-green-600' :
+                    <div className={`mt-1 text-[10px] font-semibold ${dataEntryPercentage >= 80 ? 'text-green-600' :
                       dataEntryPercentage >= 50 ? 'text-yellow-600' :
-                      'text-red-600'
-                    }`}>
+                        'text-red-600'
+                      }`}>
                       {dataEntryPercentage >= 80 ? '✅ Complete' :
-                       dataEntryPercentage >= 50 ? '⚠️ Partial' :
-                       '❌ Incomplete'}
+                        dataEntryPercentage >= 50 ? '⚠️ Partial' :
+                          '❌ Incomplete'}
                     </div>
                   </div>
                 </div>
@@ -1377,7 +1387,7 @@ export default function EmployeeDetailsPage() {
               </Button>
             </DialogHeader>
             <div className="p-8 max-h-[85vh] overflow-y-auto scrollbar-hide">
-              <FullCalendarView 
+              <FullCalendarView
                 employeeId={employeeId}
                 companyId={companyId?.toString()}
               />
@@ -1386,9 +1396,9 @@ export default function EmployeeDetailsPage() {
         </Dialog>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {[
-            { label: "User ID", val: `#${formData?.id}`, icon: Hash, color: "blue" },
+
             { label: "Biometric ID", val: formData?.biometric_id || "--", icon: Fingerprint, color: "green" },
             { label: "Current Group", val: getGroupName(formData?.group_id || formData?.group), icon: Users, color: "purple" },
             { label: "College Staff ID", val: fullProfile?.staff_id || "---", icon: IdCard, color: "amber" }
@@ -1461,8 +1471,8 @@ export default function EmployeeDetailsPage() {
                     )}
                     {isFieldVisible('personal_information', 'gender') && (
                       <div>
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
-                          <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
+                        <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Gender</p>
+                        <p className="text-base font-semibold text-gray-800 flex items-center gap-1.5">{getGenderIcon(formData?.gender || "O")} {formData?.gender_display || "Not provided"}</p>
                       </div>
                     )}
                     {/* Blood Group */}
@@ -1492,7 +1502,7 @@ export default function EmployeeDetailsPage() {
                   </div>
                 </div>
               </div>
-              
+
               {/* Professional Details */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
@@ -1545,7 +1555,7 @@ export default function EmployeeDetailsPage() {
                 </div>
                 <div className="p-6 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
-                      <div>
+                    <div>
                       <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Primary Email</p>
                       <p className="text-base font-semibold text-gray-800">{formData?.email || "Not provided"}</p>
                     </div>
@@ -1695,6 +1705,16 @@ export default function EmployeeDetailsPage() {
                           <span className="text-xs font-semibold text-gray-400">{qual.start_date ? new Date(qual.start_date).getFullYear() : "N/A"} - {qual.completion_date ? new Date(qual.completion_date).getFullYear() : "Present"}</span>
                           {qual.percentage && <span className="bg-gray-200 px-2.5 py-0.5 rounded text-xs font-bold text-gray-700">{qual.percentage}%</span>}
                         </div>
+                        {qual.certificate && typeof qual.certificate === 'string' && (
+                          <a
+                            href={qual.certificate}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-blue-600 hover:underline font-medium block mt-1"
+                          >
+                            View Uploaded Document
+                          </a>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -1725,13 +1745,13 @@ export default function EmployeeDetailsPage() {
                 {isFieldVisible('experience', 'experience') ? (
                   experiences && experiences.length > 0 ? (
                     experiences.map((exp: ExperienceItem) => {
-                      const sortedDesignations = exp.designations 
+                      const sortedDesignations = exp.designations
                         ? [...exp.designations].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
                         : [];
-                      const latestTitle = sortedDesignations[0] 
-                        ? (exp.is_internal 
-                            ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
-                            : sortedDesignations[0].designation || "Unknown")
+                      const latestTitle = sortedDesignations[0]
+                        ? (exp.is_internal
+                          ? (roles.find(r => r.id === sortedDesignations[0].company_role)?.role || sortedDesignations[0].designation || "Unknown")
+                          : sortedDesignations[0].designation || "Unknown")
                         : "No designation";
                       return (
                         <div key={exp.id} className="p-5 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 shadow-3xs transition-all space-y-3">
@@ -1807,7 +1827,7 @@ export default function EmployeeDetailsPage() {
                                         </span>
                                       </div>
                                       <p className="text-gray-400 pl-3 text-[11px] leading-relaxed">
-                                        {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''} 
+                                        {des.start_date ? new Date(des.start_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''}
                                         {des.end_date ? ` - ${new Date(des.end_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ' - Present'}
                                       </p>
                                     </div>
@@ -1943,31 +1963,31 @@ export default function EmployeeDetailsPage() {
               </div>
               <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                    <div className="flex items-center gap-3">
-                      <MessageCircle className="h-4 w-4 text-green-500" />
-                      <span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span>
-                    </div>
-                    <Badge variant={formData?.is_whatsapp ? "default" : "secondary"} className={formData?.is_whatsapp ? "bg-green-500" : ""}>
-                      {formData?.is_whatsapp ? "Enabled" : "Disabled"}
-                    </Badge>
+                  <div className="flex items-center gap-3">
+                    <MessageCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm font-medium text-gray-700">WhatsApp Alerts</span>
+                  </div>
+                  <Badge variant={formData?.is_whatsapp ? "default" : "secondary"} className={formData?.is_whatsapp ? "bg-green-500" : ""}>
+                    {formData?.is_whatsapp ? "Enabled" : "Disabled"}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
-                    </div>
-                    <Badge variant={formData?.is_sms ? "default" : "secondary"} className={formData?.is_sms ? "bg-blue-500" : ""}>
-                      {formData?.is_sms ? "Enabled" : "Disabled"}
-                    </Badge>
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">SMS Notifications</span>
+                  </div>
+                  <Badge variant={formData?.is_sms ? "default" : "secondary"} className={formData?.is_sms ? "bg-blue-500" : ""}>
+                    {formData?.is_sms ? "Enabled" : "Disabled"}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between p-4 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
-                    <div className="flex items-center gap-3">
-                      <Home className="h-4 w-4 text-orange-500" />
-                      <span className="text-sm font-medium text-gray-700">Work From Home</span>
-                    </div>
-                    <Badge variant={formData?.is_wfh ? "default" : "secondary"} className={formData?.is_wfh ? "bg-orange-500" : ""}>
-                      {formData?.is_wfh ? "Enabled" : "Disabled"}
-                    </Badge>
+                  <div className="flex items-center gap-3">
+                    <Home className="h-4 w-4 text-orange-500" />
+                    <span className="text-sm font-medium text-gray-700">Work From Home</span>
+                  </div>
+                  <Badge variant={formData?.is_wfh ? "default" : "secondary"} className={formData?.is_wfh ? "bg-orange-500" : ""}>
+                    {formData?.is_wfh ? "Enabled" : "Disabled"}
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -1984,61 +2004,61 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
             <div className="p-8 space-y-6 max-h-[60vh] overflow-auto">
               <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Designation / Role <span className="text-red-500">*</span></Label>
-                    <Select value={formData?.role_id?.toString() || "none"} onValueChange={(val) => {
-                      const selected = roles.find(r => r.id.toString() === val);
-                      if (val === "none") {
-                        handleInputChange("role_id", null);
-                        handleInputChange("role", "");
-                      } else {
-                        handleInputChange("role_id", Number(val));
-                        handleInputChange("role", selected?.role || selected?.name || "");
-                      }
-                    }}>
-                      <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue placeholder="Select Designation" /></SelectTrigger>
-                      <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">No Designation</SelectItem>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Organizational Group <span className="text-red-500">*</span></Label>
-                    <Select value={formData?.group_id?.toString() || "none"} onValueChange={(val) => {
-                        const selected = groups.find(g => g.id.toString() === val);
-                        if (val === "none") {
-                          handleInputChange("group_id", null);
-                          handleInputChange("group", "");
-                        } else {
-                          handleInputChange("group_id", Number(val));
-                          handleInputChange("group", selected?.group || selected?.name || selected?.group_name || "");
-                        }
-                    }}>
-                        <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue placeholder="Select Group" /></SelectTrigger>
-                        <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">No Group</SelectItem>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name || g.group_name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Designation / Role <span className="text-red-500">*</span></Label>
+                  <Select value={formData?.role_id?.toString() || "none"} onValueChange={(val) => {
+                    const selected = roles.find(r => r.id.toString() === val);
+                    if (val === "none") {
+                      handleInputChange("role_id", null);
+                      handleInputChange("role", "");
+                    } else {
+                      handleInputChange("role_id", Number(val));
+                      handleInputChange("role", selected?.role || selected?.name || "");
+                    }
+                  }}>
+                    <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue placeholder="Select Designation" /></SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">No Designation</SelectItem>{roles.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.role || r.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Organizational Group <span className="text-red-500">*</span></Label>
+                  <Select value={formData?.group_id?.toString() || "none"} onValueChange={(val) => {
+                    const selected = groups.find(g => g.id.toString() === val);
+                    if (val === "none") {
+                      handleInputChange("group_id", null);
+                      handleInputChange("group", "");
+                    } else {
+                      handleInputChange("group_id", Number(val));
+                      handleInputChange("group", selected?.group || selected?.name || selected?.group_name || "");
+                    }
+                  }}>
+                    <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue placeholder="Select Group" /></SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100"><SelectItem value="none">No Group</SelectItem>{groups.map(g => <SelectItem key={g.id} value={g.id.toString()}>{g.group || g.name || g.group_name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Staff Type <span className="text-red-500">*</span></Label>
-                    <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_type_id", val ? Number(val) : null)}>
-                        <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent className="rounded-xl">{staffTypes.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Staff Category <span className="text-red-500">*</span></Label>
-                    <Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_category_id", val ? Number(val) : null)}>
-                        <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
-                        <SelectContent className="rounded-xl">{staffCategories.map(sc => <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Staff Type <span className="text-red-500">*</span></Label>
+                  <Select value={editProfileData?.staff_type_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_type_id", val ? Number(val) : null)}>
+                    <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl">{staffTypes.map(st => <SelectItem key={st.id} value={st.id.toString()}>{st.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Staff Category <span className="text-red-500">*</span></Label>
+                  <Select value={editProfileData?.staff_category_id?.toString() || ""} onValueChange={(val) => handleProfileChange("staff_category_id", val ? Number(val) : null)}>
+                    <SelectTrigger className="rounded-xl h-11 border-slate-200 font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-xl">{staffCategories.map(sc => <SelectItem key={sc.id} value={sc.id.toString()}>{sc.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>College Staff ID <span className="text-red-500">*</span></Label>
-                <Input 
-                  value={editProfileData?.staff_id || ""} 
-                  onChange={(e) => handleProfileChange("staff_id", e.target.value)} 
-                  className="rounded-xl h-11 border-slate-200 font-bold" 
+                <Input
+                  value={editProfileData?.staff_id || ""}
+                  onChange={(e) => handleProfileChange("staff_id", e.target.value)}
+                  className="rounded-xl h-11 border-slate-200 font-bold"
                   placeholder="Enter unique Staff ID"
                   required
                 />
@@ -2062,29 +2082,29 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
             <div className="p-8 space-y-6">
               <div className="space-y-2">
-                  <Label>Primary Professional Email <span className="text-red-500">*</span></Label>
-                  <Input value={formData?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" />
+                <Label>Primary Professional Email <span className="text-red-500">*</span></Label>
+                <Input value={formData?.email || ""} onChange={(e) => handleInputChange("email", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" />
               </div>
               <div className="space-y-2">
-                  <Label>Official Mobile Presence <span className="text-red-500">*</span></Label>
-                  <Input value={formData?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" maxLength={10} />
+                <Label>Official Mobile Presence <span className="text-red-500">*</span></Label>
+                <Input value={formData?.mobile || ""} onChange={(e) => handleInputChange("mobile", e.target.value)} className="rounded-xl h-11 border-slate-200 font-bold" maxLength={10} />
               </div>
               <Separator />
               <div className="grid grid-cols-2 gap-4">
-                  {/* Alternate Mobile */}
-                  {isFieldVisible('personal_information', 'alternate_mobile') && (
-                    <div className="space-y-2">
-                      <Label>Alt Mobile</Label>
-                      <Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
-                    </div>
-                  )}
-                  {/* Alternate Email */}
-                  {isFieldVisible('personal_information', 'alternate_email') && (
-                    <div className="space-y-2">
-                      <Label>Alt Email</Label>
-                      <Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
-                    </div>
-                  )}
+                {/* Alternate Mobile */}
+                {isFieldVisible('personal_information', 'alternate_mobile') && (
+                  <div className="space-y-2">
+                    <Label>Alt Mobile</Label>
+                    <Input value={editProfileData?.alternate_mobile || ""} onChange={(e) => handleProfileChange("alternate_mobile", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
+                  </div>
+                )}
+                {/* Alternate Email */}
+                {isFieldVisible('personal_information', 'alternate_email') && (
+                  <div className="space-y-2">
+                    <Label>Alt Email</Label>
+                    <Input value={editProfileData?.alternate_email || ""} onChange={(e) => handleProfileChange("alternate_email", e.target.value)} className="rounded-xl h-10 border-slate-100 bg-slate-50 font-bold" />
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50">
@@ -2102,65 +2122,65 @@ export default function EmployeeDetailsPage() {
             </DialogHeader>
             <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
-                  {isFieldVisible('personal_information', 'dob') && (
-                    <div className="space-y-2">
-                      <Label>Date of Birth {isFieldMandatory('personal_information', 'dob') && <span className="text-red-500">*</span>}</Label>
-                      <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
-                      {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
-                        <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
-                      )}
-                    </div>
-                  )}
-                  {isFieldVisible('personal_information', 'gender') && (
-                    <div className="space-y-2">
-                      <Label>Gender {isFieldMandatory('personal_information', 'gender') && <span className="text-red-500">*</span>}</Label>
-                      <Select value={formData?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}>
-                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                          <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                {isFieldVisible('personal_information', 'dob') && (
+                  <div className="space-y-2">
+                    <Label>Date of Birth {isFieldMandatory('personal_information', 'dob') && <span className="text-red-500">*</span>}</Label>
+                    <Input type="date" value={editProfileData?.dob || ""} onChange={(e) => handleProfileChange("dob", e.target.value)} className="rounded-xl h-11 font-bold" />
+                    {editProfileData?.dob && calculateAge(editProfileData.dob) !== null && (
+                      <p className="text-xs text-[#2563eb] font-bold mt-1">Age: {calculateAge(editProfileData.dob)} years</p>
+                    )}
+                  </div>
+                )}
+                {isFieldVisible('personal_information', 'gender') && (
+                  <div className="space-y-2">
+                    <Label>Gender {isFieldMandatory('personal_information', 'gender') && <span className="text-red-500">*</span>}</Label>
+                    <Select value={formData?.gender || ""} onValueChange={(val) => handleInputChange("gender", val)}>
+                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent className="rounded-xl"><SelectItem value="M">Male Identity</SelectItem><SelectItem value="F">Female Identity</SelectItem><SelectItem value="O">Non-Binary / Other</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-4">
-                  {/* Blood Group */}
-                  {isFieldVisible('personal_information', 'blood_group') && (
-                    <div className="space-y-2">
-                      <Label>Blood Group</Label>
-                      <Select value={editProfileData?.blood_group || ""} onValueChange={(val) => handleProfileChange("blood_group", val)}>
-                        <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue placeholder="Select blood group" /></SelectTrigger>
-                        <SelectContent className="rounded-xl">
-                          <SelectItem value="A+">A+</SelectItem>
-                          <SelectItem value="A-">A−</SelectItem>
-                          <SelectItem value="B+">B+</SelectItem>
-                          <SelectItem value="B-">B−</SelectItem>
-                          <SelectItem value="O+">O+</SelectItem>
-                          <SelectItem value="O-">O−</SelectItem>
-                          <SelectItem value="AB+">AB+</SelectItem>
-                          <SelectItem value="AB-">AB−</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {/* Religion */}
-                  {isFieldVisible('personal_information', 'religion') && (
-                    <div className="space-y-2">
-                      <Label>Religion</Label>
-                      <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(val) => handleProfileChange("religion_id", Number(val))}>
-                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                          <SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {/* Caste */}
-                  {isFieldVisible('personal_information', 'caste') && (
-                    <div className="space-y-2">
-                      <Label>Caste Identity</Label>
-                      <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(val) => handleProfileChange("caste_id", Number(val))} disabled={!editProfileData?.religion_id}>
-                          <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
-                          <SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                {/* Blood Group */}
+                {isFieldVisible('personal_information', 'blood_group') && (
+                  <div className="space-y-2">
+                    <Label>Blood Group</Label>
+                    <Select value={editProfileData?.blood_group || ""} onValueChange={(val) => handleProfileChange("blood_group", val)}>
+                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue placeholder="Select blood group" /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="A+">A+</SelectItem>
+                        <SelectItem value="A-">A−</SelectItem>
+                        <SelectItem value="B+">B+</SelectItem>
+                        <SelectItem value="B-">B−</SelectItem>
+                        <SelectItem value="O+">O+</SelectItem>
+                        <SelectItem value="O-">O−</SelectItem>
+                        <SelectItem value="AB+">AB+</SelectItem>
+                        <SelectItem value="AB-">AB−</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {/* Religion */}
+                {isFieldVisible('personal_information', 'religion') && (
+                  <div className="space-y-2">
+                    <Label>Religion</Label>
+                    <Select value={editProfileData?.religion_id?.toString() || ""} onValueChange={(val) => handleProfileChange("religion_id", Number(val))}>
+                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>{religions.map(r => <SelectItem key={r.id} value={r.id.toString()}>{r.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {/* Caste */}
+                {isFieldVisible('personal_information', 'caste') && (
+                  <div className="space-y-2">
+                    <Label>Caste Identity</Label>
+                    <Select value={editProfileData?.caste_id?.toString() || ""} onValueChange={(val) => handleProfileChange("caste_id", Number(val))} disabled={!editProfileData?.religion_id}>
+                      <SelectTrigger className="rounded-xl h-11 font-bold"><SelectValue /></SelectTrigger>
+                      <SelectContent>{castes.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="p-8 bg-slate-50 mt-4">
@@ -2170,92 +2190,92 @@ export default function EmployeeDetailsPage() {
         </Dialog>
 
         {/* LEGAL EDIT DIALOG */}
-        {(isFieldVisible('identity_bank', 'aadhar_no') || 
-          isFieldVisible('identity_bank', 'pan_no') || 
-          isFieldVisible('identity_bank', 'ktu_id') || 
+        {(isFieldVisible('identity_bank', 'aadhar_no') ||
+          isFieldVisible('identity_bank', 'pan_no') ||
+          isFieldVisible('identity_bank', 'ktu_id') ||
           isFieldVisible('identity_bank', 'aicte_id')) && (
-          <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
-            <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-              <DialogHeader className="p-8 bg-amber-600 text-white">
-                <DialogTitle className="text-2xl font-black">Statutory Identities</DialogTitle>
-                <DialogDescription className="text-amber-100 font-bold opacity-80">Update governmental and legal identification numbers.</DialogDescription>
-              </DialogHeader>
-              <div className="p-8 space-y-6">
-                {/* Aadhaar */}
-                {isFieldVisible('identity_bank', 'aadhar_no') && (
-                  <div className="space-y-2">
-                    <Label>Aadhaar Number (UIDAI)</Label>
-                    <Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11 font-bold" />
-                  </div>
-                )}
-                {/* PAN */}
-                {isFieldVisible('identity_bank', 'pan_no') && (
-                  <div className="space-y-2">
-                    <Label>PAN Number (Income Tax)</Label>
-                    <Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 font-bold uppercase" />
-                  </div>
-                )}
-                <Separator />
-                {/* KTU ID */}
-                {isFieldVisible('identity_bank', 'ktu_id') && (
-                  <div className="space-y-2">
-                    <Label>KTU Identifier</Label>
-                    <Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11 font-bold" />
-                  </div>
-                )}
-                {/* AICTE ID */}
-                {isFieldVisible('identity_bank', 'aicte_id') && (
-                  <div className="space-y-2">
-                    <Label>AICTE Identifier</Label>
-                    <Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} className="rounded-xl h-11 font-bold" />
-                  </div>
-                )}
-              </div>
-              <DialogFooter className="p-8 bg-slate-50">
-                <Button onClick={() => handleSave("legal")} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+            <Dialog open={editingSection === "legal"} onOpenChange={(open) => !open && handleCancel()}>
+              <DialogContent className="max-w-md bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                <DialogHeader className="p-8 bg-amber-600 text-white">
+                  <DialogTitle className="text-2xl font-black">Statutory Identities</DialogTitle>
+                  <DialogDescription className="text-amber-100 font-bold opacity-80">Update governmental and legal identification numbers.</DialogDescription>
+                </DialogHeader>
+                <div className="p-8 space-y-6">
+                  {/* Aadhaar */}
+                  {isFieldVisible('identity_bank', 'aadhar_no') && (
+                    <div className="space-y-2">
+                      <Label>Aadhaar Number (UIDAI)</Label>
+                      <Input value={editProfileData?.aadhar_no || ""} onChange={(e) => handleProfileChange("aadhar_no", e.target.value)} className="rounded-xl h-11 font-bold" />
+                    </div>
+                  )}
+                  {/* PAN */}
+                  {isFieldVisible('identity_bank', 'pan_no') && (
+                    <div className="space-y-2">
+                      <Label>PAN Number (Income Tax)</Label>
+                      <Input value={editProfileData?.pan_no || ""} onChange={(e) => handleProfileChange("pan_no", e.target.value)} className="rounded-xl h-11 font-bold uppercase" />
+                    </div>
+                  )}
+                  <Separator />
+                  {/* KTU ID */}
+                  {isFieldVisible('identity_bank', 'ktu_id') && (
+                    <div className="space-y-2">
+                      <Label>KTU Identifier</Label>
+                      <Input value={editProfileData?.ktu_id || ""} onChange={(e) => handleProfileChange("ktu_id", e.target.value)} className="rounded-xl h-11 font-bold" />
+                    </div>
+                  )}
+                  {/* AICTE ID */}
+                  {isFieldVisible('identity_bank', 'aicte_id') && (
+                    <div className="space-y-2">
+                      <Label>AICTE Identifier</Label>
+                      <Input value={editProfileData?.aicte_id || ""} onChange={(e) => handleProfileChange("aicte_id", e.target.value)} className="rounded-xl h-11 font-bold" />
+                    </div>
+                  )}
+                </div>
+                <DialogFooter className="p-8 bg-slate-50">
+                  <Button onClick={() => handleSave("legal")} className="bg-amber-600 w-full h-12 font-black rounded-xl">Commit IDs</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
 
         {/* ADDRESS EDIT DIALOG */}
         <Dialog open={editingSection === "address"} onOpenChange={(open) => !open && handleCancel()}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-3xl border-none p-0 shadow-2xl">
-              <DialogHeader className="p-8 bg-slate-900 text-white">
-                <DialogTitle className="text-2xl font-black">Residence Data Protocol</DialogTitle>
-                <DialogDescription className="text-slate-400 font-bold">Update Present and Permanent Physical Coordinates.</DialogDescription>
-              </DialogHeader>
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Present Edit */}
-                {isFieldVisible('address_settings', 'present_address_line') && (
-                  <div className="space-y-4">
-                      <h4 className="text-xs font-black uppercase text-blue-600 tracking-widest">Present Residence</h4>
-                      <div className="space-y-3">
-                        <Input placeholder="Line 1" value={editProfileData?.present_address_details.address_line_1 || ""} onChange={e => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="City" value={editProfileData?.present_address_details.city || ""} onChange={e => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-10" />
-                            <Input placeholder="Pin" value={editProfileData?.present_address_details.pincode || ""} onChange={e => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
-                        </div>
-                        <Input placeholder="State" value={editProfileData?.present_address_details.state || ""} onChange={e => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-10" />
-                      </div>
+            <DialogHeader className="p-8 bg-slate-900 text-white">
+              <DialogTitle className="text-2xl font-black">Residence Data Protocol</DialogTitle>
+              <DialogDescription className="text-slate-400 font-bold">Update Present and Permanent Physical Coordinates.</DialogDescription>
+            </DialogHeader>
+            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Present Edit */}
+              {isFieldVisible('address_settings', 'present_address_line') && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-blue-600 tracking-widest">Present Residence</h4>
+                  <div className="space-y-3">
+                    <Input placeholder="Line 1" value={editProfileData?.present_address_details.address_line_1 || ""} onChange={e => handleAddressChange("present_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input placeholder="City" value={editProfileData?.present_address_details.city || ""} onChange={e => handleAddressChange("present_address_details", "city", e.target.value)} className="rounded-xl h-10" />
+                      <Input placeholder="Pin" value={editProfileData?.present_address_details.pincode || ""} onChange={e => handleAddressChange("present_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                    </div>
+                    <Input placeholder="State" value={editProfileData?.present_address_details.state || ""} onChange={e => handleAddressChange("present_address_details", "state", e.target.value)} className="rounded-xl h-10" />
                   </div>
-                )}
-                {/* Permanent Edit */}
-                {isFieldVisible('address_settings', 'permanent_address_line') && (
-                  <div className="space-y-4">
-                      <h4 className="text-xs font-black uppercase text-indigo-600 tracking-widest">Permanent Residence</h4>
-                      <div className="space-y-3">
-                        <Input placeholder="Line 1" value={editProfileData?.permanent_address_details.address_line_1 || ""} onChange={e => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
-                        <div className="grid grid-cols-2 gap-3">
-                            <Input placeholder="City" value={editProfileData?.permanent_address_details.city || ""} onChange={e => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-10" />
-                            <Input placeholder="Pin" value={editProfileData?.permanent_address_details.pincode || ""} onChange={e => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
-                        </div>
-                        <Input placeholder="State" value={editProfileData?.permanent_address_details.state || ""} onChange={e => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-10" />
-                      </div>
+                </div>
+              )}
+              {/* Permanent Edit */}
+              {isFieldVisible('address_settings', 'permanent_address_line') && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase text-indigo-600 tracking-widest">Permanent Residence</h4>
+                  <div className="space-y-3">
+                    <Input placeholder="Line 1" value={editProfileData?.permanent_address_details.address_line_1 || ""} onChange={e => handleAddressChange("permanent_address_details", "address_line_1", e.target.value)} className="rounded-xl h-10" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input placeholder="City" value={editProfileData?.permanent_address_details.city || ""} onChange={e => handleAddressChange("permanent_address_details", "city", e.target.value)} className="rounded-xl h-10" />
+                      <Input placeholder="Pin" value={editProfileData?.permanent_address_details.pincode || ""} onChange={e => handleAddressChange("permanent_address_details", "pincode", e.target.value)} className="rounded-xl h-10" />
+                    </div>
+                    <Input placeholder="State" value={editProfileData?.permanent_address_details.state || ""} onChange={e => handleAddressChange("permanent_address_details", "state", e.target.value)} className="rounded-xl h-10" />
                   </div>
-                )}
-              </div>
-              <DialogFooter className="p-8 bg-slate-50"><Button onClick={() => handleSave("address")} className="bg-slate-900 w-full h-12 font-black rounded-xl">Commit Physical Data</Button></DialogFooter>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="p-8 bg-slate-50"><Button onClick={() => handleSave("address")} className="bg-slate-900 w-full h-12 font-black rounded-xl">Commit Physical Data</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -2278,29 +2298,29 @@ export default function EmployeeDetailsPage() {
                   <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0] block mb-1">
                     Primary Emergency Node Configuration
                   </Label>
-                  
-                  <RadioGroup 
-                    value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""} 
-                    onValueChange={(relationshipType) => { 
-                      const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType })); 
-                      setGuardians(updated); 
-                    }} 
+
+                  <RadioGroup
+                    value={guardians?.find((g: any) => g.is_guardian)?.relationship_type || ""}
+                    onValueChange={(relationshipType) => {
+                      const updated = guardians.map((g: any) => ({ ...g, is_guardian: g.relationship_type === relationshipType }));
+                      setGuardians(updated);
+                    }}
                     className="space-y-3"
                   >
                     <div className="grid grid-cols-2 gap-3">
                       {/* Father Node */}
                       <div>
-                        {(() => { 
-                          const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false }; 
-                          const updateFather = (fields: any) => { 
-                            let exists = false; 
-                            const updated = (guardians || []).map((g: any) => { 
-                              if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; } 
-                              return g; 
-                            }); 
-                            if (!exists) updated.push({ ...father, ...fields }); 
-                            setGuardians(updated); 
-                          }; 
+                        {(() => {
+                          const father = guardians?.find((g: any) => g.relationship_type === 'father') || { relationship_type: 'father', name: '', phone: '', is_guardian: false };
+                          const updateFather = (fields: any) => {
+                            let exists = false;
+                            const updated = (guardians || []).map((g: any) => {
+                              if (g.relationship_type === 'father') { exists = true; return { ...g, ...fields }; }
+                              return g;
+                            });
+                            if (!exists) updated.push({ ...father, ...fields });
+                            setGuardians(updated);
+                          };
                           return (
                             <div className={`p-4 rounded-lg border transition-all ${father.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
                               <div className="flex items-center justify-between">
@@ -2323,23 +2343,23 @@ export default function EmployeeDetailsPage() {
                                 </div>
                               </div>
                             </div>
-                          ); 
+                          );
                         })()}
                       </div>
-                      
+
                       {/* Mother Node */}
                       <div>
-                        {(() => { 
-                          const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false }; 
-                          const updateMother = (fields: any) => { 
-                            let exists = false; 
-                            const updated = (guardians || []).map((g: any) => { 
-                              if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; } 
-                              return g; 
-                            }); 
-                            if (!exists) updated.push({ ...mother, ...fields }); 
-                            setGuardians(updated); 
-                          }; 
+                        {(() => {
+                          const mother = guardians?.find((g: any) => g.relationship_type === 'mother') || { relationship_type: 'mother', name: '', phone: '', is_guardian: false };
+                          const updateMother = (fields: any) => {
+                            let exists = false;
+                            const updated = (guardians || []).map((g: any) => {
+                              if (g.relationship_type === 'mother') { exists = true; return { ...g, ...fields }; }
+                              return g;
+                            });
+                            if (!exists) updated.push({ ...mother, ...fields });
+                            setGuardians(updated);
+                          };
                           return (
                             <div className={`p-4 rounded-lg border transition-all ${mother.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3`}>
                               <div className="flex items-center justify-between">
@@ -2362,12 +2382,12 @@ export default function EmployeeDetailsPage() {
                                 </div>
                               </div>
                             </div>
-                          ); 
+                          );
                         })()}
                       </div>
 
                       {/* Marital Status Banner */}
-                      <div>  
+                      <div>
                         <div className="p-3.5 bg-[#f2f4f6] rounded-lg border border-[#dde3ec] flex items-center justify-between h-auto">
                           <div className="space-y-0.5">
                             <Label htmlFor="is_married" className="text-[13px] font-bold text-[#1a1a2e] cursor-pointer">
@@ -2375,28 +2395,28 @@ export default function EmployeeDetailsPage() {
                             </Label>
                             <p className="text-[11px] text-[#7a8ba0]">Toggle to reveal spouse contact field</p>
                           </div>
-                          <Checkbox 
-                            id="is_married" 
-                            checked={familyIsMarried} 
-                            onCheckedChange={(checked) => setFamilyIsMarried(!!checked)} 
-                            className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20" 
+                          <Checkbox
+                            id="is_married"
+                            checked={familyIsMarried}
+                            onCheckedChange={(checked) => setFamilyIsMarried(!!checked)}
+                            className="h-4 w-4 rounded border-[#dde3ec] bg-white text-blue-600 focus:ring-[#004ac6]/20"
                           />
                         </div>
                       </div>
-                        
+
                       {/* Spouse Node */}
-                      <div>  
-                        {familyIsMarried && (() => { 
-                          const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false }; 
-                          const updateSpouse = (fields: any) => { 
-                            let exists = false; 
-                            const updated = (guardians || []).map((g: any) => { 
-                              if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; } 
-                              return g; 
-                            }); 
-                            if (!exists) updated.push({ ...spouse, ...fields }); 
-                            setGuardians(updated); 
-                          }; 
+                      <div>
+                        {familyIsMarried && (() => {
+                          const spouse = guardians?.find((g: any) => g.relationship_type === 'spouse') || { relationship_type: 'spouse', name: '', phone: '', is_guardian: false };
+                          const updateSpouse = (fields: any) => {
+                            let exists = false;
+                            const updated = (guardians || []).map((g: any) => {
+                              if (g.relationship_type === 'spouse') { exists = true; return { ...g, ...fields }; }
+                              return g;
+                            });
+                            if (!exists) updated.push({ ...spouse, ...fields });
+                            setGuardians(updated);
+                          };
                           return (
                             <div className={`p-4 rounded-lg border transition-all ${spouse.is_guardian ? 'border-[#004ac6] bg-[#eff6ff]/50 shadow-sm' : 'border-[#dde3ec] bg-white'} space-y-3 animate-in fade-in slide-in-from-top-2 duration-200`}>
                               <div className="flex items-center justify-between">
@@ -2419,7 +2439,7 @@ export default function EmployeeDetailsPage() {
                                 </div>
                               </div>
                             </div>
-                          ); 
+                          );
                         })()}
                       </div>
                     </div>
@@ -2428,16 +2448,16 @@ export default function EmployeeDetailsPage() {
               </div>
 
               <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCancel} 
+                <Button
+                  variant="outline"
+                  onClick={handleCancel}
                   className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  onClick={() => handleSave("family")} 
-                  disabled={isSaving} 
+                <Button
+                  onClick={() => handleSave("family")}
+                  disabled={isSaving}
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
                   {isSaving ? "Updating Changes..." : "Save Changes"}
@@ -2462,21 +2482,21 @@ export default function EmployeeDetailsPage() {
               </DialogHeader>
 
               <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                
+
                 {/* Existing Education Qualifications Stack */}
                 <div className="space-y-3">
-                  {editQualifications.map((qual: any, idx: number) => { 
-                    const levelLabels: Record<string, string> = { 
-                      UG: 'UG', 
-                      PG: 'PG', 
-                      MPHIL: 'M.Phil', 
-                      PHD: 'Ph.D', 
-                      POSTDOC: 'Post Doc', 
-                      RESEARCH_OTHERS: 'Research', 
-                      OTHERS: 'Others' 
-                    }; 
-                    const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth"; 
-                    
+                  {editQualifications.map((qual: any, idx: number) => {
+                    const levelLabels: Record<string, string> = {
+                      UG: 'UG',
+                      PG: 'PG',
+                      MPHIL: 'M.Phil',
+                      PHD: 'Ph.D',
+                      POSTDOC: 'Post Doc',
+                      RESEARCH_OTHERS: 'Research',
+                      OTHERS: 'Others'
+                    };
+                    const displayLevel = levelLabels[qual.qualification_level] || qual.qualification_level || "Oth";
+
                     return (
                       <div key={idx} className="p-4 bg-white rounded-lg border border-[#dde3ec] flex items-start justify-between gap-4 shadow-xs">
                         <div className="flex-1 min-w-0 space-y-1">
@@ -2507,19 +2527,19 @@ export default function EmployeeDetailsPage() {
                           )}
                         </div>
                         <div className="flex gap-1 shrink-0">
-                          <button 
-                            onClick={() => { 
-                              let normalizedLevel = qual.qualification_level; 
-                              if (normalizedLevel === "B.Tech") normalizedLevel = "UG"; 
-                              setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx }); 
-                              setQualFormOpen(true); 
-                            }} 
+                          <button
+                            onClick={() => {
+                              let normalizedLevel = qual.qualification_level;
+                              if (normalizedLevel === "B.Tech") normalizedLevel = "UG";
+                              setCurrentQual({ ...qual, qualification_level: normalizedLevel, _idx: idx });
+                              setQualFormOpen(true);
+                            }}
                             className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                           >
                             Edit
                           </button>
-                          <button 
-                            onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))} 
+                          <button
+                            onClick={() => setEditQualifications(prev => prev.filter((_, i) => i !== idx))}
                             className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                           >
                             Remove
@@ -2542,7 +2562,7 @@ export default function EmployeeDetailsPage() {
                       <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
                       {currentQual?._idx !== undefined ? 'Edit Qualification Log' : 'Add Qualification Log'}
                     </h4>
-                    
+
                     {/* Level & Specialty Block */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
@@ -2553,21 +2573,21 @@ export default function EmployeeDetailsPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {[
-                              ['UG','Undergraduate (UG)'],
-                              ['PG','Postgraduate (PG)'],
-                              ['MPHIL','M.Phil.'],
-                              ['PHD','Ph.D.'],
-                              ['POSTDOC','Post Doctoral'],
-                              ['RESEARCH_OTHERS','Research (Others)'],
-                              ['OTHERS','Others']
-                            ].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                              ['UG', 'Undergraduate (UG)'],
+                              ['PG', 'Postgraduate (PG)'],
+                              ['MPHIL', 'M.Phil.'],
+                              ['PHD', 'Ph.D.'],
+                              ['POSTDOC', 'Post Doctoral'],
+                              ['RESEARCH_OTHERS', 'Research (Others)'],
+                              ['OTHERS', 'Others']
+                            ].map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Specialization / Degree<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science" 
-                        required
+                        <Input value={currentQual?.specialization || ''} onChange={e => setCurrentQual((p: any) => ({ ...p, specialization: e.target.value }))} className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all h-10 bg-white" placeholder="e.g. Computer Science"
+                          required
                         />
                       </div>
                     </div>
@@ -2618,25 +2638,25 @@ export default function EmployeeDetailsPage() {
 
                     {/* Mutation Action Sub-block */}
                     <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                      <Button 
-                        type="button" 
-                        onClick={() => { 
-                          if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; } 
-                          if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; } 
-                          const { _idx, ...qualData } = currentQual; 
-                          if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); } 
-                          else { setEditQualifications(prev => [...prev, qualData]); } 
-                          setCurrentQual({}); 
-                          setQualFormOpen(false); 
-                        }} 
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!currentQual?.qualification_level) { toast.error("Please select a Qualification Level."); return; }
+                          if (!currentQual?.specialization?.trim() || !currentQual?.institution_name?.trim()) { toast.error("Specialization and Institution are required."); return; }
+                          const { _idx, ...qualData } = currentQual;
+                          if (_idx !== undefined) { setEditQualifications(prev => prev.map((q: any, i: number) => i === _idx ? qualData : q)); }
+                          else { setEditQualifications(prev => [...prev, qualData]); }
+                          setCurrentQual({});
+                          setQualFormOpen(false);
+                        }}
                         className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                       >
                         {currentQual?._idx !== undefined ? 'Update Record' : 'Add Record'}
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        type="button" 
-                        onClick={() => { setQualFormOpen(false); setCurrentQual({}); }} 
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => { setQualFormOpen(false); setCurrentQual({}); }}
                         className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                       >
                         Cancel
@@ -2647,9 +2667,9 @@ export default function EmployeeDetailsPage() {
 
                 {/* Trigger Node to Reveal Form */}
                 {!qualFormOpen && (
-                  <button 
-                    type="button" 
-                    onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }} 
+                  <button
+                    type="button"
+                    onClick={() => { setCurrentQual({ qualification_level: 'UG' }); setQualFormOpen(true); }}
                     className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" /> Add Qualification Record
@@ -2658,18 +2678,18 @@ export default function EmployeeDetailsPage() {
               </div>
 
               <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-                <Button 
-                  variant="outline" 
-                  type="button" 
-                  onClick={handleCancel} 
+                <Button
+                  variant="outline"
+                  type="button"
+                  onClick={handleCancel}
                   className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="button" 
-                  onClick={() => handleSave("education")} 
-                  disabled={isSaving} 
+                <Button
+                  type="button"
+                  onClick={() => handleSave("education")}
+                  disabled={isSaving}
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
                   {isSaving ? "Saving Education Details..." : "Save Education Details"}
@@ -2694,7 +2714,7 @@ export default function EmployeeDetailsPage() {
               </DialogHeader>
 
               <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                
+
                 {/* Existing Experiences Stack */}
                 <div className="space-y-3">
                   {editExperiences.map((exp: ExperienceItem, idx: number) => (
@@ -2725,16 +2745,16 @@ export default function EmployeeDetailsPage() {
                         </p>
                       </div>
                       <div className="flex gap-1 shrink-0">
-                        <button 
+                        <button
                           type="button"
-                          onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }} 
+                          onClick={() => { setCurrentExp(JSON.parse(JSON.stringify(exp))); setExpFormOpen(true); }}
                           className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                         >
                           Edit
                         </button>
-                        <button 
+                        <button
                           type="button"
-                          onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))} 
+                          onClick={() => setEditExperiences(prev => prev.filter((_, i) => i !== idx))}
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
@@ -2782,8 +2802,8 @@ export default function EmployeeDetailsPage() {
                             if (newCompanyName === defaultCompany) newCompanyName = "";
                             if (newLocation === (companyProfile ? (companyProfile.city || "") : "")) newLocation = "";
                           }
-                          setCurrentExp({ 
-                            ...currentExp, 
+                          setCurrentExp({
+                            ...currentExp,
                             is_internal: isInternal,
                             company_name: newCompanyName,
                             location: newLocation,
@@ -2884,11 +2904,11 @@ export default function EmployeeDetailsPage() {
 
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Experience Letter (optional)</Label>
-                      <Input 
-                        type="file" 
-                        accept=".pdf,.jpg,.png" 
-                        onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }} 
-                        className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]" 
+                      <Input
+                        type="file"
+                        accept=".pdf,.jpg,.png"
+                        onChange={(e) => { const file = e.target.files?.[0]; if (file) setCurrentExp({ ...currentExp, experience_letter: file }); }}
+                        className="w-full px-3 py-1.5 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] bg-white h-10 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#eff6ff] file:text-blue-600 hover:file:bg-[#dbeafe]"
                       />
                       {currentExp.experience_letter && typeof currentExp.experience_letter !== 'string' && (
                         <p className="text-[11px] text-blue-600 font-medium mt-1">Selected: {(currentExp.experience_letter as File).name}</p>
@@ -2898,38 +2918,38 @@ export default function EmployeeDetailsPage() {
                     <div className="mt-4 pt-2 border-t border-[#dde3ec]/60">
                       <div className="flex items-center justify-between mb-2.5">
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-[#434655]">Roles / Designations</Label>
-                        <Button 
-                          type="button" 
-                          onClick={() => { 
-                            const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' }; 
-                            if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; } 
-                            else { newDesignation.designation = ''; newDesignation.company_group_text = ''; } 
-                            setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] }); 
-                          }} 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            const newDesignation: DesignationItem = { start_date: '', change_type: 'Joined' };
+                            if (currentExp.is_internal) { newDesignation.company_role = null; newDesignation.company_group = null; }
+                            else { newDesignation.designation = ''; newDesignation.company_group_text = ''; }
+                            setCurrentExp({ ...currentExp, designations: [...(currentExp.designations || []), newDesignation] });
+                          }}
+                          size="sm"
+                          variant="outline"
                           className="h-8 text-xs bg-white border border-[#dde3ec] text-blue-600 hover:bg-[#eff6ff] rounded-md transition-colors font-semibold px-3 flex items-center gap-1"
                         >
                           <Plus className="h-3 w-3" /> Add Role
                         </Button>
                       </div>
-                      
+
                       <div className="space-y-3 overflow-y-auto pr-1">
                         {currentExp.designations && currentExp.designations.map((des, desIdx) => (
                           <div key={desIdx} className="p-3.5 bg-white rounded-lg border border-[#dde3ec] space-y-3 relative shadow-xs">
                             <div className="flex justify-between items-center">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx+1}</span>
-                              <Button 
-                                type="button" 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }} 
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Role #{desIdx + 1}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { const updated = currentExp.designations.filter((_, i) => i !== desIdx); setCurrentExp({ ...currentExp, designations: updated }); }}
                                 className="h-7 w-7 p-0 text-[#ef4444] hover:text-[#dc2626] hover:bg-red-50 rounded-md transition-colors"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                            
+
                             {currentExp.is_internal ? (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div className="space-y-1">
@@ -2959,7 +2979,7 @@ export default function EmployeeDetailsPage() {
                                 </div>
                               </div>
                             )}
-                            
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="space-y-1">
                                 <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Start Date</Label>
@@ -2970,7 +2990,7 @@ export default function EmployeeDetailsPage() {
                                 <Input type="date" value={des.end_date || ''} onChange={(e) => { const updated = [...currentExp.designations]; updated[desIdx].end_date = e.target.value; setCurrentExp({ ...currentExp, designations: updated }); }} className="h-9 rounded-lg text-[13px] border-[#dde3ec] px-3 py-1.5 w-full focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] outline-none transition-all bg-white" />
                               </div>
                             </div>
-                            
+
                             <div className="space-y-1">
                               <Label className="text-[10px] font-bold text-[#7a8ba0] uppercase tracking-wider block mb-1">Change Type</Label>
                               <Select value={des.change_type || 'Joined'} onValueChange={(val) => { const updated = [...currentExp.designations]; updated[desIdx].change_type = val; setCurrentExp({ ...currentExp, designations: updated }); }}>
@@ -2993,38 +3013,38 @@ export default function EmployeeDetailsPage() {
                     </div>
 
                     <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                      <Button 
+                      <Button
                         type="button"
                         onClick={() => {
-                          if (!currentExp.start_year) { 
-                            toast.error("Start year is required."); 
-                            return; 
+                          if (!currentExp.start_year) {
+                            toast.error("Start year is required.");
+                            return;
                           }
-                          if (!currentExp.designations || currentExp.designations.length === 0) { 
-                            toast.error("At least one role/designation is required."); 
-                            return; 
+                          if (!currentExp.designations || currentExp.designations.length === 0) {
+                            toast.error("At least one role/designation is required.");
+                            return;
                           }
                           for (let i = 0; i < currentExp.designations.length; i++) {
                             const des = currentExp.designations[i];
-                            if (currentExp.is_internal) { 
-                              if (!des.company_role || !des.company_group) { 
-                                toast.error(`Role #${i+1}: Please select both Role and Group.`); 
-                                return; 
-                              } 
-                            } else { 
-                              if (!des.designation || des.designation.trim() === '') { 
-                                toast.error(`Role #${i+1}: Designation title is required.`); 
-                                return; 
-                              } 
-                              
+                            if (currentExp.is_internal) {
+                              if (!des.company_role || !des.company_group) {
+                                toast.error(`Role #${i + 1}: Please select both Role and Group.`);
+                                return;
+                              }
+                            } else {
+                              if (!des.designation || des.designation.trim() === '') {
+                                toast.error(`Role #${i + 1}: Designation title is required.`);
+                                return;
+                              }
+
                               if (!currentExp.category || currentExp.category === '') {
                                 toast.error("Please select a Category for this experience.");
                                 return;
                               }
                             }
-                            if (!des.start_date) { 
-                              toast.error(`Role #${i+1}: Start date is required.`); 
-                              return; 
+                            if (!des.start_date) {
+                              toast.error(`Role #${i + 1}: Start date is required.`);
+                              return;
                             }
                           }
                           const existingIndex = editExperiences.findIndex(exp => exp.id === currentExp.id);
@@ -3033,17 +3053,17 @@ export default function EmployeeDetailsPage() {
                           } else {
                             setEditExperiences(prev => [...prev, currentExp]);
                           }
-                          setCurrentExp(null); 
+                          setCurrentExp(null);
                           setExpFormOpen(false);
-                        }} 
+                        }}
                         className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                       >
                         {currentExp.id ? 'Update Record' : 'Add Record'}
                       </Button>
-                      <Button 
+                      <Button
                         type="button"
-                        variant="outline" 
-                        onClick={() => { setExpFormOpen(false); setCurrentExp(null); }} 
+                        variant="outline"
+                        onClick={() => { setExpFormOpen(false); setCurrentExp(null); }}
                         className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                       >
                         Cancel
@@ -3053,22 +3073,22 @@ export default function EmployeeDetailsPage() {
                 )}
 
                 {!expFormOpen && (
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => { 
-                      setCurrentExp({ 
-                        is_internal: false, 
-                        company_name: "", 
-                        location: "", 
+                    onClick={() => {
+                      setCurrentExp({
+                        is_internal: false,
+                        company_name: "",
+                        location: "",
                         designations: [],
                         start_year: "",
                         end_year: null,
                         category: "Other",
                         is_aicte_approved: false,
                         is_after_pg: false,
-                      }); 
-                      setExpFormOpen(true); 
-                    }} 
+                      });
+                      setExpFormOpen(true);
+                    }}
                     className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" /> Add Experience Record
@@ -3077,18 +3097,18 @@ export default function EmployeeDetailsPage() {
               </div>
 
               <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-                <Button 
+                <Button
                   type="button"
-                  variant="outline" 
-                  onClick={handleCancel} 
+                  variant="outline"
+                  onClick={handleCancel}
                   className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   type="button"
-                  onClick={() => handleSave("experience")} 
-                  disabled={isSaving} 
+                  onClick={() => handleSave("experience")}
+                  disabled={isSaving}
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
                   {isSaving ? "Saving Work Experience..." : "Save Work Experience"}
@@ -3113,7 +3133,7 @@ export default function EmployeeDetailsPage() {
               </DialogHeader>
 
               <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto custom-scrollbar">
-                
+
                 {/* Account List Stack */}
                 <div className="space-y-3">
                   {editBankDetails.map((bank: any, idx: number) => (
@@ -3141,19 +3161,19 @@ export default function EmployeeDetailsPage() {
                           {bank.acc_holder_name} &middot; <span className="font-mono">IFSC: {bank.ifsc_code}</span>
                         </p>
                       </div>
-                      
+
                       {/* Action Row */}
                       <div className="flex gap-1 shrink-0">
-                        <button 
+                        <button
                           type="button"
-                          onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }} 
+                          onClick={() => { setCurrentBank({ ...bank, _idx: idx }); setBankFormOpen(true); }}
                           className="text-blue-600 hover:text-[#004ac6] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-[#eff6ff] transition"
                         >
                           Edit
                         </button>
-                        <button 
+                        <button
                           type="button"
-                          onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))} 
+                          onClick={() => setEditBankDetails(prev => prev.filter((_, i) => i !== idx))}
                           className="text-[#ef4444] hover:text-[#dc2626] text-xs font-bold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition"
                         >
                           Remove
@@ -3180,11 +3200,11 @@ export default function EmployeeDetailsPage() {
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Holder Name<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input 
-                          value={currentBank?.acc_holder_name || ''} 
-                          onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))} 
-                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                          placeholder="Full name as in bank records" 
+                        <Input
+                          value={currentBank?.acc_holder_name || ''}
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, acc_holder_name: e.target.value }))}
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                          placeholder="Full name as in bank records"
                           required
                         />
                       </div>
@@ -3193,21 +3213,21 @@ export default function EmployeeDetailsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Bank Name<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input 
-                          value={currentBank?.bank_name || ''} 
-                          onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))} 
-                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                          placeholder="e.g. State Bank of India" 
+                        <Input
+                          value={currentBank?.bank_name || ''}
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, bank_name: e.target.value }))}
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                          placeholder="e.g. State Bank of India"
                           required
                         />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Branch Name<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input 
-                          value={currentBank?.branch_name || ''} 
-                          onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))} 
-                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white" 
-                          placeholder="Branch location" 
+                        <Input
+                          value={currentBank?.branch_name || ''}
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, branch_name: e.target.value }))}
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 bg-white"
+                          placeholder="Branch location"
                           required
                         />
                       </div>
@@ -3216,21 +3236,21 @@ export default function EmployeeDetailsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">Account Number<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input 
-                          value={currentBank?.account_number || ''} 
-                          onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))} 
-                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white" 
-                          placeholder="Bank account number" 
+                        <Input
+                          value={currentBank?.account_number || ''}
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, account_number: e.target.value }))}
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 font-mono bg-white"
+                          placeholder="Bank account number"
                           minLength={9} maxLength={18} required
                         />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold uppercase tracking-wider text-[#7a8ba0]">IFSC Code<span className="text-red-500 -ml-1">*</span></Label>
-                        <Input 
-                          value={currentBank?.ifsc_code || ''} 
-                          onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} 
-                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white" 
-                          placeholder="e.g. SBIN0001234" 
+                        <Input
+                          value={currentBank?.ifsc_code || ''}
+                          onChange={e => setCurrentBank((p: any) => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))}
+                          className="w-full px-3 py-2 border border-[#dde3ec] rounded-lg text-[14px] text-[#1a1a2e] focus:ring-2 focus:ring-[#004ac6]/20 focus:border-[#004ac6] focus-visible:ring-[#004ac6] outline-none transition-all h-10 uppercase font-mono tracking-wider bg-white"
+                          placeholder="e.g. SBIN0001234"
                           minLength={11} maxLength={11} required
                         />
                       </div>
@@ -3239,10 +3259,10 @@ export default function EmployeeDetailsPage() {
                     <div className="grid grid-cols-1 gap-4">
                       <div className="flex items-end pb-2">
                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <Checkbox 
-                            checked={!!currentBank?.is_primary} 
+                          <Checkbox
+                            checked={!!currentBank?.is_primary}
                             onCheckedChange={(checked) => setCurrentBank((p: any) => ({ ...p, is_primary: !!checked }))}
-                            className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white" 
+                            className="h-4 w-4 rounded border-[#dde3ec] text-blue-600 focus:ring-[#004ac6]/20 bg-white"
                           />
                           <span className="text-[13px] font-semibold text-[#434655]">Set as Primary Account</span>
                         </label>
@@ -3251,30 +3271,30 @@ export default function EmployeeDetailsPage() {
 
                     {/* Form Action Controls */}
                     <div className="flex gap-3 pt-2 border-t border-[#dde3ec]/60">
-                      <Button 
+                      <Button
                         type="button"
-                        onClick={() => { 
-                          if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) { 
-                            toast.error("Bank name, account number and IFSC code are required."); 
-                            return; 
-                          } 
-                          const { _idx, ...bankData } = currentBank; 
-                          if (_idx !== undefined) { 
-                            setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b)); 
-                          } else { 
-                            setEditBankDetails(prev => [...prev, bankData]); 
-                          } 
-                          setCurrentBank({}); 
-                          setBankFormOpen(false); 
-                        }} 
+                        onClick={() => {
+                          if (!currentBank?.account_number?.trim() || !currentBank?.bank_name?.trim() || !currentBank?.ifsc_code?.trim()) {
+                            toast.error("Bank name, account number and IFSC code are required.");
+                            return;
+                          }
+                          const { _idx, ...bankData } = currentBank;
+                          if (_idx !== undefined) {
+                            setEditBankDetails(prev => prev.map((b: any, i: number) => i === _idx ? bankData : b));
+                          } else {
+                            setEditBankDetails(prev => [...prev, bankData]);
+                          }
+                          setCurrentBank({});
+                          setBankFormOpen(false);
+                        }}
                         className="bg-blue-600 hover:opacity-95 text-white rounded-lg h-9 px-4 text-sm font-semibold transition-all active:scale-[0.98]"
                       >
                         {currentBank?._idx !== undefined ? 'Update Account' : 'Add Account'}
                       </Button>
-                      <Button 
+                      <Button
                         type="button"
-                        variant="outline" 
-                        onClick={() => { setBankFormOpen(false); setCurrentBank({}); }} 
+                        variant="outline"
+                        onClick={() => { setBankFormOpen(false); setCurrentBank({}); }}
                         className="border border-[#dde3ec] text-[#434655] hover:bg-[#f2f4f6] rounded-lg h-9 px-4 text-sm font-semibold transition-colors"
                       >
                         Cancel
@@ -3285,9 +3305,9 @@ export default function EmployeeDetailsPage() {
 
                 {/* Trigger Node to Reveal Form */}
                 {!bankFormOpen && (
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => { setCurrentBank({}); setBankFormOpen(true); }} 
+                    onClick={() => { setCurrentBank({}); setBankFormOpen(true); }}
                     className="w-full py-3 border-2 border-dashed border-[#dde3ec] rounded-lg text-blue-600 text-sm font-bold hover:bg-[#eff6ff] hover:border-[#2563eb]/30 transition-all flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" /> Add Bank Account
@@ -3296,18 +3316,18 @@ export default function EmployeeDetailsPage() {
               </div>
 
               <DialogFooter className="px-6 py-4 bg-white border-t border-[#dde3ec] flex items-center justify-end gap-3">
-                <Button 
+                <Button
                   type="button"
-                  variant="outline" 
-                  onClick={handleCancel} 
+                  variant="outline"
+                  onClick={handleCancel}
                   className="px-4 py-2 border border-[#dde3ec] text-[#434655] font-semibold rounded-lg hover:bg-[#f2f4f6] h-10 transition-colors"
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   type="button"
-                  onClick={() => handleSave("bank")} 
-                  disabled={isSaving} 
+                  onClick={() => handleSave("bank")}
+                  disabled={isSaving}
                   className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:opacity-95 active:scale-[0.98] h-10 transition-all disabled:opacity-50"
                 >
                   {isSaving ? "Saving..." : "Save Bank Details"}
@@ -3331,11 +3351,11 @@ export default function EmployeeDetailsPage() {
                 { icon: Home, label: "Enable Remote Work (WFH)", field: "is_wfh" }
               ].map((pref, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-xl shadow-sm text-blue-600"><pref.icon className="h-4 w-4" /></div>
-                      <span className="text-xs font-bold text-slate-700">{pref.label}</span>
-                    </div>
-                    <Switch checked={formData?.[pref.field as keyof User] as boolean || false} onCheckedChange={(val) => handleInputChange(pref.field as keyof User, val)} />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-xl shadow-sm text-blue-600"><pref.icon className="h-4 w-4" /></div>
+                    <span className="text-xs font-bold text-slate-700">{pref.label}</span>
+                  </div>
+                  <Switch checked={formData?.[pref.field as keyof User] as boolean || false} onCheckedChange={(val) => handleInputChange(pref.field as keyof User, val)} />
                 </div>
               ))}
             </div>

@@ -1052,6 +1052,9 @@ export default function AddEmployeePage() {
         "experience",
         "experience"
       );
+      if (experienceMandatory && experiences.length === 0) {
+        newErrors.general = "At least one experience is required.";
+      }
       experiences.forEach((exp, i) => {
         if (experienceMandatory && !exp.company_name?.trim()) {
           newErrors[`exp_${i}_company`] = "Required";
@@ -1404,7 +1407,9 @@ export default function AddEmployeePage() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      setMessage("Please fill all required fields correctly.");
+      setMessage(
+        newErrors.general || "Please fill all required fields correctly."
+      );
       return false;
     }
     setMessage("");
