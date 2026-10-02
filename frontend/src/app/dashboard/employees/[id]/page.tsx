@@ -210,7 +210,7 @@ export default function EmployeeDetailsPage() {
   const [fullProfile, setFullProfile] = useState<EmployeeFullProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
-  
+
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editProfileData, setEditProfileData] = useState<EditableProfile | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1009,8 +1009,8 @@ export default function EmployeeDetailsPage() {
       // await fetchProfile();
       queryClient.invalidateQueries({ queryKey: ["filteredEmployees"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      const refreshed = await refetch();
-      console.log("Refetched employee:", refreshed.data?.is_active);
+      // const refreshed = await refetch();
+      // console.log("Refetched employee:", refreshed.data?.is_active);
       await fetchProfile();
 
       // Refresh data entry percentage after save
@@ -1106,7 +1106,7 @@ export default function EmployeeDetailsPage() {
   };
 
 
-  if (authLoading || (isLoading && !formData)) {
+  if (authLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <div className="h-12 w-12 border-4 border-blue-600/20 border-t-blue-600 rounded-full animate-spin mb-4" />
@@ -1266,7 +1266,14 @@ export default function EmployeeDetailsPage() {
                     }}
                   />
                   {editingSection === "hero" && (
-                    <Button size="sm" onClick={() => handleSave()} className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2">Apply</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSave()}
+                      disabled={isSaving}
+                      className="bg-blue-600 text-white rounded-lg h-8 px-4 font-bold text-xs animate-in slide-in-from-right-2"
+                    >
+                      {isSaving ? "Applying..." : "Apply"}
+                    </Button>
                   )}
                 </div>
               </div>
