@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
+const BACKEND_URL = process.env.API_URL;
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -31,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = await fetch(
-      `${BACKEND_URL}/api/leave-roster?${params.toString()}`,
+      `${BACKEND_URL}/leave-roster?${params.toString()}`,
       {
         method: "GET",
         headers,
