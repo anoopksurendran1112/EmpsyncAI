@@ -1661,6 +1661,7 @@ def employee_report(request):
                 }
 
                 total_hours = 0
+                worked_days = 0
                 for punch_date, records in daily_records.items():
                     punch_results = process_punch_logic(records, punch_mode)
                     
@@ -1671,8 +1672,16 @@ def employee_report(request):
                         "working_hours": round(punch_results["work_duration"], 2)
                     })
                     total_hours += punch_results["work_duration"]
+                    if punch_results["work_duration"] > 0:
+                        worked_days += 1
+                    
 
                 user_result["total_working_hours"] = round(total_hours, 2)
+                average_working_hours = (
+                    total_hours / worked_days if worked_days > 0 else 0
+                )
+
+                user_result["average_working_hours"] = round(average_working_hours, 2)
                 final_result.append(user_result)
 
             return Response({
