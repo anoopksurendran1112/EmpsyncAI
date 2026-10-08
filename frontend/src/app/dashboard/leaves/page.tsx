@@ -588,9 +588,9 @@ export default function LeavesPage() {
   useEffect(() => {
     if (companyId && cookieSynced) {
       fetchLeaveBalance();
+      fetchLeaveTypes();
 
       if (viewMode === "admin") {
-        fetchLeaveTypes();
         fetchLeaveRequests();
         fetchHolidays();
         fetchRoles();
