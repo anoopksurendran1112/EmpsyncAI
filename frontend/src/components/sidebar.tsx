@@ -84,6 +84,7 @@ export function Sidebar({ className }: SidebarProps) {
 
     { title: "Employees", icon: Users, href: "/dashboard/employees" },
 
+    { title: "Salary", icon: DollarSign, href: "/dashboard/salary" },
 
     { title: "Company", icon: Building2, href: "/dashboard/company" },
     { title: "Shifts", icon: Clock, href: "/dashboard/shifts" },
