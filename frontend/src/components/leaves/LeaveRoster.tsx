@@ -376,7 +376,9 @@ export default function LeaveRoster({ companyId }: LeaveRosterProps) {
                             {formatAmount(balance)}
                           </span>
                           <span className="mt-0.5 block text-xs text-gray-500">
-                            Used {formatAmount(leaveInfo.used)} / {formatAmount(leaveInfo.entitlement)}
+                            {leaveInfo.is_imported
+                              ? `Opening ${formatAmount(leaveInfo.opening_balance)}`
+                              : `Used ${formatAmount(leaveInfo.used)} / ${formatAmount(leaveInfo.entitlement)}`}
                           </span>
                           {leaveInfo.pending > 0 && (
                             <span className="block text-[10px] text-amber-600 font-medium">
@@ -475,6 +477,7 @@ export default function LeaveRoster({ companyId }: LeaveRosterProps) {
                   }
 
                   const isUnlimited = leaveInfo.is_unlimited;
+                  const isImported = !!leaveInfo.is_imported;
 
                   return (
                     <div key={lt.id} className="rounded-md border border-gray-200 bg-white p-4 shadow-sm">
@@ -484,6 +487,11 @@ export default function LeaveRoster({ companyId }: LeaveRosterProps) {
                           <Badge variant="secondary" className="text-[11px] bg-blue-50 text-blue-700">
                             {lt.short_code}
                           </Badge>
+                          {isImported && (
+                            <Badge variant="secondary" className="text-[11px] bg-emerald-50 text-emerald-700">
+                              Imported
+                            </Badge>
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">
                           {lt.policy_mode === "staff_category" ? "Category Policy" : "Standard Policy"}
@@ -492,13 +500,21 @@ export default function LeaveRoster({ companyId }: LeaveRosterProps) {
 
                       <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                         <div className="rounded bg-gray-50 p-2">
-                          <span className="block text-xs text-gray-500">Entitlement</span>
+                          <span className="block text-xs text-gray-500">
+                            {isImported ? "Opening Balance" : "Entitlement"}
+                          </span>
                           <span className="font-semibold text-gray-900">
-                            {isUnlimited ? "Unlimited" : `${formatAmount(leaveInfo.entitlement)} Days`}
+                            {isImported
+                              ? `${formatAmount(leaveInfo.opening_balance)} Days`
+                              : isUnlimited
+                              ? "Unlimited"
+                              : `${formatAmount(leaveInfo.entitlement)} Days`}
                           </span>
                         </div>
                         <div className="rounded bg-gray-50 p-2">
-                          <span className="block text-xs text-gray-500">Total Used (Year)</span>
+                          <span className="block text-xs text-gray-500">
+                            {isImported ? "Used Since Snapshot" : "Total Used (Year)"}
+                          </span>
                           <span className="font-semibold text-gray-900">
                             {formatAmount(leaveInfo.used)} Days
                           </span>

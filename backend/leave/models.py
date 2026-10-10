@@ -143,3 +143,62 @@ class LeavePolicy(models.Model):
 
     def __str__(self):
         return f"{self.company.company_name} - {self.staff_category.category_name} - {self.leave_type.leave_type}"
+
+
+class ImportedLeaveBalance(models.Model):
+    """
+    Stores an opening leave-balance snapshot imported from an external Excel sheet
+    (e.g. supplied by the client for a historical cut-off date).
+
+    How it is used:
+      effective_balance = opening_balance
+                          − days_taken(from_date > snapshot_date, status in A/P)
+
+    One row per (user, leave_type, company, year).  On re-import the row is
+    simply updated (upserted) so there is no duplication.
+    """
+    user = models.ForeignKey(
+        'user.CustomUser',
+        on_delete=models.CASCADE,
+        related_name='imported_leave_balances'
+    )
+    leave_type = models.ForeignKey(
+        'LeaveType',
+        on_delete=models.CASCADE,
+        related_name='imported_balances'
+    )
+    company = models.ForeignKey(
+        'company.Company',
+        on_delete=models.CASCADE,
+        related_name='imported_leave_balances'
+    )
+    year = models.IntegerField(help_text='Calendar year this balance applies to')
+    snapshot_date = models.DateField(
+        help_text='The cut-off date the client supplied the balance for '
+                  '(leaves after this date are deducted from opening_balance)'
+    )
+    opening_balance = models.FloatField(
+        help_text='Leave balance as of snapshot_date, as imported from Excel'
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Optional last date this imported balance remains in use. '
+                  'It is applied while today <= expiry_date; from the next day '
+                  'the system falls back to the computed balance '
+                  '(the row is kept, never deleted).'
+    )
+    imported_at = models.DateTimeField(auto_now=True)
+    notes = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('user', 'leave_type', 'company', 'year')
+        verbose_name = 'Imported Leave Balance'
+        verbose_name_plural = 'Imported Leave Balances'
+
+    def __str__(self):
+        return (
+            f"{self.user} | {self.leave_type} | "
+            f"{self.company} | {self.year} "
+            f"(opening={self.opening_balance}, snap={self.snapshot_date})"
+        )

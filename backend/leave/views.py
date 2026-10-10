@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.http import HttpResponse
 from .models import Leave, LeaveType, Holiday,LeaveCredit,LeavePolicy,LeaveFlowHierarchy
 from company.models import CompanyRole,Company, CompanyUser
 from punch.models import PunchRecords
@@ -6,6 +7,7 @@ from user.models import CustomUser
 from punch.serializer import PunchSerializer
 from company.models import Device
 from datetime import datetime, timedelta
+from io import BytesIO
 from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q,Sum
@@ -23,6 +25,8 @@ from django.db import transaction
 from .services import get_flow_config, resolve_first_approver, resolve_approver_from_level, get_user_leave_balance, get_company_leave_roster
 from django.db import transaction
 from django.utils import timezone as tz
+from .utils_import import (build_balance_template, build_dates_template,
+                           import_balances_from_excel, import_leave_records_from_excel)
 
 
 
@@ -1572,7 +1576,7 @@ def add_past_leave(request):
         company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
         if not company_id:
             return Response({'success': False, 'message': 'Company ID required'}, status=400)
-        
+
         users = CustomUser.objects.filter(company__id=company_id, is_active=True).values('id', 'first_name', 'last_name', 'email')
         return Response({'success': True, 'data': list(users)})
 
@@ -1583,12 +1587,12 @@ def add_past_leave(request):
         to_date = request.data.get('to_date')
         leave_choice = request.data.get('leave_choice')
         custom_reason = request.data.get('custom_reason')
-        status_val = request.data.get('status', 'A') # Default to Approved
+        status_val = request.data.get('status', 'A')  # Default to Approved
         company_id = request.data.get('company_id')
 
         # Validate inputs
         if not all([user_id, leave_id, from_date, to_date, company_id]):
-             return Response({'success': False, 'message': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'message': 'Missing required fields'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             company = Company.objects.get(id=company_id)
@@ -1597,49 +1601,87 @@ def add_past_leave(request):
         except (Company.DoesNotExist, CustomUser.DoesNotExist, LeaveType.DoesNotExist) as e:
             return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-         # Ensure user belongs to that company
+        # Ensure user belongs to that company
         if not user.company.filter(id=company_id).exists():
-             return Response({'success': False, 'message': 'User does not belong to this company'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'success': False, 'message': 'User does not belong to this company'}, status=status.HTTP_400_BAD_REQUEST)
 
         from_date_obj = datetime.strptime(from_date, '%Y-%m-%d').date()
         to_date_obj = datetime.strptime(to_date, '%Y-%m-%d').date()
 
-        # Calculate days
-        leave_days = (to_date_obj - from_date_obj).days + 1
-        if leave_choice == 'half_day':
-            leave_days *= 0.5
-        
-        # Deduct credits if applicable
-        if leave_type.use_credit:
-            credit_year = from_date_obj.year
-            credit_obj, created = LeaveCredit.objects.get_or_create(
-                user=user, 
-                leave_type=leave_type, 
-                year=credit_year,
-                defaults={'credits': leave_type.initial_credit} 
-            )
-            
-            credit_obj.credits -= leave_days
-            credit_obj.save()
+        if to_date_obj < from_date_obj:
+            return Response({'success': False, 'message': 'To Date cannot be before From Date'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create Leave
-        leave = Leave.objects.create(
+        # Fix #1 — Map frontend leave_choice string -> model char BEFORE any logic that uses it
+        leave_choice_model = 'H' if leave_choice == 'half_day' else 'F'
+
+        # Calculate days using the normalised model value
+        leave_days = (to_date_obj - from_date_obj).days + 1
+        if leave_choice_model == 'H':
+            leave_days *= 0.5
+
+        # Fix #2 — Exact duplicate check
+        if Leave.objects.filter(
             user=user,
+            company=company,
             leave_type=leave_type,
             from_date=from_date_obj,
             to_date=to_date_obj,
+            leave_choice=leave_choice_model,
+            status__in=['P', 'A']
+        ).exists():
+            return Response({'success': False, 'message': 'A duplicate leave record already exists for these dates.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fix #3 — Overlap check (mirrors apply_leave logic)
+        overlapping = Leave.objects.filter(
+            user=user,
             company=company,
-            # Map frontend value to model choice
-            status=status_val,
-            custom_reason=custom_reason,
-            days_taken=leave_days
+            status__in=['P', 'A'],
+            from_date__lte=to_date_obj,
+            to_date__gte=from_date_obj
         )
-        
-        if leave_choice == 'half_day':
-            leave.leave_choice = 'H'
-        else:
-            leave.leave_choice = 'F'
-        leave.save()
+        if leave_choice_model == 'F' and overlapping.exists():
+            conflict = overlapping.first()
+            return Response({
+                'success': False,
+                'message': f'Overlap with existing leave ({conflict.from_date} to {conflict.to_date}).'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        elif leave_choice_model == 'H':
+            full_day_conflicts = overlapping.filter(leave_choice='F')
+            if full_day_conflicts.exists():
+                conflict = full_day_conflicts.first()
+                return Response({
+                    'success': False,
+                    'message': f'Overlap with existing Full Day leave ({conflict.from_date} to {conflict.to_date}).'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fix #4 — Atomic transaction: credit deduction + leave creation succeed or fail together
+        with transaction.atomic():
+            # Fix #5 — Guard credit balance before deducting
+            if leave_type.use_credit:
+                credit_year = from_date_obj.year
+                credit_obj, _ = LeaveCredit.objects.select_for_update().get_or_create(
+                    user=user,
+                    leave_type=leave_type,
+                    year=credit_year,
+                    defaults={'credits': leave_type.initial_credit}
+                )
+                if leave_days > credit_obj.credits:
+                    return Response({'success': False, 'message': 'Insufficient leave credits for this employee'}, status=status.HTTP_400_BAD_REQUEST)
+                credit_obj.credits -= leave_days
+                credit_obj.save()
+
+            # Fix #6 — Pass leave_choice into create() directly; no redundant second save()
+            Leave.objects.create(
+                user=user,
+                leave_type=leave_type,
+                from_date=from_date_obj,
+                to_date=to_date_obj,
+                company=company,
+                leave_choice=leave_choice_model,
+                status=status_val,
+                custom_reason=custom_reason,
+                days_taken=leave_days
+            )
 
         return Response({'success': True, 'message': 'Leave record added successfully'}, status=status.HTTP_201_CREATED)
 
@@ -1826,3 +1868,175 @@ def get_leave_roster(request):
     }, status=status.HTTP_200_OK)
 
 
+@api_view(['POST'])
+def upload_leave_balances(request):
+    """
+    Endpoint to upload an Excel file containing historical leave balances.
+    Expected form data:
+    - file: the Excel file
+    - year: the calendar year
+    - snapshot_date: the cut-off date for the opening balances (YYYY-MM-DD)
+    - expiry_date (optional): last date the imported balance stays in use
+                              (YYYY-MM-DD); the snapshot is ignored from the
+                              next day but the rows are kept.
+
+    Company resolution (in priority order):
+      1. X-Company-ID header / ?company_id=  (set by the frontend)
+      2. request.user.parent_company
+      3. request.user.company (first M2M link)
+
+    Only admins (CompanyUser.is_admin) or superusers may import balances.
+    """
+    user = request.user
+    if not user or not user.is_authenticated:
+        return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
+    if company_id:
+        company = Company.objects.filter(id=company_id).first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        company = getattr(user, 'parent_company', None) or user.company.first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Uploader must belong to this company
+    belongs = (
+        user.parent_company_id == company.id
+        or user.company.filter(id=company.id).exists()
+        or user.company_links.filter(company=company).exists()
+    )
+    if not belongs:
+        return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Only admins / superusers may import balances (affects every employee)
+    is_admin = user.is_superuser or CompanyUser.objects.filter(
+        user=user, company=company, is_admin=True
+    ).exists()
+    if not is_admin:
+        return Response({'success': False, 'message': 'Admin access required to import leave balances'}, status=status.HTTP_403_FORBIDDEN)
+
+    if 'file' not in request.FILES:
+        return Response({'success': False, 'message': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    file_obj = request.FILES['file']
+    year = request.data.get('year')
+    snapshot_date_str = request.data.get('snapshot_date')
+    expiry_date_str = request.data.get('expiry_date')
+    
+    if not year or not snapshot_date_str:
+        return Response({'success': False, 'message': 'year and snapshot_date are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        year = int(year)
+    except ValueError:
+        return Response({'success': False, 'message': 'Invalid year format'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    res = import_balances_from_excel(
+        file_obj, company, year, snapshot_date_str, expiry_date_str)
+    
+    if res.get('success'):
+        return Response(res, status=status.HTTP_200_OK)
+    else:
+        return Response(res, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+def upload_past_leaves(request):
+    """
+    Endpoint to upload an Excel file of past leave records (one row per leave).
+    Rows are saved directly into the Leave table — no snapshot or expiry dates
+    are involved.
+
+    Expected form data:
+    - file: the Excel/CSV file (Staff ID, Leave Type, From Date, To Date
+            + optional Days Taken / Leave Choice / Status / Reason columns)
+
+    Company resolution and admin checks mirror `upload_leave_balances`.
+    """
+    user = request.user
+    if not user or not user.is_authenticated:
+        return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
+    if company_id:
+        company = Company.objects.filter(id=company_id).first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        company = getattr(user, 'parent_company', None) or user.company.first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    belongs = (
+        user.parent_company_id == company.id
+        or user.company.filter(id=company.id).exists()
+        or user.company_links.filter(company=company).exists()
+    )
+    if not belongs:
+        return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
+
+    is_admin = user.is_superuser or CompanyUser.objects.filter(
+        user=user, company=company, is_admin=True
+    ).exists()
+    if not is_admin:
+        return Response({'success': False, 'message': 'Admin access required to import leave records'}, status=status.HTTP_403_FORBIDDEN)
+
+    if 'file' not in request.FILES:
+        return Response({'success': False, 'message': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+
+    res = import_leave_records_from_excel(request.FILES['file'], company)
+
+    if res.get('success'):
+        return Response(res, status=status.HTTP_200_OK)
+    else:
+        return Response(res, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def download_leave_template(request, style):
+    """
+    Builds and downloads the sample template for the given style, tailored to
+    the requestor's company leave types:
+      - 'dates'   -> bulk_past_leaves_template.xlsx (leave records with dates)
+      - 'balance' -> bulk_balance_template.xlsx (opening balance counts)
+    """
+    user = request.user
+    if not user or not user.is_authenticated:
+        return Response({'success': False, 'message': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    if style not in ('dates', 'balance'):
+        return Response({'success': False, 'message': 'Unknown template type'}, status=status.HTTP_400_BAD_REQUEST)
+
+    company_id = request.headers.get('X-Company-ID') or request.query_params.get('company_id')
+    if company_id:
+        company = Company.objects.filter(id=company_id).first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        company = getattr(user, 'parent_company', None) or user.company.first()
+        if not company:
+            return Response({'success': False, 'message': 'Company not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+    belongs = (
+        user.parent_company_id == company.id
+        or user.company.filter(id=company.id).exists()
+        or user.company_links.filter(company=company).exists()
+    )
+    if not belongs:
+        return Response({'success': False, 'message': 'You do not belong to this company'}, status=status.HTTP_403_FORBIDDEN)
+
+    wb = build_dates_template(company) if style == 'dates' else build_balance_template(company)
+    filename = 'bulk_past_leaves_template.xlsx' if style == 'dates' else 'bulk_balance_template.xlsx'
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    response = HttpResponse(
+        buf,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response

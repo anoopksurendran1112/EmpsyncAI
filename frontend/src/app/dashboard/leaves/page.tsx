@@ -877,6 +877,77 @@ export default function LeavesPage() {
 
   const handlePastLeaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if this is a bulk upload submission
+    if ((e as any).isBulk) {
+      const formData = (e as any).formData as FormData;
+      const uploadStyle = (e as any).uploadStyle as "dates" | "balance";
+      const endpoint =
+        uploadStyle === "dates"
+          ? "/api/leave/upload-past-leaves"
+          : "/api/leave/upload-leave-balances";
+
+      setIsRequestSubmitting(true);
+      setPastLeaveMessage(null);
+      
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          body: formData,
+        });
+
+        let result: any = {};
+        try {
+          const rawText = await res.text();
+          result = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          result = { success: false, message: "Unexpected response from server." };
+        }
+
+        if (res.ok && result.success) {
+          const r = result.results || {};
+          const created = r.created ?? 0;
+          const updated = r.updated ?? 0;
+          const hasRows = created + updated > 0;
+
+          const parts: string[] =
+            uploadStyle === "dates"
+              ? [
+                  `Leave records created: ${created}${
+                    updated ? ` (updated: ${updated})` : ""
+                  }.`,
+                ]
+              : [`Imported! Created: ${created}, Updated: ${updated}.`];
+          if (r.created_leave_types?.length)
+            parts.push(`New leave types: ${r.created_leave_types.join(", ")}.`);
+          if (r.unmatched?.length)
+            parts.push(`${r.unmatched.length} staff ID(s) not found (skipped).`);
+          if (r.errors?.length) parts.push(r.errors.join(" "));
+
+          const hasWarnings =
+            r.unmatched?.length > 0 || r.errors?.length > 0 || r.created_leave_types?.length > 0;
+
+          setPastLeaveMessage({
+            type: hasRows ? "success" : "error",
+            text: parts.join(" "),
+          });
+
+          // Only auto-close when the result is fully clean, so warnings stay readable.
+          if (hasRows && !hasWarnings) {
+            setTimeout(() => setIsAddPastLeaveOpen(false), 2500);
+          }
+        } else {
+          setPastLeaveMessage({ type: "error", text: result.message || "Failed to import." });
+        }
+      } catch (err) {
+        console.error("Bulk upload error", err);
+        setPastLeaveMessage({ type: "error", text: "Network error during bulk upload." });
+      } finally {
+        setIsRequestSubmitting(false);
+      }
+      return;
+    }
+
     if (!pastLeaveForm.from_date || !pastLeaveForm.to_date || !pastLeaveForm.leave_id || !pastLeaveForm.user_id) {
       setPastLeaveMessage({ type: "error", text: "Please fill in all required fields" });
       return;

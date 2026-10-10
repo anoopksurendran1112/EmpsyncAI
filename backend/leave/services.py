@@ -109,12 +109,20 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
     Calculate available leave balance for a given user.
     Cross checks leaves taken from the Leave model against limits defined in
     LeaveType and LeavePolicy (factoring in user's staff_category from EmployeeProfile).
+
+    If an ImportedLeaveBalance snapshot exists for a leave type in this year
+    (and has not expired), the available_balance is derived as:
+        opening_balance − days_taken(from_date > snapshot_date, status A|P)
+    A snapshot is ignored once today > its expiry_date (falling back to the
+    computed logic), but the row itself is never deleted.
+    Otherwise the original computed logic applies.
     """
     from django.db.models import Q, Sum
     from django.utils import timezone
-    from .models import Leave, LeaveType, LeavePolicy, LeaveCredit
+    from .models import Leave, LeaveType, LeavePolicy, LeaveCredit, ImportedLeaveBalance
 
     now = timezone.now()
+    today = now.date()
     year = int(year) if year else now.year
     month = int(month) if month else now.month
 
@@ -129,6 +137,15 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
     leave_types = LeaveType.objects.filter(is_active=True).filter(
         Q(company=company) | Q(is_global=True)
     )
+
+    # Pre-fetch all non-expired imported balances for this user+company+year in
+    # one query. Expired snapshots are skipped so the computed logic takes over.
+    imported_qs = ImportedLeaveBalance.objects.filter(
+        user=user, company=company, year=year
+    ).filter(
+        Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+    ).select_related('leave_type')
+    imported_map = {ib.leave_type_id: ib for ib in imported_qs}
 
     balances = []
 
@@ -189,17 +206,39 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
             else:
                 credit_balance = max(0.0, float(initial_credit or 0) - total_yearly_taken)
 
-        # Compute net available balance
-        if use_credit and credit_balance is not None:
-            available_balance = credit_balance
-        elif monthly_remaining is not None and yearly_remaining is not None:
-            available_balance = max(0.0, min(monthly_remaining, yearly_remaining))
-        elif yearly_remaining is not None:
-            available_balance = max(0.0, yearly_remaining)
-        elif monthly_remaining is not None:
-            available_balance = max(0.0, monthly_remaining)
+        # ------------------------------------------------------------------
+        # Imported balance override
+        # If a snapshot exists for this leave type+year, use it as the
+        # opening balance and subtract only leaves taken AFTER snapshot_date.
+        # ------------------------------------------------------------------
+        imported_snapshot = imported_map.get(lt.id)
+        imported_opening = None
+        snapshot_date = None
+        balance_source = 'computed'
+
+        if imported_snapshot:
+            snapshot_date = imported_snapshot.snapshot_date
+            imported_opening = imported_snapshot.opening_balance
+
+            # Leaves taken strictly AFTER the snapshot date
+            post_snapshot_taken = base_leaves_qs.filter(
+                from_date__gt=snapshot_date
+            ).aggregate(total=Sum('days_taken'))['total'] or 0.0
+
+            available_balance = max(0.0, float(imported_opening) - float(post_snapshot_taken))
+            balance_source = 'imported'
         else:
-            available_balance = None  # Unlimited
+            # Original computed logic
+            if use_credit and credit_balance is not None:
+                available_balance = credit_balance
+            elif monthly_remaining is not None and yearly_remaining is not None:
+                available_balance = max(0.0, min(monthly_remaining, yearly_remaining))
+            elif yearly_remaining is not None:
+                available_balance = max(0.0, yearly_remaining)
+            elif monthly_remaining is not None:
+                available_balance = max(0.0, monthly_remaining)
+            else:
+                available_balance = None  # Unlimited
 
         balances.append({
             'leave_type_id': lt.id,
@@ -224,6 +263,15 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
             'monthly_remaining': monthly_remaining,
             'yearly_remaining': yearly_remaining,
             'credit_balance': credit_balance,
+            # Imported-balance fields (None if no snapshot exists)
+            'imported_opening_balance': imported_opening,
+            'snapshot_date': snapshot_date.isoformat() if snapshot_date else None,
+            'expiry_date': (
+                imported_snapshot.expiry_date.isoformat()
+                if imported_snapshot and imported_snapshot.expiry_date
+                else None
+            ),
+            'balance_source': balance_source,   # 'imported' | 'computed'
             'available_balance': available_balance,
         })
 
@@ -239,6 +287,7 @@ def get_user_leave_balance(user, company=None, year=None, month=None):
     }
 
 
+
 def get_company_leave_roster(company, year=None, month=None, department_id=None):
     """
     Calculate leave balances and usage for all active employees of a company
@@ -247,7 +296,7 @@ def get_company_leave_roster(company, year=None, month=None, department_id=None)
     from django.db.models import Q, Sum
     from django.utils import timezone
     import calendar
-    from .models import Leave, LeaveType, LeavePolicy, LeaveCredit
+    from .models import Leave, LeaveType, LeavePolicy, LeaveCredit, ImportedLeaveBalance
     from company.models import CompanyGroup
 
     now = timezone.now()
@@ -347,6 +396,47 @@ def get_company_leave_roster(company, year=None, month=None, department_id=None)
         for c in credit_records
     }
 
+    # 6b. Non-expired imported balances for this year (bulk override source).
+    today = now.date()
+    imported_rows = list(ImportedLeaveBalance.objects.filter(
+        company=company,
+        year=year,
+        user_id__in=user_ids,
+        leave_type_id__in=leave_type_ids,
+    ).filter(
+        Q(expiry_date__isnull=True) | Q(expiry_date__gte=today)
+    ))
+    imported_map = {(ib.user_id, ib.leave_type_id): ib for ib in imported_rows}
+
+    # Usage taken strictly AFTER each snapshot date (this is what reduces the
+    # imported opening balance). Snapshot dates are usually uniform per
+    # company+year, so one aggregate query covers each distinct date.
+    post_snapshot_map = {}
+    for snap in sorted({ib.snapshot_date for ib in imported_rows if ib.snapshot_date}):
+        snap_agg = Leave.objects.filter(
+            company=company,
+            user_id__in=user_ids,
+            leave_type_id__in=leave_type_ids,
+            from_date__gt=snap,
+            status__in=['A', 'P'],
+        ).values('user_id', 'leave_type_id', 'status', 'from_date__month') \
+         .annotate(total_days=Sum('days_taken'))
+        for item in snap_agg:
+            entry = post_snapshot_map.setdefault(
+                (item['user_id'], item['leave_type_id']),
+                {'approved': 0.0, 'pending': 0.0,
+                 'monthly_approved': 0.0, 'monthly_pending': 0.0},
+            )
+            days = float(item['total_days'] or 0.0)
+            if item['status'] == 'A':
+                entry['approved'] += days
+                if item['from_date__month'] == month:
+                    entry['monthly_approved'] += days
+            else:
+                entry['pending'] += days
+                if item['from_date__month'] == month:
+                    entry['monthly_pending'] += days
+
     # 7. Construct leave types column definitions
     columns = [
         {
@@ -377,6 +467,45 @@ def get_company_leave_roster(company, year=None, month=None, department_id=None)
         for lt in leave_types:
             code = lt.short_name or str(lt.id)
             key = (emp.id, lt.id)
+
+            # Imported-balance override: the client's snapshot decides everything.
+            import_snap = imported_map.get(key)
+            if import_snap:
+                ps = post_snapshot_map.get(key, {
+                    'approved': 0.0, 'pending': 0.0,
+                    'monthly_approved': 0.0, 'monthly_pending': 0.0,
+                })
+                opening = float(import_snap.opening_balance)
+                used_since = ps['approved']
+                pending_since = ps['pending']
+                leaves_data[code] = {
+                    'leave_type_id': lt.id,
+                    'leave_type_name': lt.leave_type,
+                    'short_code': code,
+                    'is_eligible': True,
+                    'is_unlimited': False,
+                    'entitlement': None,
+                    'monthly_limit': None,
+                    'yearly_limit': None,
+                    'used': used_since,
+                    'pending': pending_since,
+                    'monthly_used': ps['monthly_approved'],
+                    'monthly_pending': ps['monthly_pending'],
+                    'balance': max(0.0, opening - used_since - pending_since),
+                    'credit_balance': None,
+                    'is_imported': True,
+                    'opening_balance': opening,
+                    'snapshot_date': (
+                        import_snap.snapshot_date.isoformat()
+                        if import_snap.snapshot_date else None
+                    ),
+                    'expiry_date': (
+                        import_snap.expiry_date.isoformat()
+                        if import_snap.expiry_date else None
+                    ),
+                }
+                continue
+
             usage = usage_map.get(key, {
                 'yearly_approved': 0.0,
                 'yearly_pending': 0.0,

@@ -23,6 +23,10 @@ export interface DynamicEmployeeLeave {
   monthly_pending?: number;
   balance: number | null;
   credit_balance?: number | null;
+  is_imported?: boolean;
+  opening_balance?: number | null;
+  snapshot_date?: string | null;
+  expiry_date?: string | null;
 }
 
 export interface DynamicRosterEmployee {
