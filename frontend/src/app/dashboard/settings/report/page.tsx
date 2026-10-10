@@ -49,6 +49,8 @@ interface DailyLog {
 interface UserRecord {
   name: string;
   daily_logs: DailyLog[];
+  total_working_hours: number;
+  average_working_hours: number;
 }
 
 interface Employee {
@@ -494,9 +496,21 @@ export default function ReportPage() {
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-slate-50 z-10">
                       <tr>
-                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Employee</th>
-                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Audit Logs</th>
-                        <th className="p-4 text-center text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">Total Hours</th>
+                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                          Employee
+                        </th>
+
+                        <th className="p-4 text-left text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                          Audit Logs
+                        </th>
+
+                        <th className="p-4 text-center text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                          Total Hours
+                        </th>
+
+                        <th className="p-4 text-center text-[10px] uppercase font-bold text-slate-400 border-b border-slate-100">
+                          Average Hours
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -531,10 +545,16 @@ export default function ReportPage() {
                                </table>
                             </td>
                           <td className="p-4 border-b border-slate-200 text-center align-top">
-                             <span className="text-sm font-bold text-blue-600">
-                               {user.daily_logs.reduce((acc: number, log: any) => acc + (parseFloat(log.working_hours) || 0), 0).toFixed(1)}
-                             </span>
-                            </td>
+                            <span className="text-sm font-bold text-blue-600">
+                              {Number(user.total_working_hours || 0).toFixed(1)}
+                            </span>
+                          </td>
+
+                          <td className="p-4 border-b border-slate-200 text-center align-top">
+                            <span className="text-sm font-bold text-blue-600">
+                              {Number(user.average_working_hours || 0).toFixed(2)}
+                            </span>
+                          </td>
                          </tr>
                       ))}
                     </tbody>
