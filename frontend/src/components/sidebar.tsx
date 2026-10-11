@@ -48,7 +48,9 @@ export function Sidebar({ className }: SidebarProps) {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({})
   const [activeFloatingMenu, setActiveFloatingMenu] = useState<MenuItem | null>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
-  const { isAdmin } = useAuth()
+  const { isAdmin, user } = useAuth()
+  // "Role based access type": company admin or platform superuser.
+  const isPrivileged = Boolean(isAdmin) || Boolean(user?.is_superuser)
   const pathname = usePathname()
 
   // Click outside to close floating menu
@@ -78,16 +80,15 @@ export function Sidebar({ className }: SidebarProps) {
 
   const menuItems: MenuItem[] = [
     { title: "Punch Records", icon: Fingerprint, href: "/dashboard/mypunches" },
-    { title: isAdmin ? "Leaves & Holiday" : "Leaves", icon: CalendarX, href: "/dashboard/leaves" },
+    { title: isPrivileged ? "Leaves & Holiday" : "Leaves", icon: CalendarX, href: "/dashboard/leaves" },
 
-    // ...(isAdmin ? [{ title: "Employees", icon: Users, href: "/dashboard/employees" }] : []),
+    // Admin-only sections: hidden from regular employees.
+    { title: "Employees", icon: Users, href: "/dashboard/employees", adminOnly: true },
 
-    { title: "Employees", icon: Users, href: "/dashboard/employees" },
-
-    { title: "Salary", icon: DollarSign, href: "/dashboard/salary" },
+    { title: "Salary", icon: DollarSign, href: "/dashboard/salary", adminOnly: true },
 
     { title: "Company", icon: Building2, href: "/dashboard/company" },
-    { title: "Shifts", icon: Clock, href: "/dashboard/shifts" },
+    { title: "Shifts", icon: Clock, href: "/dashboard/shifts", adminOnly: true },
     {
       title: "Settings", icon: Settings, href: "/dashboard/settings", adminOnly: true,
       children: [
@@ -130,7 +131,7 @@ export function Sidebar({ className }: SidebarProps) {
   }
 
   const renderMenuItem = (item: MenuItem, depth = 0, siblings?: string[], forceShowLabel = false) => {
-    if (item.adminOnly && !isAdmin) return null
+    if (item.adminOnly && !isPrivileged) return null
 
     const hasChildren = item.children && item.children.length > 0
     const isOpen = openMenus[item.title]

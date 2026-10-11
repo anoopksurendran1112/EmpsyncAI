@@ -52,6 +52,8 @@ import PastLeaveDialog from "./components/PastLeaveDialog";
 export default function LeavesPage() {
   const { user, company, isAdmin } = useAuth();
   const companyId = company?.id;
+  // "Role based access type": company admin or platform superuser.
+  const isPrivileged = Boolean(isAdmin) || Boolean(user?.is_superuser);
   const { data: staffCategories = [] } = useStaffCategories();
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
@@ -653,6 +655,13 @@ export default function LeavesPage() {
     }
   }, [isAddPastLeaveOpen, viewMode, fetchActiveEmployees]);
 
+  // Non-privileged users may only ever stay in the personal ("user") view.
+  useEffect(() => {
+    if (!isPrivileged && viewMode === "admin") {
+      setViewMode("user");
+    }
+  }, [isPrivileged, viewMode]);
+
   // Leave Type Form Helpers
   const toggleLeaveTypeSection = (key: string) => {
     setLeaveTypeSections((current) => ({
@@ -1183,7 +1192,7 @@ export default function LeavesPage() {
       <LeaveStatsCards viewMode={viewMode} leaveStats={leaveStats} />
 
       {/* Content Area */}
-      {viewMode === "user" ? (
+      {viewMode === "user" || !isPrivileged ? (
         <div className="space-y-6">
           <UserLeaveBalance
             leaveBalance={leaveBalance}
@@ -1192,7 +1201,7 @@ export default function LeavesPage() {
 
           <UserLeaveHistory
             myLeaves={myLeaves}
-            isAdmin={Boolean(isAdmin)}
+            isAdmin={isPrivileged}
             viewMode={viewMode}
             onToggleViewMode={() => setViewMode(viewMode === "user" ? "admin" : "user")}
           />
