@@ -1,15 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit2, Info, Plus, Search, Trash2 } from "lucide-react";
+import { Edit2, Info, Plus, Search, Trash2, X as RemoveIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useStaffTypes } from "@/hooks/settings/staff_type/useStaffTypes";
+import { useEmployees } from "@/hooks/employees/useGetEmployees";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type AssignmentMode = "all" | "staff_type" | "specific";
 
 type Shift = {
   id: number;
@@ -22,9 +27,19 @@ type Shift = {
   staff_count: number;
   staff_type_id: number | null;
   staff_type_name?: string | null;
+  assigned_user_ids: number[];
 };
 
-type ShiftForm = Omit<Shift, "id" | "staff_count">;
+type ShiftForm = {
+  shift: string;
+  check_in: string;
+  check_out: string;
+  late_allowance_minutes: number;
+  days_applicable: string;
+  assignment_mode: AssignmentMode;
+  staff_type_id: number | null;
+  assigned_user_ids: number[];
+};
 
 const emptyForm: ShiftForm = {
   shift: "",
@@ -32,8 +47,9 @@ const emptyForm: ShiftForm = {
   check_out: "",
   late_allowance_minutes: 15,
   days_applicable: "Mon - Sat",
-  applicable_to: "All Staff",
+  assignment_mode: "all",
   staff_type_id: null,
+  assigned_user_ids: [],
 };
 
 const formatTime = (value: string | null) => {
@@ -47,6 +63,8 @@ export default function ShiftsPage() {
   const { company } = useAuth();
   const companyId = company?.id;
   const { data: staffTypes = [], isLoading: isStaffTypesLoading } = useStaffTypes();
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees(companyId || 0, 1, 1000);
+  const employees = (employeesData as any)?.employees || [];
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<ShiftForm>(emptyForm);
@@ -62,7 +80,10 @@ export default function ShiftsPage() {
       const response = await fetch(`/api/shifts?company_id=${companyId}`, { cache: "no-store" });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || "Failed to load shifts");
-      setShifts(result.data || []);
+      setShifts((result.data || []).map((shift: any) => ({
+        ...shift,
+        assigned_user_ids: shift.assigned_user_ids || [],
+      })));
     } catch (error) {
       console.error("Failed to load shifts", error);
       toast.error("Failed to load shifts");
@@ -91,17 +112,33 @@ export default function ShiftsPage() {
 
   const openEditShift = (shift: Shift) => {
     setEditingShift(shift);
+    let assignmentMode: AssignmentMode = "all";
+    if (shift.staff_type_id) assignmentMode = "staff_type";
+    else if (shift.applicable_to === "Specific staff" || (shift.applicable_to && shift.applicable_to !== "All Staff")) assignmentMode = "specific";
     setForm({
       shift: shift.shift,
       check_in: shift.check_in?.slice(0, 5) || "",
       check_out: shift.check_out?.slice(0, 5) || "",
       late_allowance_minutes: shift.late_allowance_minutes,
       days_applicable: shift.days_applicable,
-      applicable_to: shift.applicable_to,
+      assignment_mode: assignmentMode,
       staff_type_id: shift.staff_type_id,
+      assigned_user_ids: shift.assigned_user_ids || [],
     });
     setIsDialogOpen(true);
   };
+
+  const toggleAssignedStaff = (userId: number) => {
+    setForm((prev) => {
+      const current = prev.assigned_user_ids;
+      const next = current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId];
+      return { ...prev, assigned_user_ids: next };
+    });
+  };
+
+  const selectedAssigned = employees.filter((emp: any) => form.assigned_user_ids.includes(emp.id));
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -191,7 +228,7 @@ export default function ShiftsPage() {
                   <div className="whitespace-nowrap text-sm font-semibold text-teal-700">{formatTime(shift.check_in)} - {formatTime(shift.check_out)}</div>
                   <div className="text-sm text-gray-500">{shift.days_applicable}</div>
                   <div className="text-sm text-gray-500">{shift.late_allowance_minutes} min</div>
-                  <div className="text-sm text-gray-500">{shift.staff_type_name || shift.applicable_to}</div>
+                  <div className="text-sm text-gray-500">{shift.staff_type_name || (shift.applicable_to === "Specific staff" ? `${shift.assigned_user_ids?.length ?? 0} staff` : shift.applicable_to)}</div>
                   <div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => openEditShift(shift)}><Edit2 className="mr-1 h-3.5 w-3.5" /> Edit</Button><Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleDelete(shift)}><Trash2 className="mr-1 h-3.5 w-3.5" /> Remove</Button></div>
                 </div>
               ))
@@ -214,15 +251,56 @@ export default function ShiftsPage() {
               <Field label="End Time *"><Input required type="time" value={form.check_out} onChange={(event) => setForm({ ...form, check_out: event.target.value })} /></Field>
               <Field label="Days Applicable"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.days_applicable} onChange={(event) => setForm({ ...form, days_applicable: event.target.value })}><option>Mon - Sat</option><option>Mon - Fri</option><option>Mon, Wed, Fri</option><option>Tue, Thu</option><option>3 Days / Week</option><option>As Scheduled</option><option>Custom</option></select></Field>
               <Field label="Grace (minutes)"><Input type="number" min="0" value={form.late_allowance_minutes} onChange={(event) => setForm({ ...form, late_allowance_minutes: Number(event.target.value) })} /><p className="mt-1 text-xs text-gray-500">Late-entry window before late status is applied.</p></Field>
-              <Field label="Applicable To"><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.staff_type_id ? String(form.staff_type_id) : "all"} disabled={isStaffTypesLoading} onChange={(event) => {
-                const value = event.target.value;
-                if (value === "all") {
-                  setForm({ ...form, staff_type_id: null, applicable_to: "All Staff" });
-                  return;
-                }
-                const selectedType = staffTypes.find((staffType) => String(staffType.id) === value);
-                setForm({ ...form, staff_type_id: Number(value), applicable_to: selectedType?.name || "" });
-              }}><option value="all">All Staff</option>{staffTypes.map((staffType) => <option key={staffType.id} value={staffType.id}>{staffType.name}</option>)}</select></Field>
+              <Field label="Applicable To">
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.assignment_mode} onChange={(event) => setForm((prev) => ({ ...prev, assignment_mode: event.target.value as AssignmentMode, staff_type_id: event.target.value === "staff_type" ? prev.staff_type_id : null, assigned_user_ids: event.target.value === "specific" ? prev.assigned_user_ids : [] }))}>
+                  <option value="all">All Staff</option>
+                  <option value="staff_type">By Staff Type</option>
+                  <option value="specific">Specific Staff</option>
+                </select>
+                {form.assignment_mode === "staff_type" && (
+                  <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.staff_type_id ? String(form.staff_type_id) : ""} disabled={isStaffTypesLoading} onChange={(event) => {
+                    const id = Number(event.target.value);
+                    setForm((prev) => ({ ...prev, staff_type_id: id }));
+                  }}>
+                    <option value="" disabled>Choose staff type...</option>
+                    {staffTypes.map((staffType) => <option key={staffType.id} value={staffType.id}>{staffType.name}</option>)}
+                  </select>
+                )}
+                {form.assignment_mode === "specific" && (
+                  <Command className="rounded-lg border">
+                    <div className="flex flex-wrap gap-1 p-2">
+                      {selectedAssigned.map((employee: any) => (
+                        <Badge key={employee.id} variant="secondary">
+                          {employee.first_name} {employee.last_name}
+                          <button type="button" onClick={() => toggleAssignedStaff(employee.id)} className="ml-1 rounded-full outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                            <RemoveIcon className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {selectedAssigned.length === 0 && <span className="text-xs text-gray-400">No staff selected</span>}
+                    </div>
+                    <CommandInput placeholder="Search staff..." />
+                    <CommandList>
+                      <CommandEmpty>No staff found.</CommandEmpty>
+                      <CommandGroup className="max-h-[150px] overflow-y-auto">
+                        {isLoadingEmployees ? (
+                          <CommandItem>Loading...</CommandItem>
+                        ) : (
+                          employees?.map((employee: any) => (
+                            <CommandItem
+                              key={employee.id}
+                              onSelect={() => toggleAssignedStaff(employee.id)}
+                              className={form.assigned_user_ids.includes(employee.id) ? "bg-accent" : ""}
+                            >
+                              {employee.first_name} {employee.last_name}
+                            </CommandItem>
+                          ))
+                        )}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                )}
+              </Field>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button type="submit" disabled={isSaving} className="bg-teal-600 text-white hover:bg-teal-700">{isSaving ? "Saving..." : editingShift ? "Update Shift" : "Save Shift"}</Button></DialogFooter>
           </form>

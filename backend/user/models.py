@@ -111,7 +111,8 @@ class CustomUser(AbstractUser):
     prof_img = models.ImageField(upload_to='profile_images/', blank=True, null=True)
     biometric_id = models.CharField(max_length=20,null=True,blank=True)
     gender = models.CharField(max_length=2, choices=GENDER_CHOICES, default='N')
-    shift = models.ForeignKey(c.CompanyShift,blank=True,null=True,on_delete=models.CASCADE)
+    # Individual shift assignment. SET_NULL so deleting a shift never deletes staff.
+    shift = models.ForeignKey(c.CompanyShift, blank=True, null=True, on_delete=models.SET_NULL)
     weekly_avg_working_hour = models.FloatField(default=0)
     monthly_avg_working_hour = models.FloatField(default=0)
     monthly_days_count = models.IntegerField(default=0)

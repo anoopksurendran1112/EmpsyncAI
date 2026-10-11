@@ -15,6 +15,7 @@ from user import serializer as s
 from django.utils.timezone import make_aware
 from punch.utils.report_utils import process_punch_logic
 from django.db.models import ProtectedError
+from django.db.models import Q
 from django.db import transaction  
 from django.core.paginator import Paginator
 from django.utils import timezone
@@ -716,6 +717,78 @@ def company_head(request, id):
         }, status=status.HTTP_200_OK)
 
 
+SPECIFIC_STAFF_LABEL = 'Specific staff'
+
+
+def _shift_user_ids_for_company(company, ids):
+    """Split the given user ids into (belonging to company, not belonging)."""
+    id_set = {int(i) for i in ids}
+    valid = set(CustomUser.objects.filter(
+        Q(company=company) | Q(parent_company=company),
+        id__in=id_set,
+    ).values_list('id', flat=True))
+    return sorted(id_set & valid), sorted(id_set - valid)
+
+
+def _normalize_shift_assignment(payload, company, assignment_mode, assigned_user_ids):
+    """Derive staff_type / applicable_to from the assignment mode and validate staff list."""
+    if assignment_mode == 'staff_type':
+        staff_type_id = payload.get('staff_type_id')
+        if not staff_type_id:
+            return Response({
+                'success': False,
+                'message': 'Choose a staff type for this shift',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            staff_type = StaffType.objects.get(id=int(staff_type_id))
+        except (TypeError, ValueError, StaffType.DoesNotExist):
+            return Response({
+                'success': False,
+                'message': 'Selected staff type does not belong to this company',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        if staff_type.company_id != company.id:
+            return Response({
+                'success': False,
+                'message': 'Selected staff type does not belong to this company',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        payload['staff_type_id'] = staff_type.id
+        payload['applicable_to'] = staff_type.type_name
+    elif assignment_mode == 'specific':
+        payload['staff_type_id'] = None
+        payload['applicable_to'] = SPECIFIC_STAFF_LABEL
+        try:
+            id_list = [int(i) for i in (assigned_user_ids or [])]
+        except (TypeError, ValueError):
+            return Response({
+                'success': False,
+                'message': 'Invalid staff list supplied',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        _, invalid_ids = _shift_user_ids_for_company(company, id_list)
+        if invalid_ids:
+            return Response({
+                'success': False,
+                'message': f"These staff don't belong to this company: {invalid_ids[:10]}",
+            }, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        # All Staff
+        payload['staff_type_id'] = None
+        payload['applicable_to'] = 'All Staff'
+    return None
+
+
+def _sync_shift_users(shift, assignment_mode, assigned_user_ids, prev_applicable_to=None):
+    """Update per-staff links (user.shift) for individual assignment mode."""
+    if assignment_mode == 'specific':
+        id_set = {int(i) for i in (assigned_user_ids or [])}
+        # Move selected staff onto this shift (one shift per employee).
+        CustomUser.objects.filter(id__in=id_set).exclude(shift=shift).update(shift=shift)
+        # Unassign staff that were on this shift but are out of the selection.
+        CustomUser.objects.filter(shift=shift).exclude(id__in=id_set).update(shift=None)
+    elif prev_applicable_to == SPECIFIC_STAFF_LABEL:
+        # Shift left per-staff mode - drop its individual links.
+        CustomUser.objects.filter(shift=shift).update(shift=None)
+
+
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def company_shifts(request):
     company_id = request.query_params.get('company_id') or request.data.get('company_id')
@@ -748,6 +821,13 @@ def company_shifts(request):
     if request.method == 'GET':
         shifts = CompanyShift.objects.filter(company=company).order_by('shift')
         serialized_shifts = CompanyShiftSerializer(shifts, many=True).data
+
+        # Individual (per-staff) assignments live on user.shift.
+        assigned_users = defaultdict(list)
+        for shift_id, user_id in CustomUser.objects.filter(
+                shift__in=shifts).values_list('shift_id', 'id'):
+            assigned_users[shift_id].append(user_id)
+
         for shift_data, shift in zip(serialized_shifts, shifts):
             if shift.staff_type_id:
                 shift_data['staff_count'] = CustomUser.objects.filter(
@@ -760,9 +840,12 @@ def company_shifts(request):
                     company=company,
                     is_active=True,
                 ).count()
+            elif shift.applicable_to == SPECIFIC_STAFF_LABEL:
+                shift_data['staff_count'] = len(assigned_users.get(shift.id, []))
             else:
                 # Legacy label-only rows cannot be mapped safely to a staff type.
                 shift_data['staff_count'] = 0
+            shift_data['assigned_user_ids'] = assigned_users.get(shift.id, [])
         return Response({
             'success': True,
             'data': serialized_shifts,
@@ -771,6 +854,21 @@ def company_shifts(request):
     if request.method == 'POST':
         payload = request.data.copy()
         payload['company_id'] = company.id
+        assignment_mode = payload.pop('assignment_mode', 'all')
+        assigned_user_ids = payload.pop('assigned_user_ids', None) or []
+
+        if payload.get('shift') and CompanyShift.objects.filter(
+                company=company, shift=payload['shift']).exists():
+            return Response({
+                'success': False,
+                'message': 'A shift with this name already exists in this company',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        normalize_error = _normalize_shift_assignment(
+            payload, company, assignment_mode, assigned_user_ids)
+        if normalize_error:
+            return normalize_error
+
         serializer = CompanyShiftSerializer(data=payload)
         if serializer.is_valid():
             selected_staff_type = serializer.validated_data.get('staff_type')
@@ -780,6 +878,7 @@ def company_shifts(request):
                     'message': 'Selected staff type does not belong to this company',
                 }, status=status.HTTP_400_BAD_REQUEST)
             shift = serializer.save()
+            _sync_shift_users(shift, assignment_mode, assigned_user_ids)
             return Response({
                 'success': True,
                 'message': 'Shift created successfully',
@@ -807,6 +906,15 @@ def company_shifts(request):
         }, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'DELETE':
+        assigned_count = CustomUser.objects.filter(shift=shift).count()
+        if assigned_count:
+            return Response({
+                'success': False,
+                'message': (
+                    f'{assigned_count} staff member(s) are assigned to this shift. '
+                    'Remove them from the shift first.'
+                ),
+            }, status=status.HTTP_400_BAD_REQUEST)
         shift.delete()
         return Response({
             'success': True,
@@ -815,6 +923,22 @@ def company_shifts(request):
 
     payload = request.data.copy()
     payload['company_id'] = company.id
+    assignment_mode = payload.pop('assignment_mode', 'all')
+    assigned_user_ids = payload.pop('assigned_user_ids', None) or []
+    prev_applicable_to = shift.applicable_to
+
+    if payload.get('shift') and CompanyShift.objects.filter(
+            company=company, shift=payload['shift']).exclude(id=shift.id).exists():
+        return Response({
+            'success': False,
+            'message': 'A shift with this name already exists in this company',
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    normalize_error = _normalize_shift_assignment(
+        payload, company, assignment_mode, assigned_user_ids)
+    if normalize_error:
+        return normalize_error
+
     serializer = CompanyShiftSerializer(shift, data=payload, partial=True)
     if serializer.is_valid():
         selected_staff_type = serializer.validated_data.get('staff_type')
@@ -824,6 +948,8 @@ def company_shifts(request):
                 'message': 'Selected staff type does not belong to this company',
             }, status=status.HTTP_400_BAD_REQUEST)
         updated_shift = serializer.save()
+        _sync_shift_users(updated_shift, assignment_mode, assigned_user_ids,
+                          prev_applicable_to=prev_applicable_to)
         return Response({
             'success': True,
             'message': 'Shift updated successfully',
