@@ -1042,6 +1042,7 @@ def getAllUsers(request, page):
         groups = [group_id_single]
     search = request.data.get('search', '').strip()
     include_self = request.data.get('include_self', False)
+    absent_only = request.data.get('absent_only', False)
 
     try:
         company = Company.objects.get(id=company_id)
@@ -1084,6 +1085,21 @@ def getAllUsers(request, page):
 
     users = CustomUser.objects.filter(filters).distinct().order_by(
         F('group__short_name').asc(nulls_last=True), 'first_name', 'last_name', 'id')
+
+    # absent_only: keep only employees who have NOT punched Check-In today
+    if absent_only:
+        today_local = date.today()
+        user_biometric_ids = [
+            str(b) for b in users.values_list('biometric_id', flat=True) if b
+        ]
+        punched_today_ids = set(
+            str(x) for x in PunchRecords.objects.using('secondary').filter(
+                user_id__in=user_biometric_ids,
+                punch_time__date=today_local,
+                status='Check-In'
+            ).values_list('user_id', flat=True).distinct()
+        )
+        users = users.exclude(biometric_id__in=list(punched_today_ids))
 
     male_count = users.filter(gender='M').count()
     female_count = users.filter(gender='F').count()
@@ -1519,6 +1535,15 @@ def todaysActiveUsers(request, page):
     paginator = Paginator(user_data, 10)
     page_data = paginator.get_page(page)
 
+    # Company-wide leave count: employees on approved leave today
+    leave_count = Leave.objects.filter(
+        user__in=users,
+        company_id=company_id,
+        from_date__lte=today,
+        to_date__gte=today,
+        status='A'
+    ).values('user_id').distinct().count()
+
     return Response({
         'status': status.HTTP_200_OK,
         'total': paginator.count,
@@ -1526,6 +1551,7 @@ def todaysActiveUsers(request, page):
         'male_count': male_count,
         'others_count': others_count,
         'female_count': female_count,
+        'leave_count': leave_count,
         'total_page': paginator.num_pages,
         'success': True,
         'message': "No active users found today." if paginator.count == 0 else "Success",

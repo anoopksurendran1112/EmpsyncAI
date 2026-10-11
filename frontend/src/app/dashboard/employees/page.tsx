@@ -287,12 +287,14 @@ function EmployeesList({ companyId }: { companyId: number }) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
 
-  // Only server-side params: group, search, and inactive filter
-  // active/leave/male/female are handled client-side via punch data
+  // Server-side params: group, search, inactive, and leave (absent) filter
+  // active/male/female are handled client-side
   const statusFilterParams = useMemo(() => {
     switch (selectedStatusFilter) {
       case "inactive":
         return { isActive: false };
+      case "leave":
+        return { absentOnly: true };
       default:
         return {};
     }
@@ -302,9 +304,10 @@ function EmployeesList({ companyId }: { companyId: number }) {
   const hasServerFilters =
     selectedGroupId !== 0 ||
     submittedSearchQuery !== "" ||
-    selectedStatusFilter === "inactive";
+    selectedStatusFilter === "inactive" ||
+    selectedStatusFilter === "leave";
 
-  const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
+  const hasClientFilter = ["active", "male", "female"].includes(selectedStatusFilter);
 
   // Employee caching and prefetching hooks
   const { getEmployee, setEmployee } = useEmployeeCache();
@@ -449,7 +452,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
     return Array.from(uniqueEmployees.values());
   }, [employeesData, pageSize]);
 
-  // Client-side filtering: active/leave use punch data; male/female use employee gender field
+  // Client-side filtering: active uses punch data; male/female use employee gender field
   const filteredEmployees = useMemo(() => {
     switch (selectedStatusFilter) {
       case "active":
@@ -457,12 +460,6 @@ function EmployeesList({ companyId }: { companyId: number }) {
         return employees.filter((emp) => {
           const punch = punches[emp.uniqueKey];
           return !!punch?.first_check_in;
-        });
-      case "leave":
-        // Active account but NO punch today (absent / on leave)
-        return employees.filter((emp) => {
-          const punch = punches[emp.uniqueKey];
-          return !punch?.first_check_in;
         });
       case "male":
         return employees.filter((emp) => emp.gender === "M");
@@ -475,7 +472,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
   // Starting serial number calculation
   const startSerialNumber = useMemo(() => {
-    const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
+    const hasClientFilter = ["active", "male", "female"].includes(selectedStatusFilter);
     if (hasClientFilter || hasServerFilters) {
       return 1;
     }
@@ -484,7 +481,7 @@ function EmployeesList({ companyId }: { companyId: number }) {
 
   // Total count calculation
   const displayTotalCount = useMemo(() => {
-    const hasClientFilter = ["active", "leave", "male", "female"].includes(selectedStatusFilter);
+    const hasClientFilter = ["active", "male", "female"].includes(selectedStatusFilter);
     // For client-side filters, show the count of filtered results
     if (hasClientFilter) {
       return filteredEmployees.length;
@@ -540,8 +537,8 @@ function EmployeesList({ companyId }: { companyId: number }) {
     if (selectedGroupId !== 0 && filteredEmployeesData) {
       return filteredEmployeesData.leaveCount ?? 0;
     }
-    return 0;
-  }, [selectedGroupId, filteredEmployeesData]);
+    return activeUsersData?.leave_count ?? 0;
+  }, [selectedGroupId, filteredEmployeesData, activeUsersData]);
 
   const displayMaleCount = useMemo(() => {
     if (selectedGroupId !== 0 && filteredEmployeesData) {
@@ -606,11 +603,11 @@ function EmployeesList({ companyId }: { companyId: number }) {
   ]);
 
   const adjustedStartSerialNumber = useMemo(() => {
-    if (hasClientFilter || hasServerFilters) {
+    if (hasClientFilter) {
       return 1;
     }
     return start;
-  }, [selectedStatusFilter, hasServerFilters, start]);
+  }, [hasClientFilter, start]);
 
   // Employee click handler with fast lookup
   const handleEmployeeClick = useCallback(

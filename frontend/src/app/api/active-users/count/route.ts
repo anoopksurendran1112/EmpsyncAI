@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         male_count: responseData.male_count || responseData.data?.male_count || 0,
         female_count: responseData.female_count || responseData.data?.female_count || 0,
         others_count: responseData.others_count || responseData.data?.others_count || 0,
+        leave_count: responseData.leave_count ?? 0,
         message: "Active users count fetched successfully"
       });
     } else {
@@ -73,6 +74,7 @@ export async function POST(req: Request) {
         male_count: 0,
         female_count: 0,
         others_count: 0,
+        leave_count: 0,
         message: `Backend unavailable (${res.status}), using fallback`,
         fallback: true
       });

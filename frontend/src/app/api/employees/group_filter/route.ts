@@ -32,6 +32,8 @@ export async function POST(req: Request) {
     const include_self = body.include_self;
     const single_employee = body.single_employee; // ✅ NEW: Flag for single employee request
 
+    const absent_only = body.absent_only;
+
     if (!company_id) {
       return NextResponse.json(
         { success: false, error: "company_id is required" },
@@ -151,6 +153,9 @@ export async function POST(req: Request) {
     }
     if (avg_hour_filter) {
       requestPayload.avg_hour_filter = avg_hour_filter;
+    }
+    if (absent_only !== undefined) {
+      requestPayload.absent_only = absent_only;
     }
 
     console.log("📤 [Group Filter] Sending payload to backend:", JSON.stringify(requestPayload, null, 2));
