@@ -1,26 +1,27 @@
 ﻿"use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Copy, Plus, Search, X } from "lucide-react"
+import { Plus, Search, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { salaryApi } from "./salary-api"
-import { salaryPeriods, salaryStaff, type SalaryPeriod, type SalaryStaffMember } from "./salary-data"
+import {
+  salaryApi,
+  type SalaryComponentRow,
+  type SalaryComponentType,
+  type SalaryComponentValue,
+  type SalaryConfigData,
+  type SalaryEmployeeDetail,
+  type SalaryEmployeeSummary,
+  type SalarySummary,
+  type SalaryTotals,
+} from "./salary-api"
 
 type Tab = "register" | "summary" | "configure"
-type EmployeeComponentKind = "Earning" | "Deduction"
-type EmployeeComponentType = "Fixed" | "% of Basic" | "% of Gross"
-type EmployeeComponentEntry = [EmployeeComponentKind, EmployeeComponentType, number, boolean]
 
-type EmployeeRecord = {
-  id: number
-  name: string
-  role: string
-  dept: string
-  type: "Permanent" | "Probationary"
-  basic: number
-  components: Record<string, EmployeeComponentEntry>
+interface ReportingPeriod {
+  value: string
+  label: string
 }
 
 const currency = new Intl.NumberFormat("en-IN", {
@@ -29,107 +30,120 @@ const currency = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 })
 
-const formatMoney = (value: number) => (Number.isFinite(value) ? currency.format(value) : "0")
+const formatMoney = (value: number | null | undefined) =>
+  Number.isFinite(value as number) ? currency.format(value as number) : "—"
 
-const employeeProfiles: EmployeeRecord[] = [
-  {
-    id: 1,
-    name: "Dr. S Jose",
-    role: "Principal",
-    dept: "ADMN",
-    type: "Permanent",
-    basic: 180000,
-    components: {
-      "Basic Pay": ["Earning", "Fixed", 180000, true],
-      "Special Allowance": ["Earning", "Fixed", 50000, true],
-      EPF: ["Deduction", "% of Basic", 12, true],
-      TDS: ["Deduction", "Fixed", 50000, true],
-    },
-  },
-  {
-    id: 2,
-    name: "Dr. Reshmila S",
-    role: "Professor",
-    dept: "EEE",
-    type: "Permanent",
-    basic: 70100,
-    components: {
-      "Basic Pay": ["Earning", "Fixed", 70100, true],
-      "Special Allowance": ["Earning", "Fixed", 7500, true],
-      "Bus Fee": ["Deduction", "Fixed", 1200, false],
-      EPF: ["Deduction", "% of Basic", 12, true],
-    },
-  },
-  {
-    id: 3,
-    name: "Dr. Sunil Kumar P G",
-    role: "Professor",
-    dept: "NASB",
-    type: "Permanent",
-    basic: 151565,
-    components: {
-      "Basic Pay": ["Earning", "Fixed", 151565, true],
-      "Travelling Allowance": ["Earning", "Fixed", 1000, true],
-      "LIC Premium": ["Deduction", "Fixed", 3500, true],
-      TDS: ["Deduction", "Fixed", 38500, true],
-    },
-  },
-  {
-    id: 4,
-    name: "Mr. G Deepak Varma",
-    role: "Administrative Officer",
-    dept: "ADMN",
-    type: "Probationary",
-    basic: 40000,
-    components: {
-      "Basic Pay": ["Earning", "Fixed", 40000, true],
-      "Special Allowance": ["Earning", "Fixed", 5000, true],
-      ESI: ["Deduction", "% of Gross", 1.75, true],
-    },
-  },
-  {
-    id: 5,
-    name: "Dr. P Krishnankutty",
-    role: "Professor",
-    dept: "NASB",
-    type: "Probationary",
-    basic: 150000,
-    components: {
-      "Basic Pay": ["Earning", "Fixed", 150000, true],
-      ESI: ["Deduction", "% of Gross", 1.75, false],
-    },
-  },
+// Periods are generated from the current date (no hardcoded list).
+function buildRecentPeriods(count = 12): ReportingPeriod[] {
+  const now = new Date()
+  const periods: ReportingPeriod[] = []
+  for (let offset = 0; offset < count; offset += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - offset, 1)
+    periods.push({
+      value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
+      label: date.toLocaleString("en-US", { month: "long", year: "numeric" }),
+    })
+  }
+  return periods
+}
+
+const SALARY_TYPES = [
+  { value: "regular", label: "Regular" },
+  { value: "consolidated", label: "Consolidated" },
+  { value: "per_diem", label: "Per diem" },
 ]
 
-function calcComponentAmount(entry: EmployeeComponentEntry, basic: number, gross: number) {
-  const [, type, value, isActive] = entry
-  if (!isActive) return 0
+const EMPLOYMENT_TYPES = [
+  { value: "permanent", label: "Permanent" },
+  { value: "probationary", label: "Probationary" },
+]
 
-  if (type === "Fixed") return value
-  if (type === "% of Basic") return (basic * value) / 100
-  return (gross * value) / 100
+const STATUSES = [
+  { value: "active", label: "Active" },
+  { value: "on_hold", label: "On hold" },
+  { value: "new_joiner", label: "New joiner" },
+  { value: "on_lwa", label: "On LWA" },
+  { value: "per_diem", label: "Per diem" },
+  { value: "exited", label: "Exited" },
+]
+
+const TYPE_LABELS: Record<SalaryComponentType, string> = {
+  fixed: "Fixed",
+  percent_basic: "% of Basic",
+  percent_gross: "% of Gross",
 }
 
-function getEmployeeSummary(employee: EmployeeRecord) {
-  const gross = Object.entries(employee.components).reduce((total, [name, entry]) => {
-    if (entry[0] !== "Earning" || !entry[3]) return total
-    if (name === "Basic Pay") return total + employee.basic
-    return total + calcComponentAmount(entry, employee.basic, employee.basic)
-  }, 0)
+const COMPONENT_TYPES: SalaryComponentType[] = ["fixed", "percent_basic", "percent_gross"]
 
-  const deductions = Object.values(employee.components).reduce((total, entry) => {
-    if (entry[0] !== "Deduction" || !entry[3]) return total
-    return total + calcComponentAmount(entry, employee.basic, gross)
-  }, 0)
+const salaryTypeLabel = (value: string) =>
+  SALARY_TYPES.find((item) => item.value === value)?.label ?? value
 
-  return {
-    gross,
-    deductions,
-    net: gross - deductions,
+type Draft = Record<string, SalaryComponentValue>
+
+function draftFromDetail(detail: SalaryEmployeeDetail): Draft {
+  const draft: Draft = {}
+  for (const component of detail.components) {
+    draft[component.key] = { value: component.value, active: component.active }
   }
+  return draft
 }
 
-function StatusBadge({ status }: { status: SalaryStaffMember["status"] }) {
+function computePreview(components: SalaryComponentRow[], draft: Draft) {
+  const rows = components.map((component) => {
+    const entry = draft[component.key]
+    return {
+      ...component,
+      value: entry ? entry.value : component.value,
+      active: entry ? entry.active : component.active,
+    }
+  })
+
+  let basic = 0
+  for (const row of rows) {
+    if (row.kind === "earning" && row.key === "basic" && row.active) basic = row.value || 0
+  }
+
+  let gross = 0
+  for (const row of rows) {
+    if (row.kind !== "earning" || !row.active) continue
+    const value = row.value || 0
+    if (row.type === "fixed") gross += value
+    else if (row.type === "percent_basic") gross += (basic * value) / 100
+  }
+  for (const row of rows) {
+    if (row.kind === "earning" && row.active && row.type === "percent_gross") {
+      gross += (gross * (row.value || 0)) / 100
+    }
+  }
+
+  let deductions = 0
+  for (const row of rows) {
+    if (row.kind !== "deduction" || !row.active) continue
+    const value = row.value || 0
+    if (row.type === "fixed") deductions += value
+    else if (row.type === "percent_basic") deductions += (basic * value) / 100
+    else if (row.type === "percent_gross") deductions += (gross * value) / 100
+  }
+
+  const applied: Record<string, number> = {}
+  for (const row of rows) {
+    const value = row.value || 0
+    if (!row.active) {
+      applied[row.key] = 0
+    } else if (row.type === "fixed") {
+      applied[row.key] = value
+    } else if (row.type === "percent_basic") {
+      applied[row.key] = (basic * value) / 100
+    } else {
+      applied[row.key] = (gross * value) / 100
+    }
+  }
+
+  const totals: SalaryTotals = { basic, gross, deductions, net: gross - deductions }
+  return { rows, applied, totals }
+}
+
+function StatusBadge({ status }: { status: string }) {
   const tone =
     status === "Active"
       ? "bg-teal-50 text-teal-700"
@@ -137,88 +151,221 @@ function StatusBadge({ status }: { status: SalaryStaffMember["status"] }) {
         ? "bg-blue-50 text-blue-700"
         : "bg-amber-50 text-amber-700"
 
-  return <span className={cn("inline-flex rounded-full px-2 py-1 text-[11px] font-semibold", tone)}>{status}</span>
+  return (
+    <span className={cn("inline-flex rounded-full px-2 py-1 text-[11px] font-semibold", tone)}>
+      {status}
+    </span>
+  )
 }
 
 export default function SalaryPage() {
-  const [periods, setPeriods] = useState<SalaryPeriod[]>(salaryPeriods)
-  const [selectedPeriod, setSelectedPeriod] = useState("June 2026")
+  const periods = useMemo(() => buildRecentPeriods(12), [])
+  const [selectedPeriod, setSelectedPeriod] = useState(periods[0].value)
   const [activeTab, setActiveTab] = useState<Tab>("register")
   const [search, setSearch] = useState("")
+
+  const [employees, setEmployees] = useState<SalaryEmployeeSummary[]>([])
+  const [employeesLoading, setEmployeesLoading] = useState(true)
+  const [summary, setSummary] = useState<SalarySummary | null>(null)
+
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null)
+  const [detail, setDetail] = useState<SalaryEmployeeDetail | null>(null)
+  const [draft, setDraft] = useState<Draft>({})
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(1)
-  const [employeeProfilesState, setEmployeeProfilesState] = useState<EmployeeRecord[]>(employeeProfiles)
+  const [config, setConfig] = useState<SalaryConfigData | null>(null)
+  const [configSaving, setConfigSaving] = useState(false)
   const [newEarningName, setNewEarningName] = useState("")
-  const [newEarningType, setNewEarningType] = useState<EmployeeComponentType>("Fixed")
+  const [newEarningType, setNewEarningType] = useState<SalaryComponentType>("fixed")
+  const [newEarningValue, setNewEarningValue] = useState("")
   const [newDeductionName, setNewDeductionName] = useState("")
-  const [newDeductionType, setNewDeductionType] = useState<EmployeeComponentType>("Fixed")
+  const [newDeductionType, setNewDeductionType] = useState<SalaryComponentType>("fixed")
+  const [newDeductionValue, setNewDeductionValue] = useState("")
 
-  useEffect(() => {
-    void salaryApi.listPeriods().then((data) => setPeriods(data))
-  }, [])
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null)
 
-  const period = periods.find((item) => item.name === selectedPeriod) ?? periods[0]
+  const periodLabel = periods.find((item) => item.value === selectedPeriod)?.label ?? selectedPeriod
 
-  const selectedEmployee =
-    employeeProfilesState.find((employee) => employee.id === selectedEmployeeId) ?? employeeProfilesState[0]
-
-  const filteredStaff = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return salaryStaff
-    return salaryStaff.filter((item) => `${item.name} ${item.role} ${item.department}`.toLowerCase().includes(query))
-  }, [search])
-
-  const employeeTotals = useMemo(() => getEmployeeSummary(selectedEmployee), [selectedEmployee])
-
-  const updateEmployeeComponent = (componentName: string, toggled?: boolean) => {
-    setEmployeeProfilesState((current) =>
-      current.map((employee) => {
-        if (employee.id !== selectedEmployeeId) return employee
-
-        const component = employee.components[componentName]
-        if (!component) return employee
-
-        return {
-          ...employee,
-          components: {
-            ...employee.components,
-            [componentName]: toggled === undefined ? component : [component[0], component[1], component[2], toggled],
-          },
-        }
-      }),
-    )
+  const loadEmployees = async () => {
+    setEmployeesLoading(true)
+    try {
+      const data = await salaryApi.listEmployees()
+      setEmployees(data)
+      setSelectedEmployeeId((current) => current ?? data[0]?.employee_id ?? null)
+    } catch (error) {
+      setNotice({ tone: "error", text: (error as Error).message })
+    } finally {
+      setEmployeesLoading(false)
+    }
   }
 
-  const addComponent = (kind: EmployeeComponentKind) => {
-    const name = kind === "Earning" ? newEarningName.trim() : newDeductionName.trim()
-    const type = kind === "Earning" ? newEarningType : newDeductionType
-    const value = 0
+  const loadSummary = async () => {
+    try {
+      setSummary(await salaryApi.getSummary())
+    } catch (error) {
+      setNotice({ tone: "error", text: (error as Error).message })
+    }
+  }
 
-    if (!name) return
+  useEffect(() => {
+    void loadEmployees()
+    void loadSummary()
+  }, [])
 
-    setEmployeeProfilesState((current) =>
-      current.map((employee) => {
-        if (employee.id !== selectedEmployeeId) return employee
+  useEffect(() => {
+    if (selectedEmployeeId == null) return
+    let cancelled = false
+    setDetailLoading(true)
+    salaryApi
+      .getEmployee(selectedEmployeeId)
+      .then((data) => {
+        if (cancelled) return
+        setDetail(data)
+        setDraft(draftFromDetail(data))
+      })
+      .catch((error: Error) => {
+        if (!cancelled) setNotice({ tone: "error", text: error.message })
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedEmployeeId])
 
-        return {
-          ...employee,
-          components: {
-            ...employee.components,
-            [name]: [kind, type, value, true],
-          },
-        }
-      }),
+  const filteredRegister = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return employees
+    return employees.filter((item) =>
+      `${item.name} ${item.role} ${item.dept}`.toLowerCase().includes(query),
     )
+  }, [employees, search])
 
-    if (kind === "Earning") {
+  const preview = useMemo(
+    () => (detail ? computePreview(detail.components, draft) : null),
+    [detail, draft],
+  )
+
+  const earningRows = preview?.rows.filter((row) => row.kind === "earning") ?? []
+  const deductionRows = preview?.rows.filter((row) => row.kind === "deduction") ?? []
+
+  const summaryEarnings = summary?.components.filter((row) => row.kind === "earning") ?? []
+  const summaryDeductions = summary?.components.filter((row) => row.kind === "deduction") ?? []
+
+  const updateDraft = (key: string, patch: Partial<SalaryComponentValue>) => {
+    setDraft((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
+  }
+
+  const handleSaveEmployee = async () => {
+    if (!detail || !selectedEmployeeId) return
+    setSaving(true)
+    setNotice(null)
+    try {
+      const saved = await salaryApi.saveEmployee(selectedEmployeeId, {
+        salary_type: detail.salary_type,
+        employment_type: detail.employment_type,
+        status: detail.status,
+        components: draft,
+      })
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              salary_type: saved.salary_type,
+              employment_type: saved.employment_type,
+              status: saved.status,
+              status_label: saved.status_label,
+              configured: true,
+              components: saved.components,
+              totals: saved.totals,
+            }
+          : current,
+      )
+      setNotice({ tone: "success", text: "Salary structure saved." })
+      void loadEmployees()
+      void loadSummary()
+    } catch (error) {
+      setNotice({ tone: "error", text: (error as Error).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openConfigModal = async () => {
+    setIsModalOpen(true)
+    if (config) return
+    try {
+      setConfig(await salaryApi.getConfig())
+    } catch (error) {
+      setNotice({ tone: "error", text: (error as Error).message })
+    }
+  }
+
+  const addConfigComponent = (kind: "earning" | "deduction") => {
+    const name = (kind === "earning" ? newEarningName : newDeductionName).trim()
+    const type = kind === "earning" ? newEarningType : newDeductionType
+    const rawValue = kind === "earning" ? newEarningValue : newDeductionValue
+    if (!name || !config) return
+
+    const value = type === "fixed" ? 0 : Number(rawValue) || 0
+    const next: SalaryConfigData = {
+      ...config,
+      earnings: kind === "earning" ? [...config.earnings, { name, type, value }] : config.earnings,
+      deductions:
+        kind === "deduction" ? [...config.deductions, { name, type, value }] : config.deductions,
+    }
+    setConfig(next)
+
+    if (kind === "earning") {
       setNewEarningName("")
-      setNewEarningType("Fixed")
+      setNewEarningType("fixed")
+      setNewEarningValue("")
     } else {
       setNewDeductionName("")
-      setNewDeductionType("Fixed")
+      setNewDeductionType("fixed")
+      setNewDeductionValue("")
     }
+  }
 
-    setIsModalOpen(false)
+  const removeConfigComponent = (kind: "earning" | "deduction", index: number) => {
+    if (!config) return
+    const next: SalaryConfigData = {
+      ...config,
+      earnings:
+        kind === "earning"
+          ? config.earnings.filter((_, i) => i !== index)
+          : config.earnings,
+      deductions:
+        kind === "deduction"
+          ? config.deductions.filter((_, i) => i !== index)
+          : config.deductions,
+    }
+    setConfig(next)
+  }
+
+  const handleSaveConfig = async () => {
+    if (!config) return
+    setConfigSaving(true)
+    setNotice(null)
+    try {
+      const saved = await salaryApi.saveConfig(config)
+      setConfig(saved)
+      setIsModalOpen(false)
+      setNotice({ tone: "success", text: "Company salary components saved." })
+      if (selectedEmployeeId != null) {
+        const refreshed = await salaryApi.getEmployee(selectedEmployeeId)
+        setDetail(refreshed)
+        setDraft(draftFromDetail(refreshed))
+      }
+      void loadSummary()
+    } catch (error) {
+      setNotice({ tone: "error", text: (error as Error).message })
+    } finally {
+      setConfigSaving(false)
+    }
   }
 
   return (
@@ -237,385 +384,570 @@ export default function SalaryPage() {
             className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none ring-0 transition focus:border-teal-500"
           >
             {periods.map((item) => (
-              <option key={item.name} value={item.name}>
-                {item.name}
+              <option key={item.value} value={item.value}>
+                {item.label}
               </option>
             ))}
           </select>
         </label>
       </header>
 
-      {period && (
-        <>
-          <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: "Total Staff", value: period.staffCount },
-              { label: "Gross Payable", value: formatMoney(period.grossPayable) },
-              { label: "Total Deductions", value: formatMoney(period.deductions) },
-              { label: "Net Payable", value: formatMoney(period.netPayable) },
-            ].map((item, index) => (
-              <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
-                <p className={cn("text-[22px] font-bold text-slate-900", index === 3 && "text-teal-600")}>{item.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
-            {[
-              { id: "register", label: "Staff Register" },
-              { id: "summary", label: "Salary Summary" },
-              { id: "configure", label: "Configure Salary" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as Tab)}
-                className={cn(
-                  "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition",
-                  activeTab === tab.id
-                    ? "border-teal-600 text-teal-600"
-                    : "border-transparent text-slate-500 hover:text-slate-900",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {activeTab === "register" && (
-            <section>
-              <div className="my-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Staff Register</h2>
-                  <p className="mt-1 text-xs text-slate-500">Payroll period: {selectedPeriod}</p>
-                </div>
-
-                <div className="relative w-full sm:w-[320px]">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search staff member or department..."
-                    className="h-10 pl-9 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] border-collapse text-left">
-                    <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                      <tr>
-                        {[
-                          "Sl.",
-                          "Staff member",
-                          "Department",
-                          "Joined",
-                          "Salary Type",
-                          "Basic / consolidated",
-                          "Allowance",
-                          "Deductions",
-                          "Net Payable",
-                          "Status",
-                        ].map((heading) => (
-                          <th key={heading} className="border-b border-slate-200 px-4 py-3 font-semibold">
-                            {heading}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStaff.map((item, index) => {
-                        const allowance = Math.round(item.base * 0.06)
-                        const deductions = Math.round(item.base * 0.07)
-                        const net = item.base + allowance - deductions
-
-                        return (
-                          <tr key={`${item.name}-${item.role}`} className="border-b border-slate-100 last:border-0">
-                            <td className="px-4 py-3 text-sm text-slate-700">{index + 1}</td>
-                            <td className="px-4 py-3">
-                              <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                              <p className="mt-1 text-[11px] text-slate-500">{item.role}</p>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-slate-700">{item.department}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700">{item.joined}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700">{item.salaryType}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(item.base)}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(allowance)}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs text-red-700">{formatMoney(deductions)}</td>
-                            <td className="px-4 py-3 text-right font-mono text-xs font-bold text-slate-900">{formatMoney(net)}</td>
-                            <td className="px-4 py-3">{item.status && <StatusBadge status={item.status} />}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
+      {notice && (
+        <div
+          className={cn(
+            "mb-4 rounded-lg border px-4 py-3 text-sm",
+            notice.tone === "success"
+              ? "border-teal-200 bg-teal-50 text-teal-800"
+              : "border-red-200 bg-red-50 text-red-700",
           )}
+        >
+          {notice.text}
+        </div>
+      )}
 
-          {activeTab === "summary" && (
-            <section className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
-                <div>
-                  <h2 className="text-[15px] font-bold text-slate-900">Salary Summary</h2>
-                  <p className="mt-1 text-xs text-slate-500">Component-wise payroll summary for the selected month</p>
-                </div>
-                <span className="text-xs font-medium text-slate-500">{selectedPeriod}</span>
-              </div>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Staff on Payroll", value: summary ? String(summary.totals.staff_count) : "—" },
+          { label: "Gross Payable", value: formatMoney(summary?.totals.gross) },
+          { label: "Total Deductions", value: formatMoney(summary?.totals.deductions) },
+          { label: "Net Payable", value: formatMoney(summary?.totals.net) },
+        ].map((item, index) => (
+          <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">{item.label}</p>
+            <p className={cn("text-[22px] font-bold text-slate-900", index === 3 && "text-teal-600")}>{item.value}</p>
+          </div>
+        ))}
+      </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left">
-                  <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                    <tr>
-                      <th className="border-b border-slate-200 px-5 py-3">Component</th>
-                      <th className="border-b border-slate-200 px-5 py-3">Permanent Staff</th>
-                      <th className="border-b border-slate-200 px-5 py-3">Probationary Staff</th>
-                      <th className="border-b border-slate-200 px-5 py-3">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm text-slate-700">
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200">
+        {[
+          { id: "register", label: "Staff Register" },
+          { id: "summary", label: "Salary Summary" },
+          { id: "configure", label: "Configure Salary" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id as Tab)}
+            className={cn(
+              "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition",
+              activeTab === tab.id
+                ? "border-teal-600 text-teal-600"
+                : "border-transparent text-slate-500 hover:text-slate-900",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "register" && (
+        <section>
+          <div className="my-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Staff Register</h2>
+              <p className="mt-1 text-xs text-slate-500">Payroll period: {periodLabel}</p>
+            </div>
+
+            <div className="relative w-full sm:w-[320px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search staff member or department..."
+                className="h-10 pl-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px] border-collapse text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                  <tr>
                     {[
-                      { label: "Basic pay", permanent: period.permanent.earnings[0]?.amount ?? 0, probationary: period.probationary.earnings[0]?.amount ?? 0 },
-                      { label: "Special pay", permanent: period.permanent.earnings[1]?.amount ?? 0, probationary: period.probationary.earnings[1]?.amount ?? 0 },
-                      { label: "Travelling allowance", permanent: period.permanent.earnings[2]?.amount ?? 0, probationary: 0 },
-                      { label: "Gross earnings", permanent: period.permanent.earnings[3]?.amount ?? 0, probationary: period.probationary.earnings[3]?.amount ?? 0 },
-                      { label: "LWA / excess paid", permanent: period.permanent.less[0]?.amount ?? 0, probationary: period.probationary.less[0]?.amount ?? 0 },
-                      { label: "Total deductions", permanent: period.permanent.deductions[period.permanent.deductions.length - 1]?.amount ?? 0, probationary: period.probationary.deductions[period.probationary.deductions.length - 1]?.amount ?? 0 },
-                      { label: "Net payable", permanent: period.permanent.netPayable, probationary: period.probationary.netPayable },
-                    ].map((row) => {
-                      const total = row.permanent + row.probationary
-
+                      "Sl.",
+                      "Staff member",
+                      "Department",
+                      "Joined",
+                      "Salary Type",
+                      "Basic / consolidated",
+                      "Allowance",
+                      "Deductions",
+                      "Net Payable",
+                      "Status",
+                    ].map((heading) => (
+                      <th key={heading} className="border-b border-slate-200 px-4 py-3 font-semibold">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeesLoading ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-slate-500">
+                        Loading staff…
+                      </td>
+                    </tr>
+                  ) : filteredRegister.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-slate-500">
+                        No staff members found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRegister.map((item, index) => {
+                      const allowance = item.gross - item.basic
                       return (
-                        <tr key={row.label} className="border-b border-slate-100 last:border-0">
-                          <td className="px-5 py-3 font-semibold text-slate-900">{row.label}</td>
-                          <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.permanent)}</td>
-                          <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.probationary)}</td>
-                          <td className="px-5 py-3 font-mono text-xs font-bold text-slate-900">{formatMoney(total)}</td>
+                        <tr key={item.employee_id} className="border-b border-slate-100 last:border-0">
+                          <td className="px-4 py-3 text-sm text-slate-700">{index + 1}</td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                            <p className="mt-1 text-[11px] text-slate-500">{item.role}</p>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{item.dept}</td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{item.joined || "—"}</td>
+                          <td className="px-4 py-3 text-sm text-slate-700">{salaryTypeLabel(item.salary_type)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(item.basic)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(allowance)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-red-700">{formatMoney(item.deductions)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-xs font-bold text-slate-900">{formatMoney(item.net)}</td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={item.status_label} />
+                          </td>
                         </tr>
                       )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
-              <div className="px-5 py-4 text-base font-bold text-slate-900">
-                Combined Net Payable: <span className="text-teal-600">{formatMoney(period.netPayable)}</span>
-              </div>
-            </section>
-          )}
+      {activeTab === "summary" && (
+        <section className="mt-5 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-900">Salary Summary</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Component-wise payroll summary for the selected month
+              </p>
+            </div>
+            <span className="text-xs font-medium text-slate-500">{periodLabel}</span>
+          </div>
 
-          {activeTab === "configure" && (
-            <section className="mt-5">
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <label className="text-xs font-medium text-slate-500">
-                  Select Employee
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(event) => setSelectedEmployeeId(Number(event.target.value))}
-                    className="mt-2 block h-10 min-w-[340px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-500"
-                  >
-                    {employeeProfilesState.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.name} · {employee.role} · {employee.dept}
-                      </option>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] border-collapse text-left">
+              <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                <tr>
+                  <th className="border-b border-slate-200 px-5 py-3">Component</th>
+                  <th className="border-b border-slate-200 px-5 py-3">
+                    Permanent Staff
+                    {summary ? <span className="ml-1 normal-case text-slate-400">({summary.permanent.staff_count})</span> : null}
+                  </th>
+                  <th className="border-b border-slate-200 px-5 py-3">
+                    Probationary Staff
+                    {summary ? <span className="ml-1 normal-case text-slate-400">({summary.probationary.staff_count})</span> : null}
+                  </th>
+                  <th className="border-b border-slate-200 px-5 py-3">Total</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm text-slate-700">
+                {!summary ? (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-500">
+                      Loading summary…
+                    </td>
+                  </tr>
+                ) : (
+                  <>
+                    {summaryEarnings.map((row) => (
+                      <tr key={row.key} className="border-b border-slate-100">
+                        <td className="px-5 py-3 font-medium text-slate-900">{row.name}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.permanent)}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.probationary)}</td>
+                        <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-900">{formatMoney(row.total)}</td>
+                      </tr>
                     ))}
-                  </select>
-                </label>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <td className="px-5 py-3 font-bold text-slate-900">Gross earnings</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-900">{formatMoney(summary.permanent.gross)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-900">{formatMoney(summary.probationary.gross)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-slate-900">{formatMoney(summary.totals.gross)}</td>
+                    </tr>
+                    {summaryDeductions.map((row) => (
+                      <tr key={row.key} className="border-b border-slate-100">
+                        <td className="px-5 py-3 font-medium text-slate-900">{row.name}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.permanent)}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-slate-700">{formatMoney(row.probationary)}</td>
+                        <td className="px-5 py-3 font-mono text-xs font-semibold text-slate-900">{formatMoney(row.total)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <td className="px-5 py-3 font-bold text-slate-900">Total deductions</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold text-red-700">{formatMoney(summary.permanent.deductions)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-semibold text-red-700">{formatMoney(summary.probationary.deductions)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-red-700">{formatMoney(summary.totals.deductions)}</td>
+                    </tr>
+                    <tr>
+                      <td className="px-5 py-3 font-bold text-slate-900">Net payable</td>
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-teal-700">{formatMoney(summary.permanent.net)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-teal-700">{formatMoney(summary.probationary.net)}</td>
+                      <td className="px-5 py-3 font-mono text-xs font-bold text-teal-700">{formatMoney(summary.totals.net)}</td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                <Button type="button" onClick={() => setIsModalOpen(true)} className="bg-teal-600 hover:bg-teal-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Configure Components
-                </Button>
-              </div>
+          <div className="px-5 py-4 text-base font-bold text-slate-900">
+            Combined Net Payable: <span className="text-teal-600">{formatMoney(summary?.totals.net)}</span>
+          </div>
+        </section>
+      )}
 
+      {activeTab === "configure" && (
+        <section className="mt-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="text-xs font-medium text-slate-500">
+              Select Employee
+              <select
+                value={selectedEmployeeId ?? ""}
+                onChange={(event) => setSelectedEmployeeId(Number(event.target.value))}
+                className="mt-2 block h-10 min-w-[340px] rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-500"
+              >
+                {employees.length === 0 && <option value="">No employees</option>}
+                {employees.map((employee) => (
+                  <option key={employee.employee_id} value={employee.employee_id}>
+                    {employee.name} · {employee.role} · {employee.dept}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={openConfigModal}>
+                Company Components
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveEmployee}
+                disabled={!detail || saving}
+                className="bg-teal-600 hover:bg-teal-700"
+              >
+                {saving ? "Saving…" : "Save Structure"}
+              </Button>
+            </div>
+          </div>
+
+          {detailLoading || !detail || !preview ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+              {detailLoading ? "Loading salary structure…" : "Select an employee to configure salary."}
+            </div>
+          ) : (
+            <>
               <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Employee</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{selectedEmployee.name}</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{detail.name}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Role</p>
-                  <p className="mt-2 text-sm text-slate-700">{selectedEmployee.role}</p>
+                  <p className="mt-2 text-sm text-slate-700">{detail.role || "—"}</p>
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Department</p>
-                  <p className="mt-2 text-sm text-slate-700">{selectedEmployee.dept}</p>
+                  <p className="mt-2 text-sm text-slate-700">{detail.dept || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Employment</p>
-                  <p className="mt-2 text-sm text-slate-700">{selectedEmployee.type}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Status</p>
+                  <p className="mt-2 text-sm text-slate-700">{[detail.status_label, detail.configured ? null : "Not configured"].filter(Boolean).join(" · ")}</p>
                 </div>
               </div>
 
+              <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3">
+                <label className="text-xs font-medium text-slate-500">
+                  Salary Type
+                  <select
+                    value={detail.salary_type}
+                    onChange={(event) => setDetail({ ...detail, salary_type: event.target.value })}
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  >
+                    {SALARY_TYPES.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Employment
+                  <select
+                    value={detail.employment_type}
+                    onChange={(event) => setDetail({ ...detail, employment_type: event.target.value })}
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  >
+                    {EMPLOYMENT_TYPES.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Status
+                  <select
+                    value={detail.status}
+                    onChange={(event) => setDetail({ ...detail, status: event.target.value })}
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  >
+                    {STATUSES.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
               <div className="space-y-4">
-                {["Earning", "Deduction" as const].map((kind) => {
-                  const rows = Object.entries(selectedEmployee.components).filter(([_, entry]) => entry[0] === kind)
-
-                  return (
-                    <div key={kind} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
-                        <div>
-                          <div className="text-base font-bold text-slate-900">{kind === "Earning" ? "Earnings" : "Deductions"}</div>
-                          <div className="mt-1 text-[11px] text-slate-500">
-                            {kind === "Earning" ? "Allowances and other earning components" : "Salary reductions applied to this employee"}
-                          </div>
-                        </div>
-                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                          {rows.length} {rows.length === 1 ? "component" : "components"}
-                        </span>
+                {(
+                  [
+                    { kind: "earning" as const, rows: earningRows, title: "Earnings", hint: "Allowances and other earning components" },
+                    { kind: "deduction" as const, rows: deductionRows, title: "Deductions", hint: "Salary reductions applied to this employee" },
+                  ]
+                ).map((group) => (
+                  <div key={group.kind} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
+                      <div>
+                        <div className="text-base font-bold text-slate-900">{group.title}</div>
+                        <div className="mt-1 text-[11px] text-slate-500">{group.hint}</div>
                       </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[750px] border-collapse text-left">
-                          <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
-                            <tr>
-                              <th className="border-b border-slate-200 px-4 py-3 font-semibold">Component</th>
-                              <th className="border-b border-slate-200 px-4 py-3 font-semibold">Type</th>
-                              <th className="border-b border-slate-200 px-4 py-3 font-semibold">Value</th>
-                              <th className="border-b border-slate-200 px-4 py-3 font-semibold">Status</th>
-                              <th className="border-b border-slate-200 px-4 py-3 font-semibold">Applied Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.length === 0 ? (
-                              <tr>
-                                <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
-                                  No {kind.toLowerCase()} components added yet.
-                                </td>
-                              </tr>
-                            ) : (
-                              rows.map(([name, entry]) => {
-                                const amount = calcComponentAmount(entry, selectedEmployee.basic, employeeTotals.gross)
-
-                                return (
-                                  <tr key={name} className="border-b border-slate-100 last:border-0">
-                                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{name}</td>
-                                    <td className="px-4 py-3 text-sm text-slate-700">{entry[1]}</td>
-                                    <td className="px-4 py-3 text-sm font-mono text-slate-900">{entry[1] === "Fixed" ? formatMoney(entry[2]) : `${entry[2]}%`}</td>
-                                    <td className="px-4 py-3">
-                                      <div className="flex items-center gap-3">
-                                        <button
-                                          type="button"
-                                          aria-label={`Toggle ${name}`}
-                                          onClick={() => updateEmployeeComponent(name, !entry[3])}
-                                          className={cn(
-                                            "relative inline-flex h-6 w-11 items-center rounded-full transition",
-                                            entry[3] ? "bg-teal-600" : "bg-slate-200",
-                                          )}
-                                        >
-                                          <span
-                                            className={cn(
-                                              "inline-block h-4 w-4 rounded-full bg-white transition",
-                                              entry[3] ? "translate-x-6" : "translate-x-1",
-                                            )}
-                                          />
-                                        </button>
-                                        <span className={cn("text-xs font-semibold", entry[3] ? "text-teal-700" : "text-slate-500")}>{entry[3] ? "Active" : "Inactive"}</span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(amount)}</td>
-                                  </tr>
-                                )
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                        {group.rows.length} {group.rows.length === 1 ? "component" : "components"}
+                      </span>
                     </div>
-                  )
-                })}
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[750px] border-collapse text-left">
+                        <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                          <tr>
+                            <th className="border-b border-slate-200 px-4 py-3 font-semibold">Component</th>
+                            <th className="border-b border-slate-200 px-4 py-3 font-semibold">Type</th>
+                            <th className="border-b border-slate-200 px-4 py-3 font-semibold">Value</th>
+                            <th className="border-b border-slate-200 px-4 py-3 font-semibold">Status</th>
+                            <th className="border-b border-slate-200 px-4 py-3 font-semibold">Applied Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.rows.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-500">
+                                No {group.title.toLowerCase()} configured. Use “Company Components” to add some.
+                              </td>
+                            </tr>
+                          ) : (
+                            group.rows.map((row) => {
+                              const entry = draft[row.key] ?? { value: row.value, active: row.active }
+                              return (
+                                <tr key={row.key} className="border-b border-slate-100 last:border-0">
+                                  <td className="px-4 py-3 text-sm font-semibold text-slate-900">{row.name}</td>
+                                  <td className="px-4 py-3 text-sm text-slate-700">{TYPE_LABELS[row.type]}</td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        step="0.01"
+                                        value={entry.value}
+                                        onChange={(event) =>
+                                          updateDraft(row.key, { value: Number(event.target.value) || 0 })
+                                        }
+                                        className="h-9 w-28 text-right text-sm"
+                                      />
+                                      {row.type !== "fixed" && <span className="text-sm text-slate-500">%</span>}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        type="button"
+                                        aria-label={`Toggle ${row.name}`}
+                                        onClick={() => updateDraft(row.key, { active: !entry.active })}
+                                        className={cn(
+                                          "relative inline-flex h-6 w-11 items-center rounded-full transition",
+                                          entry.active ? "bg-teal-600" : "bg-slate-200",
+                                        )}
+                                      >
+                                        <span
+                                          className={cn(
+                                            "inline-block h-4 w-4 rounded-full bg-white transition",
+                                            entry.active ? "translate-x-6" : "translate-x-1",
+                                          )}
+                                        />
+                                      </button>
+                                      <span className={cn("text-xs font-semibold", entry.active ? "text-teal-700" : "text-slate-500")}>
+                                        {entry.active ? "Active" : "Inactive"}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">
+                                    {formatMoney(preview.applied[row.key] ?? 0)}
+                                  </td>
+                                </tr>
+                              )
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Active Earnings</p>
-                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(employeeTotals.gross)}</p>
+                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(preview.totals.gross)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Active Deductions</p>
-                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(employeeTotals.deductions)}</p>
+                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(preview.totals.deductions)}</p>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Estimated Net</p>
-                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(employeeTotals.net)}</p>
+                  <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(preview.totals.net)}</p>
                 </div>
               </div>
-            </section>
+            </>
           )}
-        </>
+        </section>
       )}
-
-      <div className="mt-6 text-xs text-slate-500">Demo frontend only. Company components and employee salary settings are static and can later be connected to the backend.</div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Add Salary Components</h3>
-                <p className="mt-1 text-xs text-slate-500">Type a component name and save it directly to the selected employee</p>
+                <h3 className="text-lg font-bold text-slate-900">Company Salary Components</h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  Components and their rules are shared across every employee in this company
+                </p>
               </div>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-slate-500 hover:bg-slate-200">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="rounded-lg border border-slate-200 bg-slate-100 p-2 text-slate-500 hover:bg-slate-200"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <div className="space-y-6 p-5">
-              <div>
-                <h4 className="mb-3 text-sm font-bold text-slate-900">Earning Components</h4>
-                <div className="flex flex-col gap-2 md:flex-row">
-                  <Input
-                    value={newEarningName}
-                    onChange={(event) => setNewEarningName(event.target.value)}
-                    placeholder="Enter earning component name"
-                    className="flex-1"
-                  />
-                  <select
-                    value={newEarningType}
-                    onChange={(event) => setNewEarningType(event.target.value as EmployeeComponentType)}
-                    className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                  >
-                    <option value="Fixed">Fixed</option>
-                    <option value="% of Basic">% of Basic</option>
-                    <option value="% of Gross">% of Gross</option>
-                  </select>
-                  <Button type="button" onClick={() => addComponent("Earning")} className="bg-teal-600 hover:bg-teal-700">
-                    <Plus className="mr-2 h-4 w-4" /> Add
-                  </Button>
-                </div>
-              </div>
+              {!config ? (
+                <p className="text-sm text-slate-500">Loading components…</p>
+              ) : (
+                (["earning", "deduction"] as const).map((kind) => {
+                  const items = kind === "earning" ? config.earnings : config.deductions
+                  const name = kind === "earning" ? newEarningName : newDeductionName
+                  const type = kind === "earning" ? newEarningType : newDeductionType
+                  const value = kind === "earning" ? newEarningValue : newDeductionValue
+                  return (
+                    <div key={kind}>
+                      <h4 className="mb-3 text-sm font-bold text-slate-900">
+                        {kind === "earning" ? "Earning Components" : "Deduction Components"}
+                      </h4>
 
-              <div>
-                <h4 className="mb-3 text-sm font-bold text-slate-900">Deduction Components</h4>
-                <div className="flex flex-col gap-2 md:flex-row">
-                  <Input
-                    value={newDeductionName}
-                    onChange={(event) => setNewDeductionName(event.target.value)}
-                    placeholder="Enter deduction component name"
-                    className="flex-1"
-                  />
-                  <select
-                    value={newDeductionType}
-                    onChange={(event) => setNewDeductionType(event.target.value as EmployeeComponentType)}
-                    className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                  >
-                    <option value="Fixed">Fixed</option>
-                    <option value="% of Basic">% of Basic</option>
-                    <option value="% of Gross">% of Gross</option>
-                  </select>
-                  <Button type="button" onClick={() => addComponent("Deduction")} className="bg-teal-600 hover:bg-teal-700">
-                    <Plus className="mr-2 h-4 w-4" /> Add
-                  </Button>
-                </div>
-              </div>
+                      <div className="mb-3 space-y-2">
+                        {items.length === 0 && (
+                          <p className="text-xs text-slate-500">No {kind} components yet.</p>
+                        )}
+                        {items.map((item, index) => (
+                          <div
+                            key={`${item.name}-${index}`}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                          >
+                            <span className="text-sm text-slate-900">
+                              {item.name}
+                              <span className="ml-2 text-xs text-slate-500">
+                                {TYPE_LABELS[item.type]}
+                                {item.type !== "fixed" ? ` · ${item.value ?? 0}%` : ""}
+                              </span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeConfigComponent(kind, index)}
+                              className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              aria-label={`Remove ${item.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col gap-2 md:flex-row">
+                        <Input
+                          value={name}
+                          onChange={(event) =>
+                            kind === "earning"
+                              ? setNewEarningName(event.target.value)
+                              : setNewDeductionName(event.target.value)
+                          }
+                          placeholder={`Enter ${kind} component name`}
+                          className="flex-1"
+                        />
+                        <select
+                          value={type}
+                          onChange={(event) =>
+                            kind === "earning"
+                              ? setNewEarningType(event.target.value as SalaryComponentType)
+                              : setNewDeductionType(event.target.value as SalaryComponentType)
+                          }
+                          className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                        >
+                          {COMPONENT_TYPES.map((item) => (
+                            <option key={item} value={item}>{TYPE_LABELS[item]}</option>
+                          ))}
+                        </select>
+                        {type !== "fixed" && (
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={value}
+                            onChange={(event) =>
+                              kind === "earning"
+                                ? setNewEarningValue(event.target.value)
+                                : setNewDeductionValue(event.target.value)
+                            }
+                            placeholder="%"
+                            className="h-10 w-24"
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          onClick={() => addConfigComponent(kind)}
+                          className="bg-teal-600 hover:bg-teal-700"
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Add
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
 
-            <div className="flex justify-end border-t border-slate-200 px-5 py-4">
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
-                Done
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveConfig}
+                disabled={!config || configSaving}
+                className="bg-teal-600 hover:bg-teal-700"
+              >
+                {configSaving ? "Saving…" : "Save Components"}
               </Button>
             </div>
           </div>

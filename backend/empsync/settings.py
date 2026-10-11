@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'punch',
     'company',
     'leave',
+    'salary.apps.SalaryAppConfig',
     'notification',
 ]
 

@@ -38,6 +38,7 @@ urlpatterns = [
     path('',include('punch.urls')),
     path('',include('company.urls')),
     path('',include('leave.urls')),
+    path('',include('salary.urls')),
     path('',include('notification.urls')),
 
 
