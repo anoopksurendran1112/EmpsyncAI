@@ -20,7 +20,7 @@ class DeviceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Device
-        fields = ['device_id','company_id', 'is_active', 'from_date', 'to_date']
+        fields = ['device_id','device_name','location','ip_address','model','company_id','is_active','from_date','to_date',]
 
 
 

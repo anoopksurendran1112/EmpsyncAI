@@ -1068,7 +1068,7 @@ def add_biometric_device(request):
         }, status=status.HTTP_409_CONFLICT)
 
     # Create and save the device
-    new_device = Device(device_id=device_id,company_id=company_id)
+    new_device = Device(device_id=device_id,company_id=company_id,device_name=request.data.get('device_name', ''),location=request.data.get('location', ''),ip_address=request.data.get('ip_address', ''),model=request.data.get('model', ''),is_active=request.data.get('is_active', True),)
     new_device.save()
 
     return Response({
@@ -1093,14 +1093,18 @@ def get_biometric_device(request, page):
     devices = Device.objects.filter(company_id=company_id)
 
     device_list = [
-        {
-            'id': device.id,
-            'device_id': device.device_id,
-            'is_active': device.is_active,
-            'from_date': device.from_date,
-            'to_date': device.to_date,
-        }
-        for device in devices
+    {
+        'id': device.id,
+        'device_id': device.device_id,
+        'device_name': device.device_name,
+        'location': device.location,
+        'ip_address': device.ip_address,
+        'model': device.model,
+        'is_active': device.is_active,
+        'from_date': device.from_date,
+        'to_date': device.to_date
+    }
+    for device in devices
     ]
 
     paginator = Paginator(device_list, 10)
@@ -1135,7 +1139,7 @@ def update_biometric_device(request, id):
         return Response({'success': False, 'message': 'Device not found or does not belong to the specified company.'}, status=404)
 
     if request.method == 'PUT':
-        request.data['company'] = company_id  # Match serializer field name
+        request.data['company_id'] = company_id  # Match serializer field name
 
         serializer = DeviceSerializer(instance=device, data=request.data, partial=True)
 
