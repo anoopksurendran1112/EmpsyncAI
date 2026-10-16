@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Clock, History, CalendarCheck, Send, X, Facebook, Linkedin, Twitter, Link2, Copy } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "@/components/ui/table";
-import { useEmployees } from "@/hooks/employees/useGetEmployees";
 
 interface Request {
   id: number;
@@ -22,17 +22,15 @@ interface Request {
   is_wfh: boolean;
   status: "pending" | "approved" | "rejected";
   created_at: string;
+  employee_id?: number | null;
+  biometric_id?: string | null;
+  college_id?: string | null;
 }
 const DEFAULT_CANDIDATE_PASSWORD = "empsyncai123@";
 
 export default function CandidateRequestPage() {
   const { company } = useAuth();
-
-  const { data: employeesData } = useEmployees(
-    company?.id || 0,
-    1,
-    1000
-  );
+  const router = useRouter();
 
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,6 +174,17 @@ export default function CandidateRequestPage() {
       console.error("Failed to copy credentials:", error);
       alert("Unable to copy credentials.");
     }
+  };
+
+  const openApplication = (application: Request) => {
+    setSelectedApplication(application);
+    setPassword(DEFAULT_CANDIDATE_PASSWORD);
+    setStaffId("");
+    setAutoGenerateStaffId(false);
+    setBiometricId("");
+    setAutoGenerateBiometricId(false);
+    setWfhEnabled(false);
+    setDetailDialogOpen(true);
   };
 
   //Accept handler 
@@ -405,7 +414,7 @@ const handleReject = async () => {
                   <TableHead>Candidate</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>User ID</TableHead>
+                  <TableHead>Employee ID</TableHead>
                   <TableHead>Biometric ID</TableHead>
                   <TableHead>Requested On</TableHead>
                   <TableHead>Status</TableHead>
@@ -414,30 +423,19 @@ const handleReject = async () => {
               <TableBody>
                 {requests.length > 0 ? (
                   requests.map((req) => {
-                  const requestEmail = req.email.trim().toLowerCase();
-
-                  console.log("Request Email:", req.email);
-                  console.log("Employees:", employeesData?.employees);
-                  employeesData?.employees?.forEach((emp) => {
-                    console.log(
-                      "Employee Email:",
-                      emp.email,
-                      "| ID:",
-                      emp.id,
-                      "| Biometric:",
-                      emp.biometric_id
-                    );
-                  });
-                  const employee = employeesData?.employees?.find(
-                    (u) =>
-                      u.email?.trim().toLowerCase() ===
-                      req.email?.trim().toLowerCase()
-                  );
-
-                  console.log("Matched Employee:", employee);
-                  
                     return (
-                      <TableRow key={req.id}>
+                      <TableRow
+                        key={req.id}
+                        onClick={() => openApplication(req)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openApplication(req);
+                          }
+                        }}
+                        tabIndex={0}
+                        className="cursor-pointer transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+                      >
                         <TableCell className="font-medium">
                           {req.first_name} {req.last_name}
                         </TableCell>
@@ -445,9 +443,9 @@ const handleReject = async () => {
                         <TableCell>{req.role}</TableCell>
                       <TableCell>{req.group}</TableCell>
 
-                     <TableCell>{employee?.id ?? "-"}</TableCell>
+                     <TableCell>{req.college_id ?? "-"}</TableCell>
 
-                      <TableCell>{employee?.biometric_id ?? "-"}</TableCell>
+                      <TableCell>{req.biometric_id ?? "-"}</TableCell>
 
                       <TableCell>
                         {new Date(req.created_at).toLocaleDateString()}
@@ -465,14 +463,9 @@ const handleReject = async () => {
                         </span>
                         {req.status === "pending" && (
                           <Button variant="ghost" size="sm" className="h-8 text-xs hover:bg-amber-50 text-amber-800 ml-2"
-                            onClick={() => {
-                              console.log(JSON.stringify(req, null, 2));
-                              console.log("req.is_wfh =", req.is_wfh);
-                              setSelectedApplication(req);
-                              setPassword(DEFAULT_CANDIDATE_PASSWORD);
-                              console.log("req.is_wfh =", req.is_wfh);
-                              setWfhEnabled(false);
-                              setDetailDialogOpen(true);
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openApplication(req);
                             }}
                           >
                             View
@@ -622,10 +615,34 @@ const handleReject = async () => {
                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Group</p>
                       <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.group}</p>
                     </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</p>
+                      <p className="text-sm font-medium capitalize text-slate-800 mt-0.5">{selectedApplication.status}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Requested On</p>
+                      <p className="text-sm text-slate-600 mt-0.5">
+                        {new Date(selectedApplication.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {selectedApplication.status === "approved" && (
+                      <>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Staff ID</p>
+                          <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.college_id ?? "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Biometric ID</p>
+                          <p className="text-sm text-slate-600 mt-0.5">{selectedApplication.biometric_id ?? "—"}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="border-t border-slate-100 my-2" />
 
+                  {selectedApplication.status === "pending" && (
+                    <>
                   {/* Staff ID Section */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -745,6 +762,8 @@ const handleReject = async () => {
                       className="data-[state=checked]:bg-indigo-600"
                     />
                   </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Action Footer */}
@@ -757,22 +776,33 @@ const handleReject = async () => {
                     Cancel
                   </Button>
 
-                  <Button
-                    variant="destructive"
-                    onClick={handleReject}
-                    disabled={updating}
-                    className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 shadow-none text-sm font-medium transition-colors"
-                  >
-                    {updating && actionType === "reject" ? "Rejecting..." : "Reject"}
-                  </Button>
+                  {selectedApplication.status === "pending" ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        onClick={handleReject}
+                        disabled={updating}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 shadow-none text-sm font-medium transition-colors"
+                      >
+                        {updating && actionType === "reject" ? "Rejecting..." : "Reject"}
+                      </Button>
 
-                  <Button
-                    onClick={handleAccept}
-                    disabled={updating}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-sm font-medium transition-colors"
-                  >
-                    {updating && actionType === "accept" ? "Accepting..." : "Accept"}
-                  </Button>
+                      <Button
+                        onClick={handleAccept}
+                        disabled={updating}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-sm font-medium transition-colors"
+                      >
+                        {updating && actionType === "accept" ? "Accepting..." : "Accept"}
+                      </Button>
+                    </>
+                  ) : selectedApplication.status === "approved" && selectedApplication.employee_id ? (
+                    <Button
+                      onClick={() => router.push(`/dashboard/employees/${selectedApplication.employee_id}`)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-sm font-medium transition-colors"
+                    >
+                      View Employee Profile
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             )}

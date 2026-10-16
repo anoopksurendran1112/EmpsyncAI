@@ -857,8 +857,26 @@ def candidateApplication(request):
             
         applications = CandidateApplications.objects.filter(company=company_id)
         serializer = CandidateApplicationsSerializer(applications, many=True)
+        application_data = serializer.data
+        emails = {
+            application.email.strip().lower()
+            for application in applications
+            if application.email
+        }
+        employees_by_email = {
+            user.email.strip().lower(): user
+            for user in CustomUser.objects.filter(
+                company=company_id,
+                email__in=emails,
+            ).select_related('profile')
+        }
+        for application, data in zip(applications, application_data):
+            employee = employees_by_email.get(application.email.strip().lower())
+            data['employee_id'] = employee.id if employee else None
+            data['biometric_id'] = employee.biometric_id if employee else None
+            data['college_id'] = employee.profile.staff_id if employee and hasattr(employee, 'profile') else None
         
-        return Response({ 'success': True, 'data': serializer.data }, 
+        return Response({ 'success': True, 'data': application_data }, 
             status=status.HTTP_200_OK)
 
     elif request.method == 'POST':
