@@ -13,6 +13,7 @@ import {
   type SalaryConfigData,
   type SalaryEmployeeDetail,
   type SalaryEmployeeSummary,
+  type SalaryRevision,
   type SalarySummary,
   type SalaryTotals,
 } from "./salary-api"
@@ -33,11 +34,19 @@ const currency = new Intl.NumberFormat("en-IN", {
 const formatMoney = (value: number | null | undefined) =>
   Number.isFinite(value as number) ? currency.format(value as number) : "—"
 
-// Periods are generated from the current date (no hardcoded list).
-function buildRecentPeriods(count = 12): ReportingPeriod[] {
+// Periods are generated from the current date down to the earliest known data
+// (no hardcoded list). Falls back to the last 12 months when unknown.
+function buildPeriods(earliest?: string | null): ReportingPeriod[] {
   const now = new Date()
+  let limit = 12
+  if (earliest && /^\d{4}-\d{2}$/.test(earliest)) {
+    const [year, month] = earliest.split("-").map(Number)
+    const diff = (now.getFullYear() - year) * 12 + (now.getMonth() - (month - 1))
+    limit = Math.max(1, Math.min(diff + 1, 240))
+  }
+
   const periods: ReportingPeriod[] = []
-  for (let offset = 0; offset < count; offset += 1) {
+  for (let offset = 0; offset < limit; offset += 1) {
     const date = new Date(now.getFullYear(), now.getMonth() - offset, 1)
     periods.push({
       value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`,
@@ -45,6 +54,18 @@ function buildRecentPeriods(count = 12): ReportingPeriod[] {
     })
   }
   return periods
+}
+
+function formatMonth(value?: string | null): string {
+  if (!value) return "—"
+  const [year, month] = value.split("-").map(Number)
+  if (!year || !month) return value
+  return new Date(year, month - 1, 1).toLocaleString("en-US", { month: "long", year: "numeric" })
+}
+
+function currentMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
 }
 
 const SALARY_TYPES = [
@@ -66,6 +87,18 @@ const STATUSES = [
   { value: "per_diem", label: "Per diem" },
   { value: "exited", label: "Exited" },
 ]
+
+const REVISION_REASONS = [
+  { value: "increment", label: "Increment / revision" },
+  { value: "promotion", label: "Promotion" },
+  { value: "correction", label: "Correction" },
+  { value: "status", label: "Status change" },
+  { value: "initial", label: "Initial setup" },
+  { value: "other", label: "Other" },
+]
+
+const reasonLabel = (value: string) =>
+  REVISION_REASONS.find((item) => item.value === value)?.label ?? value
 
 const TYPE_LABELS: Record<SalaryComponentType, string> = {
   fixed: "Fixed",
@@ -159,7 +192,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function SalaryPage() {
-  const periods = useMemo(() => buildRecentPeriods(12), [])
+  const [earliestMonth, setEarliestMonth] = useState<string | null>(null)
+  const periods = useMemo(() => buildPeriods(earliestMonth), [earliestMonth])
   const [selectedPeriod, setSelectedPeriod] = useState(periods[0].value)
   const [activeTab, setActiveTab] = useState<Tab>("register")
   const [search, setSearch] = useState("")
@@ -173,6 +207,15 @@ export default function SalaryPage() {
   const [draft, setDraft] = useState<Draft>({})
   const [detailLoading, setDetailLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const [history, setHistory] = useState<SalaryRevision[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [salaryMonth, setSalaryMonth] = useState("")
+  const [revisionReason, setRevisionReason] = useState("increment")
+  const [effectiveNote, setEffectiveNote] = useState("")
+  const [pendingSave, setPendingSave] = useState<{ month: string; isCorrection: boolean } | null>(
+    null,
+  )
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [config, setConfig] = useState<SalaryConfigData | null>(null)
@@ -188,10 +231,10 @@ export default function SalaryPage() {
 
   const periodLabel = periods.find((item) => item.value === selectedPeriod)?.label ?? selectedPeriod
 
-  const loadEmployees = async () => {
+  const loadEmployees = async (month: string) => {
     setEmployeesLoading(true)
     try {
-      const data = await salaryApi.listEmployees()
+      const data = await salaryApi.listEmployees(month)
       setEmployees(data)
       setSelectedEmployeeId((current) => current ?? data[0]?.employee_id ?? null)
     } catch (error) {
@@ -201,21 +244,55 @@ export default function SalaryPage() {
     }
   }
 
-  const loadSummary = async () => {
+  const loadSummary = async (month: string) => {
     try {
-      setSummary(await salaryApi.getSummary())
+      setSummary(await salaryApi.getSummary(month))
     } catch (error) {
       setNotice({ tone: "error", text: (error as Error).message })
     }
   }
 
-  useEffect(() => {
-    void loadEmployees()
-    void loadSummary()
-  }, [])
+  const loadHistory = async (employeeId: number) => {
+    setHistoryLoading(true)
+    try {
+      setHistory(await salaryApi.getHistory(employeeId))
+    } catch {
+      setHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
 
+  // Register + summary follow the selected payroll period.
   useEffect(() => {
-    if (selectedEmployeeId == null) return
+    void loadEmployees(selectedPeriod)
+    void loadSummary(selectedPeriod)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPeriod])
+
+  // Widen the period dropdown back to the earliest structure/join date.
+  useEffect(() => {
+    if (employeesLoading) return
+    let earliest: string | null = null
+    for (const employee of employees) {
+      for (const candidate of [employee.structure_effective_from, employee.joined]) {
+        if (!candidate) continue
+        const month = candidate.slice(0, 7)
+        if (!earliest || month < earliest) earliest = month
+      }
+    }
+    if (earliest) {
+      setEarliestMonth((current) => (current && current < earliest ? current : earliest))
+    }
+  }, [employees, employeesLoading])
+
+  // The configure tab always edits the *current* structure.
+  useEffect(() => {
+    if (selectedEmployeeId == null) {
+      setDetail(null)
+      setHistory([])
+      return
+    }
     let cancelled = false
     setDetailLoading(true)
     salaryApi
@@ -224,6 +301,8 @@ export default function SalaryPage() {
         if (cancelled) return
         setDetail(data)
         setDraft(draftFromDetail(data))
+        setSalaryMonth(data.effective_from ? data.effective_from.slice(0, 7) : currentMonth())
+        setEffectiveNote(data.notes || "")
       })
       .catch((error: Error) => {
         if (!cancelled) setNotice({ tone: "error", text: error.message })
@@ -231,9 +310,11 @@ export default function SalaryPage() {
       .finally(() => {
         if (!cancelled) setDetailLoading(false)
       })
+    void loadHistory(selectedEmployeeId)
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEmployeeId])
 
   const filteredRegister = useMemo(() => {
@@ -249,6 +330,21 @@ export default function SalaryPage() {
     [detail, draft],
   )
 
+  const existingForMonth = useMemo(
+    () =>
+      history.find((revision) => revision.effective_from.slice(0, 7) === salaryMonth) ?? null,
+    [history, salaryMonth],
+  )
+
+  // Monthly pattern: an existing month is a correction, otherwise it is new data.
+  useEffect(() => {
+    if (!salaryMonth) return
+    setRevisionReason(
+      existingForMonth ? "correction" : detail?.configured ? "increment" : "initial",
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salaryMonth, existingForMonth, detail?.configured])
+
   const earningRows = preview?.rows.filter((row) => row.kind === "earning") ?? []
   const deductionRows = preview?.rows.filter((row) => row.kind === "deduction") ?? []
 
@@ -259,8 +355,19 @@ export default function SalaryPage() {
     setDraft((current) => ({ ...current, [key]: { ...current[key], ...patch } }))
   }
 
-  const handleSaveEmployee = async () => {
+  const requestSaveEmployee = () => {
     if (!detail || !selectedEmployeeId) return
+    if (!salaryMonth) {
+      setNotice({ tone: "error", text: "Choose a salary month first." })
+      return
+    }
+    setPendingSave({ month: salaryMonth, isCorrection: Boolean(existingForMonth) })
+  }
+
+  const confirmSaveEmployee = async () => {
+    if (!detail || !selectedEmployeeId || !pendingSave) return
+    const intent = pendingSave
+    setPendingSave(null)
     setSaving(true)
     setNotice(null)
     try {
@@ -269,6 +376,9 @@ export default function SalaryPage() {
         employment_type: detail.employment_type,
         status: detail.status,
         components: draft,
+        notes: effectiveNote,
+        effective_from: `${intent.month}-01`,
+        reason: intent.isCorrection ? "correction" : revisionReason,
       })
       setDetail((current) =>
         current
@@ -281,12 +391,19 @@ export default function SalaryPage() {
               configured: true,
               components: saved.components,
               totals: saved.totals,
+              effective_from: saved.effective_from,
             }
           : current,
       )
-      setNotice({ tone: "success", text: "Salary structure saved." })
-      void loadEmployees()
-      void loadSummary()
+      setNotice({
+        tone: "success",
+        text: intent.isCorrection
+          ? `Salary data for ${formatMonth(intent.month)} updated.`
+          : `New salary data created for ${formatMonth(intent.month)}.`,
+      })
+      void loadEmployees(selectedPeriod)
+      void loadSummary(selectedPeriod)
+      void loadHistory(selectedEmployeeId)
     } catch (error) {
       setNotice({ tone: "error", text: (error as Error).message })
     } finally {
@@ -360,7 +477,7 @@ export default function SalaryPage() {
         setDetail(refreshed)
         setDraft(draftFromDetail(refreshed))
       }
-      void loadSummary()
+      void loadSummary(selectedPeriod)
     } catch (error) {
       setNotice({ tone: "error", text: (error as Error).message })
     } finally {
@@ -462,7 +579,7 @@ export default function SalaryPage() {
 
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1100px] border-collapse text-left">
+              <table className="w-full min-w-[1250px] border-collapse text-left">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
                   <tr>
                     {[
@@ -470,6 +587,7 @@ export default function SalaryPage() {
                       "Staff member",
                       "Department",
                       "Joined",
+                      "Structure month",
                       "Salary Type",
                       "Basic / consolidated",
                       "Allowance",
@@ -486,13 +604,13 @@ export default function SalaryPage() {
                 <tbody>
                   {employeesLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-slate-500">
+                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-slate-500">
                         Loading staff…
                       </td>
                     </tr>
                   ) : filteredRegister.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-slate-500">
+                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-slate-500">
                         No staff members found.
                       </td>
                     </tr>
@@ -508,6 +626,9 @@ export default function SalaryPage() {
                           </td>
                           <td className="px-4 py-3 text-sm text-slate-700">{item.dept}</td>
                           <td className="px-4 py-3 text-sm text-slate-700">{item.joined || "—"}</td>
+                          <td className="px-4 py-3 text-sm text-slate-700">
+                            {item.structure_effective_from ? formatMonth(item.structure_effective_from) : "—"}
+                          </td>
                           <td className="px-4 py-3 text-sm text-slate-700">{salaryTypeLabel(item.salary_type)}</td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(item.basic)}</td>
                           <td className="px-4 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(allowance)}</td>
@@ -635,7 +756,7 @@ export default function SalaryPage() {
               </Button>
               <Button
                 type="button"
-                onClick={handleSaveEmployee}
+                onClick={requestSaveEmployee}
                 disabled={!detail || saving}
                 className="bg-teal-600 hover:bg-teal-700"
               >
@@ -706,6 +827,52 @@ export default function SalaryPage() {
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-3">
+                <label className="text-xs font-medium text-slate-500">
+                  Salary Month
+                  <input
+                    type="month"
+                    value={salaryMonth}
+                    onChange={(event) => setSalaryMonth(event.target.value)}
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  />
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Reason
+                  <select
+                    value={revisionReason}
+                    onChange={(event) => setRevisionReason(event.target.value)}
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  >
+                    {REVISION_REASONS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs font-medium text-slate-500">
+                  Note
+                  <input
+                    type="text"
+                    value={effectiveNote}
+                    onChange={(event) => setEffectiveNote(event.target.value)}
+                    placeholder="Optional note for this month"
+                    className="mt-2 block h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:border-teal-500"
+                  />
+                </label>
+                <p className="text-[11px] sm:col-span-3">
+                  {existingForMonth ? (
+                    <span className="font-medium text-amber-700">
+                      {formatMonth(salaryMonth)} already has a salary record — saving will update it
+                      (correction).
+                    </span>
+                  ) : (
+                    <span className="font-medium text-teal-700">
+                      No record for {formatMonth(salaryMonth)} — saving will create new salary data.
+                    </span>
+                  )}
+                </p>
               </div>
 
               <div className="space-y-4">
@@ -815,6 +982,72 @@ export default function SalaryPage() {
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Estimated Net</p>
                   <p className="mt-2 text-[18px] font-bold text-slate-900">{formatMoney(preview.totals.net)}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3">
+                  <div>
+                    <div className="text-base font-bold text-slate-900">Salary History</div>
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      Every effective-dated revision for {detail.name}
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {history.length} {history.length === 1 ? "revision" : "revisions"}
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[860px] border-collapse text-left">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-[0.08em] text-slate-500">
+                      <tr>
+                        <th className="border-b border-slate-200 px-5 py-3 font-semibold">Salary Month</th>
+                        <th className="border-b border-slate-200 px-5 py-3 font-semibold">Reason</th>
+                        <th className="border-b border-slate-200 px-5 py-3 font-semibold">Status</th>
+                        <th className="border-b border-slate-200 px-5 py-3 text-right font-semibold">Basic</th>
+                        <th className="border-b border-slate-200 px-5 py-3 text-right font-semibold">Gross</th>
+                        <th className="border-b border-slate-200 px-5 py-3 text-right font-semibold">Deductions</th>
+                        <th className="border-b border-slate-200 px-5 py-3 text-right font-semibold">Net</th>
+                        <th className="border-b border-slate-200 px-5 py-3 font-semibold">Note</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyLoading ? (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-6 text-center text-sm text-slate-500">
+                            Loading history…
+                          </td>
+                        </tr>
+                      ) : history.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="px-5 py-6 text-center text-sm text-slate-500">
+                            No revisions yet. Save the structure to create the first one.
+                          </td>
+                        </tr>
+                      ) : (
+                        history.map((revision) => (
+                          <tr key={revision.id} className="border-b border-slate-100 last:border-0">
+                            <td className="px-5 py-3 text-sm font-semibold text-slate-900">
+                              {formatMonth(revision.effective_from)}
+                              {revision.is_current && (
+                                <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">
+                                  Current
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-sm text-slate-700">{reasonLabel(revision.reason)}</td>
+                            <td className="px-5 py-3"><StatusBadge status={revision.status_label} /></td>
+                            <td className="px-5 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(revision.basic)}</td>
+                            <td className="px-5 py-3 text-right font-mono text-xs text-slate-900">{formatMoney(revision.gross)}</td>
+                            <td className="px-5 py-3 text-right font-mono text-xs text-red-700">{formatMoney(revision.deductions)}</td>
+                            <td className="px-5 py-3 text-right font-mono text-xs font-bold text-slate-900">{formatMoney(revision.net)}</td>
+                            <td className="px-5 py-3 text-xs text-slate-500">{revision.note || "—"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </>
@@ -948,6 +1181,46 @@ export default function SalaryPage() {
                 className="bg-teal-600 hover:bg-teal-700"
               >
                 {configSaving ? "Saving…" : "Save Components"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingSave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-900">
+              {pendingSave.isCorrection ? "Update existing salary data?" : "Create new salary data?"}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              {pendingSave.isCorrection ? (
+                <>
+                  A salary record already exists for{" "}
+                  <span className="font-semibold text-slate-900">{formatMonth(pendingSave.month)}</span>.
+                  Saving now will <span className="font-semibold text-amber-700">update that month
+                  (correction)</span> instead of creating a duplicate.
+                </>
+              ) : (
+                <>
+                  No salary record exists for{" "}
+                  <span className="font-semibold text-slate-900">{formatMonth(pendingSave.month)}</span>.
+                  Saving will create a <span className="font-semibold text-teal-700">new monthly
+                  record</span>.
+                </>
+              )}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPendingSave(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmSaveEmployee}
+                disabled={saving}
+                className="bg-teal-600 hover:bg-teal-700"
+              >
+                {saving ? "Saving…" : pendingSave.isCorrection ? "Yes, update" : "Yes, create"}
               </Button>
             </div>
           </div>

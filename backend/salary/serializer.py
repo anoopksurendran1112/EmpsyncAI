@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import SalaryConfig, EmployeeSalary
+from .models import SalaryConfig, EmployeeSalary, EmployeeSalaryRevision
 from .services import ALLOWED_COMPONENT_TYPES, slugify_component_key
 
 
@@ -92,9 +92,19 @@ class SalaryConfigSerializer(serializers.ModelSerializer):
 
 
 class EmployeeSalarySerializer(serializers.ModelSerializer):
+    effective_from = serializers.DateField(required=False, allow_null=True)
+    reason = serializers.ChoiceField(
+        choices=[choice[0] for choice in EmployeeSalaryRevision.REASON_CHOICES],
+        required=False,
+        default='increment',
+    )
+
     class Meta:
         model = EmployeeSalary
-        fields = ['salary_type', 'employment_type', 'status', 'components', 'notes']
+        fields = [
+            'salary_type', 'employment_type', 'status', 'components', 'notes',
+            'effective_from', 'reason',
+        ]
 
     def validate_components(self, value):
         if value in (None, ''):

@@ -18,7 +18,7 @@ async function readResponse(response: Response) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
   const companyId = cookieStore.get("company_id")?.value;
@@ -30,8 +30,11 @@ export async function GET() {
     );
   }
 
+  const month = new URL(request.url).searchParams.get("month");
+  const monthQuery = month ? `&month=${encodeURIComponent(month)}` : "";
+
   try {
-    const response = await fetch(`${backendUrl}?company_id=${companyId}`, {
+    const response = await fetch(`${backendUrl}?company_id=${companyId}${monthQuery}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,

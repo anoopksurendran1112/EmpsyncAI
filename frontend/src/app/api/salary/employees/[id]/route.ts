@@ -34,8 +34,11 @@ export async function GET(
     );
   }
 
+  const month = new URL(request.url).searchParams.get("month");
+  const monthQuery = month ? `&month=${encodeURIComponent(month)}` : "";
+
   try {
-    const response = await fetch(`${backendUrl}/${id}?company_id=${companyId}`, {
+    const response = await fetch(`${backendUrl}/${id}?company_id=${companyId}${monthQuery}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,

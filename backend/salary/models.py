@@ -83,3 +83,61 @@ class EmployeeSalary(models.Model):
 
     def __str__(self):
         return f'{self.employee} - {self.company}'
+
+
+class EmployeeSalaryRevision(models.Model):
+    """Immutable, effective-dated snapshot of an employee's salary structure.
+
+    Every save of an :class:`EmployeeSalary` records one of these. "Salary as of
+    month M" is the latest revision whose ``effective_from`` is on or before the
+    last day of M, so past months keep their historical values even after the
+    current structure is edited. ``EmployeeSalary`` stays as the fast "current"
+    snapshot that mirrors the newest revision.
+    """
+
+    REASON_CHOICES = [
+        ('initial', 'Initial setup'),
+        ('increment', 'Increment / revision'),
+        ('promotion', 'Promotion'),
+        ('correction', 'Correction'),
+        ('status', 'Status change'),
+        ('other', 'Other'),
+    ]
+
+    company = models.ForeignKey(
+        'company.Company', on_delete=models.CASCADE, related_name='salary_revisions'
+    )
+    employee = models.ForeignKey(
+        'user.CustomUser', on_delete=models.CASCADE, related_name='salary_revisions'
+    )
+    effective_from = models.DateField()
+
+    # Snapshot of the structure on the effective date.
+    salary_type = models.CharField(
+        max_length=20, choices=EmployeeSalary.SALARY_TYPE_CHOICES, default='regular'
+    )
+    employment_type = models.CharField(
+        max_length=20, choices=EmployeeSalary.EMPLOYMENT_TYPE_CHOICES, default='permanent'
+    )
+    status = models.CharField(
+        max_length=20, choices=EmployeeSalary.STATUS_CHOICES, default='active'
+    )
+    components = models.JSONField(default=dict, blank=True)
+
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default='increment')
+    note = models.TextField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        'user.CustomUser', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='salary_revisions_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-effective_from', '-id']
+        unique_together = ('company', 'employee', 'effective_from')
+        indexes = [
+            models.Index(fields=['company', 'employee', '-effective_from']),
+        ]
+
+    def __str__(self):
+        return f'{self.employee} - {self.effective_from}'

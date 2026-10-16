@@ -1,3 +1,6 @@
+from datetime import date
+
+from django.db import transaction
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -5,13 +8,18 @@ from rest_framework.response import Response
 from company.models import Company, CompanyUser
 from user.models import CustomUser
 
-from .models import EmployeeSalary
+from .models import EmployeeSalary, EmployeeSalaryRevision
 from .serializer import SalaryConfigSerializer, EmployeeSalarySerializer
 from .services import (
     build_company_summary,
     config_component_map,
     get_or_create_config,
+    latest_revision,
+    parse_month,
+    record_revision,
+    revision_effective_to_map,
     serialize_components,
+    structures_as_of,
 )
 
 STATUS_LABELS = {
@@ -63,6 +71,11 @@ def _employee_identity(employee):
     }
 
 
+def _resolve_as_of(request):
+    """Read the optional ``month`` query param (``YYYY-MM``) into an as-of date."""
+    return parse_month(request.query_params.get('month'))
+
+
 @api_view(['GET', 'PUT'])
 def salary_config_view(request):
     company, error = _resolve_company(request)
@@ -112,12 +125,13 @@ def salary_employees_view(request):
         .select_related('role', 'group', 'profile')
         .order_by('first_name', 'last_name')
     )
-    existing = {es.employee_id: es for es in EmployeeSalary.objects.filter(company=company)}
+    existing = structures_as_of(company, _resolve_as_of(request))
 
     data = []
     for employee in employees:
         item = _employee_identity(employee)
         record = existing.get(employee.id)
+        effective_from = getattr(record, 'effective_from', None) if record else None
         if record:
             _, totals = serialize_components(config, record.components)
             item.update({
@@ -130,6 +144,7 @@ def salary_employees_view(request):
                 'deductions': totals['deductions'],
                 'net': totals['net'],
                 'configured': True,
+                'structure_effective_from': effective_from.isoformat() if effective_from else None,
             })
         else:
             item.update({
@@ -142,6 +157,7 @@ def salary_employees_view(request):
                 'deductions': 0,
                 'net': 0,
                 'configured': False,
+                'structure_effective_from': None,
             })
         data.append(item)
 
@@ -167,9 +183,21 @@ def employee_salary_view(request, employee_id):
         )
 
     config = get_or_create_config(company)
-    record = EmployeeSalary.objects.filter(company=company, employee=employee).first()
 
     if request.method == 'GET':
+        as_of = _resolve_as_of(request)
+        record = structures_as_of(company, as_of).get(employee.id)
+        note_text = ''
+        effective_from = ''
+        effective_to = None
+        if isinstance(record, EmployeeSalaryRevision):
+            note_text = record.note or ''
+            effective_from = record.effective_from.isoformat()
+            end = revision_effective_to_map(company, employee).get(record.id)
+            effective_to = end.isoformat() if end else None
+        elif record is not None:
+            note_text = record.notes or ''
+
         components, totals = serialize_components(config, record.components if record else {})
         payload = _employee_identity(employee)
         payload.update({
@@ -179,13 +207,17 @@ def employee_salary_view(request, employee_id):
             'status_label': STATUS_LABELS.get(
                 record.status if record else 'new_joiner', 'New joiner'
             ),
-            'notes': record.notes if record else '',
+            'notes': note_text,
+            'effective_from': effective_from,
+            'effective_to': effective_to,
+            'as_of': as_of.isoformat() if as_of else '',
             'configured': bool(record),
             'components': components,
             'totals': totals,
         })
         return Response({'success': True, 'data': payload})
 
+    record = EmployeeSalary.objects.filter(company=company, employee=employee).first()
     is_new = record is None
     serializer = (
         EmployeeSalarySerializer(data=request.data)
@@ -208,10 +240,40 @@ def employee_salary_view(request, employee_id):
                 'message': f"Unknown salary component(s): {', '.join(unknown)}",
             }, status=status.HTTP_400_BAD_REQUEST)
 
-    if is_new:
-        record = serializer.save(company=company, employee=employee, created_by=request.user)
-    else:
-        record = serializer.save()
+    effective_from = validated.pop('effective_from', None)
+    reason = validated.pop('reason', 'increment')
+    if effective_from is None:
+        latest = latest_revision(company, employee)
+        effective_from = latest.effective_from if latest else date.today()
+
+    # Monthly pattern: saving into a month that already has a record is a correction.
+    month_start = effective_from.replace(day=1)
+    month_exists = EmployeeSalaryRevision.objects.filter(
+        company=company, employee=employee, effective_from=month_start
+    ).exists()
+    if month_exists and reason == 'increment':
+        reason = 'correction'
+
+    with transaction.atomic():
+        if is_new:
+            record = serializer.save(
+                company=company, employee=employee, created_by=request.user
+            )
+        else:
+            record = serializer.save()
+
+        revision, revision_created = record_revision(
+            company,
+            employee,
+            effective_from=effective_from,
+            salary_type=record.salary_type,
+            employment_type=record.employment_type,
+            status=record.status,
+            components=record.components,
+            note=record.notes,
+            reason=reason,
+            created_by=request.user,
+        )
 
     components, totals = serialize_components(config, record.components)
     return Response({
@@ -224,10 +286,61 @@ def employee_salary_view(request, employee_id):
             'status': record.status,
             'status_label': STATUS_LABELS.get(record.status, record.status),
             'configured': True,
+            'effective_from': revision.effective_from.isoformat(),
+            'revision_created': revision_created,
             'components': components,
             'totals': totals,
         },
     })
+
+
+@api_view(['GET'])
+def employee_salary_history_view(request, employee_id):
+    """Effective-dated salary revision history for one employee (newest first)."""
+    company, error = _resolve_company(request)
+    if error:
+        return error
+
+    try:
+        employee = CustomUser.objects.get(id=employee_id, company=company)
+    except CustomUser.DoesNotExist:
+        return Response(
+            {'success': False, 'message': 'Employee not found in this company'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    config = get_or_create_config(company)
+    revisions = list(
+        EmployeeSalaryRevision.objects
+        .filter(company=company, employee=employee)
+        .order_by('-effective_from', '-id')
+    )
+    ranges = revision_effective_to_map(company, employee)
+    latest_id = revisions[0].id if revisions else None
+
+    data = []
+    for revision in revisions:
+        _, totals = serialize_components(config, revision.components)
+        effective_to = ranges.get(revision.id)
+        data.append({
+            'id': revision.id,
+            'effective_from': revision.effective_from.isoformat(),
+            'effective_to': effective_to.isoformat() if effective_to else None,
+            'is_current': revision.id == latest_id,
+            'salary_type': revision.salary_type,
+            'employment_type': revision.employment_type,
+            'status': revision.status,
+            'status_label': STATUS_LABELS.get(revision.status, revision.status),
+            'reason': revision.reason,
+            'note': revision.note or '',
+            'basic': totals['basic'],
+            'gross': totals['gross'],
+            'deductions': totals['deductions'],
+            'net': totals['net'],
+            'created_at': revision.created_at.isoformat(),
+        })
+
+    return Response({'success': True, 'data': data})
 
 
 @api_view(['GET'])
@@ -237,4 +350,4 @@ def salary_summary_view(request):
     if error:
         return error
 
-    return Response({'success': True, 'data': build_company_summary(company)})
+    return Response({'success': True, 'data': build_company_summary(company, _resolve_as_of(request))})

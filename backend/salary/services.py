@@ -1,4 +1,7 @@
+import calendar
 import re
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 ALLOWED_COMPONENT_TYPES = ('fixed', 'percent_basic', 'percent_gross')
 
@@ -25,6 +28,142 @@ def get_or_create_config(company):
         },
     )
     return config
+
+
+def parse_month(value):
+    """Parse ``''`` / ``'YYYY-MM'`` / ``'YYYY-MM-DD'`` / ``date`` into a date.
+
+    A bare ``YYYY-MM`` resolves to the **last day** of that month, which is the
+    natural "as of" boundary for monthly reporting. Returns ``None`` when the
+    value is empty or unparseable.
+    """
+    if value in (None, ''):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    try:
+        if len(text) == 7:
+            year, month = (int(part) for part in text.split('-'))
+            return date(year, month, calendar.monthrange(year, month)[1])
+        if len(text) >= 10:
+            return date.fromisoformat(text[:10])
+    except (ValueError, TypeError):
+        return None
+    return None
+
+
+def structures_as_of(company, as_of=None):
+    """Map ``employee_id`` -> structure-like object for the given point in time.
+
+    ``as_of`` is a ``date``. When ``None`` the *latest* revision is returned (the
+    "current" structure). For a given date the latest revision whose
+    ``effective_from`` is on or before that date wins; months that predate every
+    revision fall back to the earliest one so an employee never silently vanishes.
+
+    Employees with no revisions fall back to their current ``EmployeeSalary``
+    snapshot, so rows created before revisions existed still show up.
+    """
+    from .models import EmployeeSalary, EmployeeSalaryRevision
+
+    by_employee = defaultdict(list)
+    revisions = (
+        EmployeeSalaryRevision.objects
+        .filter(company=company)
+        .order_by('employee_id', 'effective_from', 'id')
+    )
+    for revision in revisions:
+        by_employee[revision.employee_id].append(revision)
+
+    result = {}
+    for employee_id, items in by_employee.items():
+        if as_of is None:
+            result[employee_id] = items[-1]
+            continue
+        applicable = [item for item in items if item.effective_from <= as_of]
+        result[employee_id] = applicable[-1] if applicable else items[0]
+
+    for structure in EmployeeSalary.objects.filter(company=company):
+        result.setdefault(structure.employee_id, structure)
+    return result
+
+
+def latest_revision(company, employee):
+    from .models import EmployeeSalaryRevision
+
+    return (
+        EmployeeSalaryRevision.objects
+        .filter(company=company, employee=employee)
+        .order_by('-effective_from', '-id')
+        .first()
+    )
+
+
+def revision_effective_to_map(company, employee):
+    """Map revision id -> the day it stops applying (next revision's start - 1).
+
+    The newest revision maps to ``None`` (still in effect). This is derived, so
+    an older record's range always ends where the next update begins.
+    """
+    from .models import EmployeeSalaryRevision
+
+    revisions = list(
+        EmployeeSalaryRevision.objects
+        .filter(company=company, employee=employee)
+        .order_by('effective_from', 'id')
+    )
+    result = {}
+    for index, revision in enumerate(revisions):
+        if index + 1 < len(revisions):
+            result[revision.id] = revisions[index + 1].effective_from - timedelta(days=1)
+        else:
+            result[revision.id] = None
+    return result
+
+
+def record_revision(company, employee, *, effective_from, salary_type, employment_type,
+                    status, components, note=None, reason='increment', created_by=None):
+    """Upsert the single salary record for the month of ``effective_from``.
+
+    Follows the monthly payroll pattern: the date is normalised to the **first of
+    the month**, and each employee has at most one record per month. If a record
+    already exists for that month it is updated in place (a correction); otherwise
+    a new record is created.
+    """
+    from .models import EmployeeSalaryRevision
+
+    month_start = effective_from.replace(day=1)
+    existing = (
+        EmployeeSalaryRevision.objects
+        .filter(company=company, employee=employee, effective_from=month_start)
+        .first()
+    )
+
+    fields = {
+        'salary_type': salary_type,
+        'employment_type': employment_type,
+        'status': status,
+        'components': components or {},
+        'note': note,
+        'reason': reason,
+    }
+
+    if existing is not None:
+        for key, value in fields.items():
+            setattr(existing, key, value)
+        existing.save()
+        return existing, False
+
+    revision = EmployeeSalaryRevision.objects.create(
+        company=company,
+        employee=employee,
+        effective_from=month_start,
+        created_by=created_by,
+        **fields,
+    )
+    return revision, True
 
 
 def config_component_map(config):
@@ -141,14 +280,13 @@ def serialize_components(config, component_values):
     return enriched, totals
 
 
-def build_company_summary(company):
-    """Compute a company-wide payroll summary from the current salary structures.
+def build_company_summary(company, as_of=None):
+    """Compute a company-wide payroll summary for a point in time.
 
-    Nothing is persisted: every figure is derived on the fly from
-    ``EmployeeSalary`` + ``SalaryConfig`` so the UI never needs static data.
+    ``as_of`` is a ``date`` (or ``None`` for the current structure). Nothing is
+    persisted: every figure is derived on the fly from the effective-dated
+    revisions + ``SalaryConfig`` so the UI never needs static data.
     """
-    from .models import EmployeeSalary
-
     config = get_or_create_config(company)
 
     totals = {'staff_count': 0, 'gross': 0.0, 'deductions': 0.0, 'net': 0.0}
@@ -169,8 +307,9 @@ def build_company_summary(company):
             'probationary': 0.0,
         }
 
-    structures = EmployeeSalary.objects.filter(company=company)
-    for structure in structures:
+    structures = structures_as_of(company, as_of)
+    for structure in structures.values():
+        rows, recorded = serialize_components(config, structure.components)
         rows, recorded = serialize_components(config, structure.components)
         employment = (
             structure.employment_type if structure.employment_type in split else 'permanent'

@@ -77,6 +77,7 @@ export interface SalaryEmployeeSummary {
   deductions: number;
   net: number;
   configured: boolean;
+  structure_effective_from?: string | null;
 }
 
 export interface SalaryEmployeeDetail {
@@ -93,6 +94,27 @@ export interface SalaryEmployeeDetail {
   configured: boolean;
   components: SalaryComponentRow[];
   totals: SalaryTotals;
+  effective_from?: string;
+  effective_to?: string | null;
+  as_of?: string;
+}
+
+export interface SalaryRevision {
+  id: number;
+  effective_from: string;
+  effective_to: string | null;
+  is_current?: boolean;
+  salary_type: string;
+  employment_type: string;
+  status: string;
+  status_label: string;
+  reason: string;
+  note: string;
+  basic: number;
+  gross: number;
+  deductions: number;
+  net: number;
+  created_at: string;
 }
 
 export interface SaveEmployeeSalaryPayload {
@@ -100,6 +122,9 @@ export interface SaveEmployeeSalaryPayload {
   employment_type: string;
   status: string;
   components: Record<string, SalaryComponentValue>;
+  notes?: string;
+  effective_from?: string;
+  reason?: string;
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -128,19 +153,31 @@ export const salaryApi = {
     return result.data;
   },
 
-  async listEmployees(): Promise<SalaryEmployeeSummary[]> {
-    const result = await requestJson<{ data: SalaryEmployeeSummary[] }>("/api/salary/employees");
+  async listEmployees(month?: string): Promise<SalaryEmployeeSummary[]> {
+    const query = month ? `?month=${encodeURIComponent(month)}` : "";
+    const result = await requestJson<{ data: SalaryEmployeeSummary[] }>(
+      `/api/salary/employees${query}`,
+    );
     return result.data;
   },
 
-  async getSummary(): Promise<SalarySummary> {
-    const result = await requestJson<{ data: SalarySummary }>("/api/salary/summary");
+  async getSummary(month?: string): Promise<SalarySummary> {
+    const query = month ? `?month=${encodeURIComponent(month)}` : "";
+    const result = await requestJson<{ data: SalarySummary }>(`/api/salary/summary${query}`);
     return result.data;
   },
 
-  async getEmployee(employeeId: number): Promise<SalaryEmployeeDetail> {
+  async getEmployee(employeeId: number, month?: string): Promise<SalaryEmployeeDetail> {
+    const query = month ? `?month=${encodeURIComponent(month)}` : "";
     const result = await requestJson<{ data: SalaryEmployeeDetail }>(
-      `/api/salary/employees/${employeeId}`,
+      `/api/salary/employees/${employeeId}${query}`,
+    );
+    return result.data;
+  },
+
+  async getHistory(employeeId: number): Promise<SalaryRevision[]> {
+    const result = await requestJson<{ data: SalaryRevision[] }>(
+      `/api/salary/employees/${employeeId}/history`,
     );
     return result.data;
   },
