@@ -149,6 +149,10 @@ class Device(models.Model):
 
     ENTRY_TYPE_CHOICES = [('Check-In', 'Check-In'),('Check-Out', 'Check-Out'),]
     device_id = models.CharField(max_length = 50)
+    device_name = models.CharField(max_length=200, blank=True, default='')
+    location = models.CharField(max_length=200, blank=True, default='')
+    ip_address = models.CharField(max_length=45, blank=True, default='')
+    model = models.CharField(max_length=100, blank=True, default='')
     company = models.ForeignKey(Company, on_delete=models.PROTECT, related_name='devices')
     is_active = models.BooleanField(default=True)
     from_date = models.DateField(null=True, blank=True)
