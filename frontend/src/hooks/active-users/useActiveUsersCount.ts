@@ -6,6 +6,7 @@ interface ActiveUsersCountResponse {
   male_count: number;
   female_count: number;
   others_count: number;
+  leave_count: number;
   success: boolean;
   message: string;
   fallback?: boolean;
@@ -35,6 +36,7 @@ async function fetchActiveUsersCount(companyId: number): Promise<ActiveUsersCoun
       male_count: data.male_count || 0,
       female_count: data.female_count || 0,
       others_count: data.others_count || 0,
+      leave_count: data.leave_count ?? 0,
       success: data.success !== false,
       message: data.message || "Success",
       fallback: data.fallback || false
@@ -46,6 +48,7 @@ async function fetchActiveUsersCount(companyId: number): Promise<ActiveUsersCoun
       male_count: 0,
       female_count: 0,
       others_count: 0,
+      leave_count: 0,
       success: false,
       message: "Failed to fetch active users count",
       fallback: true

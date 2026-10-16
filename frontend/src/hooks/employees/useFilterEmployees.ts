@@ -54,6 +54,7 @@ async function fetchFilterEmployees({
   isActive,
   groups,
   avgHourFilter,
+  absentOnly,
 }: {
   companyId: number;
   page?: number;
@@ -63,6 +64,7 @@ async function fetchFilterEmployees({
   isActive?: boolean;
   groups?: number[];
   avgHourFilter?: string;
+  absentOnly?: boolean;
 }): Promise<FilterEmployeesData> {
   const res = await fetch("/api/employees/group_filter", {
     method: "POST",
@@ -78,6 +80,7 @@ async function fetchFilterEmployees({
       is_active: isActive,
       groups: groups,
       avg_hour_filter: avgHourFilter,
+      absent_only: absentOnly,
     }),
   });
 
@@ -126,6 +129,7 @@ export function useFilterEmployees({
   isActive,
   groups,
   avgHourFilter,
+  absentOnly,
   enabled = true,
 }: {
   companyId: number;
@@ -136,6 +140,7 @@ export function useFilterEmployees({
   isActive?: boolean;
   groups?: number[];
   avgHourFilter?: string;
+  absentOnly?: boolean;
   enabled?: boolean;
 }) {
   return useQuery<FilterEmployeesData>({
@@ -148,6 +153,7 @@ export function useFilterEmployees({
       isActive,
       groups,
       avgHourFilter,
+      absentOnly,
       page,
     ],
     queryFn: () =>
@@ -160,6 +166,7 @@ export function useFilterEmployees({
         isActive,
         groups,
         avgHourFilter,
+        absentOnly,
       }),
     enabled: !!companyId && enabled,
     staleTime: 2 * 60 * 1000, // 2 minutes
